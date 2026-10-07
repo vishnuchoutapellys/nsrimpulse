@@ -6,19 +6,26 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { PaymentMode, PaymentStatus, Prisma, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import type { NextFunction, Request, Response } from 'express';
 import { createAdminRouter } from './adminRoutes.js';
+import { issueStudentAccessToken, studentCanAccessRecord, verifyStudentAccessToken, type StudentClaims } from './studentAuth.js';
 
 dotenv.config({ path: new URL('../../../.env', import.meta.url) });
 
 const app = express();
 const prisma = new PrismaClient();
+const jwtAccessSecret = process.env.JWT_ACCESS_SECRET;
+if (!jwtAccessSecret) throw new Error('JWT_ACCESS_SECRET is required');
+type StudentRequest = Request<{ studentUid: string }> & { student?: StudentClaims };
 app.use(helmet());
 const configuredWebOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
-app.use(cors({ origin: (origin, callback) => {
-  const isLocalDevelopmentOrigin = /^http:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+):\d+$/.test(origin ?? '');
-  if (!origin || origin === configuredWebOrigin || isLocalDevelopmentOrigin) return callback(null, true);
-  return callback(new Error('Origin is not allowed'));
-} }));
+app.use(cors({
+  origin: (origin, callback) => {
+    const isLocalDevelopmentOrigin = /^http:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+):\d+$/.test(origin ?? '');
+    if (!origin || origin === configuredWebOrigin || isLocalDevelopmentOrigin) return callback(null, true);
+    return callback(new Error('Origin is not allowed'));
+  }
+}));
 app.use(express.json({ limit: '1mb' }));
 
 const studentSchema = z.object({
@@ -50,11 +57,13 @@ const studentPaymentSchema = z.object({
 });
 
 app.get('/health', (_req, res) => res.json({ success: true, data: { service: 'backend', status: 'ok' } }));
-app.get('/api/v1/public/overview', (_req, res) => res.json({ success: true, data: {
-  organization: 'NSR Impulse Knowledge Park',
-  navigation: ['Home', 'About Us', 'Courses', 'Branches', 'Results', 'Gallery', 'Contact'],
-  message: 'Education pathways designed around confident careers.'
-} }));
+app.get('/api/v1/public/overview', (_req, res) => res.json({
+  success: true, data: {
+    organization: 'NSR Impulse Knowledge Park',
+    navigation: ['Home', 'About Us', 'Courses', 'Branches', 'Results', 'Gallery', 'Contact'],
+    message: 'Education pathways designed around confident careers.'
+  }
+}));
 app.post('/api/v1/auth/login', async (req, res, next) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Enter a valid Student ID and password', details: parsed.error.issues } });
@@ -62,7 +71,8 @@ app.post('/api/v1/auth/login', async (req, res, next) => {
     const student = await prisma.student.findUnique({ where: { studentUid: parsed.data.studentId }, include: { account: true } });
     const passwordMatches = student?.account ? await bcrypt.compare(parsed.data.password, student.account.passwordHash) : false;
     if (!student || !passwordMatches || student.status === 'DISCONTINUED') return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Student ID or password is incorrect' } });
-    return res.json({ success: true, data: { authenticated: true, studentId: student.studentUid }, message: 'Login successful' });
+    const accessToken = issueStudentAccessToken(student.studentUid, jwtAccessSecret);
+    return res.json({ success: true, data: { authenticated: true, studentId: student.studentUid, accessToken, expiresIn: 900 }, message: 'Login successful' });
   } catch (error) { return next(error); }
 });
 app.post('/api/v1/auth/register', async (req, res, next) => {
@@ -94,7 +104,8 @@ app.post('/api/v1/students/validate', (req, res) => {
   if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid student details', details: parsed.error.issues } });
   return res.status(202).json({ success: true, data: { validated: true }, message: 'Student details are valid' });
 });
-app.get('/api/v1/students/:studentUid/portal', async (req, res, next) => {
+app.get('/api/v1/students/:studentUid/portal', authenticateStudent(jwtAccessSecret), async (req: StudentRequest, res, next) => {
+  if (!studentCanAccessRecord(req.student, req.params.studentUid)) return forbiddenStudent(res);
   try {
     const student = await prisma.student.findUnique({
       where: { studentUid: req.params.studentUid },
@@ -126,25 +137,28 @@ app.get('/api/v1/students/:studentUid/portal', async (req, res, next) => {
       read: false
     }));
     const latestPayment = student.payments.find((payment) => payment.status === PaymentStatus.SUCCESS);
-    return res.json({ success: true, data: {
-      studentId: student.studentUid,
-      name: student.name,
-      fatherName: student.fatherName ?? '',
-      age: student.age ?? 0,
-      courseType: student.course.name,
-      courseDurationYears: 2,
-      location: student.college.location.name,
-      mobile: student.mobile,
-      email: student.email ?? '',
-      village: student.village ?? student.address ?? '',
-      pin: student.pin ?? '',
-      fee: { total, paid, pending, currency: 'INR', installments: installmentData.map(({ label, amount, dueDate, status }) => ({ label, amount, dueDate, status })) },
-      receipt: { invoiceNumber: latestPayment?.receipt?.receiptNumber ?? `NSR-INV-${student.admissionYear}-${student.studentUid}`, transactionNumber: latestPayment?.reference ?? `PENDING-${student.studentUid}`, dateTime: latestPayment?.createdAt.toISOString() ?? new Date().toISOString(), paymentType: latestPayment?.mode ?? 'ONLINE', amount: latestPayment ? Number(latestPayment.amount) : 0, status: latestPayment ? 'PAID' : 'PENDING', note: latestPayment ? 'Payment recorded in the central database.' : 'Invoice generated. Receipt will be finalized after payment confirmation.' },
-      reminders
-    }, message: 'Student portal data loaded from PostgreSQL' });
+    return res.json({
+      success: true, data: {
+        studentId: student.studentUid,
+        name: student.name,
+        fatherName: student.fatherName ?? '',
+        age: student.age ?? 0,
+        courseType: student.course.name,
+        courseDurationYears: 2,
+        location: student.college.location.name,
+        mobile: student.mobile,
+        email: student.email ?? '',
+        village: student.village ?? student.address ?? '',
+        pin: student.pin ?? '',
+        fee: { total, paid, pending, currency: 'INR', installments: installmentData.map(({ label, amount, dueDate, status }) => ({ label, amount, dueDate, status })) },
+        receipt: { invoiceNumber: latestPayment?.receipt?.receiptNumber ?? `NSR-INV-${student.admissionYear}-${student.studentUid}`, transactionNumber: latestPayment?.reference ?? `PENDING-${student.studentUid}`, dateTime: latestPayment?.createdAt.toISOString() ?? new Date().toISOString(), paymentType: latestPayment?.mode ?? 'ONLINE', amount: latestPayment ? Number(latestPayment.amount) : 0, status: latestPayment ? 'PAID' : 'PENDING', note: latestPayment ? 'Payment recorded in the central database.' : 'Invoice generated. Receipt will be finalized after payment confirmation.' },
+        reminders
+      }, message: 'Student portal data loaded from PostgreSQL'
+    });
   } catch (error) { return next(error); }
 });
-app.get('/api/v1/students/:studentUid/payments', async (req, res, next) => {
+app.get('/api/v1/students/:studentUid/payments', authenticateStudent(jwtAccessSecret), async (req: StudentRequest, res, next) => {
+  if (!studentCanAccessRecord(req.student, req.params.studentUid)) return forbiddenStudent(res);
   const query = z.object({ page: z.coerce.number().int().positive().default(1), pageSize: z.coerce.number().int().min(1).max(50).default(20) }).safeParse(req.query);
   if (!query.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid payment history pagination', details: query.error.issues } });
   try {
@@ -155,25 +169,28 @@ app.get('/api/v1/students/:studentUid/payments', async (req, res, next) => {
       prisma.payment.findMany({ where, include: { receipt: true, allocations: { include: { installment: true } } }, orderBy: { createdAt: 'desc' }, skip: (query.data.page - 1) * query.data.pageSize, take: query.data.pageSize }),
       prisma.payment.count({ where })
     ]);
-    return res.json({ success: true, data: {
-      student: { studentId: student.studentUid, name: student.name, course: student.course.name, college: student.college.name },
-      payments: payments.map((payment) => ({
-        id: payment.id,
-        transactionNumber: payment.reference ?? payment.gatewayTransactionId ?? '',
-        receiptNumber: payment.receipt?.receiptNumber ?? '',
-        amount: Number(payment.amount),
-        mode: payment.mode,
-        status: payment.status,
-        paidAt: payment.createdAt.toISOString(),
-        allocations: payment.allocations.map((allocation) => ({ installmentId: allocation.installmentId, amount: Number(allocation.amount), dueDate: allocation.installment.dueDate.toISOString() }))
-      })),
-      pagination: { page: query.data.page, pageSize: query.data.pageSize, totalItems, totalPages: Math.ceil(totalItems / query.data.pageSize) }
-    }, message: 'Payment history loaded from PostgreSQL' });
+    return res.json({
+      success: true, data: {
+        student: { studentId: student.studentUid, name: student.name, course: student.course.name, college: student.college.name },
+        payments: payments.map((payment) => ({
+          id: payment.id,
+          transactionNumber: payment.reference ?? payment.gatewayTransactionId ?? '',
+          receiptNumber: payment.receipt?.receiptNumber ?? '',
+          amount: Number(payment.amount),
+          mode: payment.mode,
+          status: payment.status,
+          paidAt: payment.createdAt.toISOString(),
+          allocations: payment.allocations.map((allocation) => ({ installmentId: allocation.installmentId, amount: Number(allocation.amount), dueDate: allocation.installment.dueDate.toISOString() }))
+        })),
+        pagination: { page: query.data.page, pageSize: query.data.pageSize, totalItems, totalPages: Math.ceil(totalItems / query.data.pageSize) }
+      }, message: 'Payment history loaded from PostgreSQL'
+    });
   } catch (error) { return next(error); }
 });
-app.post('/api/v1/payments/student', async (req, res, next) => {
+app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async (req: StudentRequest, res, next) => {
   const parsed = studentPaymentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Enter a valid positive payment amount and payment mode', details: parsed.error.issues } });
+  if (!studentCanAccessRecord(req.student, parsed.data.studentUid)) return forbiddenStudent(res);
   try {
     const idempotencyReference = `PORTAL-${parsed.data.idempotencyKey}`;
     const result = await prisma.$transaction(async (transaction) => {
@@ -201,16 +218,18 @@ app.post('/api/v1/payments/student', async (req, res, next) => {
       const token = randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase();
       const transactionNumber = `NSR-TXN-${token}`;
       const receiptNumber = `NSR-RCP-${token}`;
-      const payment = await transaction.payment.create({ data: {
-        studentId: student.id,
-        amount: parsed.data.amount,
-        mode: parsed.data.mode as PaymentMode,
-        status: PaymentStatus.SUCCESS,
-        reference: transactionNumber,
-        gatewayOrderId: idempotencyReference,
-        gatewayTransactionId: parsed.data.mode === 'ONLINE' || parsed.data.mode === 'UPI' ? transactionNumber : null,
-        rawResponse: { source: 'student-portal', recordedAt: new Date().toISOString() }
-      } });
+      const payment = await transaction.payment.create({
+        data: {
+          studentId: student.id,
+          amount: parsed.data.amount,
+          mode: parsed.data.mode as PaymentMode,
+          status: PaymentStatus.SUCCESS,
+          reference: transactionNumber,
+          gatewayOrderId: idempotencyReference,
+          gatewayTransactionId: parsed.data.mode === 'ONLINE' || parsed.data.mode === 'UPI' ? transactionNumber : null,
+          rawResponse: { source: 'student-portal', recordedAt: new Date().toISOString() }
+        }
+      });
 
       let unallocated = parsed.data.amount;
       for (const installment of assignment.installments) {
@@ -236,10 +255,32 @@ app.post('/api/v1/payments/student', async (req, res, next) => {
 app.use('/api/v1/admin', createAdminRouter(prisma));
 
 app.use((_req, res) => res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Route not found' } }));
-app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message } }));
+app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled API error', error);
+  return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected server error occurred' } });
+});
 
 const port = Number(process.env.PORT ?? 4000);
 app.listen(port, () => console.log(`NSR Impulse API listening on ${port}`));
+
+function authenticateStudent(secret: string) {
+  return (req: StudentRequest, res: Response, next: NextFunction) => {
+    const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
+    if (!token) return res.status(401).json({ success: false, error: { code: 'AUTHENTICATION_REQUIRED', message: 'Student sign in is required' } });
+    try {
+      const claims = verifyStudentAccessToken(token, secret);
+      if (!claims) return res.status(401).json({ success: false, error: { code: 'INVALID_TOKEN', message: 'Student session is invalid or expired' } });
+      req.student = claims;
+      return next();
+    } catch {
+      return res.status(401).json({ success: false, error: { code: 'INVALID_TOKEN', message: 'Student session is invalid or expired' } });
+    }
+  };
+}
+
+function forbiddenStudent(res: Response) {
+  return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You do not have access to this student record' } });
+}
 
 class PaymentRequestError extends Error {
   constructor(public readonly code: string, message: string, public readonly status: number) { super(message); }

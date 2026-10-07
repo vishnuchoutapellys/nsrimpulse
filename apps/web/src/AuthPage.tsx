@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff, LockKeyhole, Mail, Phone, UserRound
 import { FormEvent, useState } from 'react';
 
 type AuthMode = 'login' | 'register';
-type AuthPageProps = { mode: AuthMode; onModeChange: (mode: AuthMode) => void; onBack: () => void; onAuthenticated: (studentId: string) => void };
+type AuthPageProps = { mode: AuthMode; onModeChange: (mode: AuthMode) => void; onBack: () => void; onAuthenticated: (studentId: string, accessToken: string) => void };
 
 type FormErrors = Record<string, string>;
 
@@ -52,9 +52,9 @@ export function AuthPage({ mode, onModeChange, onBack, onAuthenticated }: AuthPa
     try {
       const formData = Object.fromEntries(new FormData(form));
       const response = await fetch(`${apiBase}/api/v1/auth/${mode}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
-      const result = await response.json() as { success?: boolean; data?: { studentId?: string }; message?: string; error?: { message?: string } };
+      const result = await response.json() as { success?: boolean; data?: { studentId?: string; accessToken?: string }; message?: string; error?: { message?: string } };
       if (!response.ok) throw new Error(result.error?.message ?? 'Unable to complete the request.');
-      if (mode === 'login' && result.data?.studentId) onAuthenticated(result.data.studentId);
+      if (mode === 'login' && result.data?.studentId && result.data.accessToken) onAuthenticated(result.data.studentId, result.data.accessToken);
       else { form.reset(); onModeChange('login'); setMessage(result.message ?? 'Account created. You can now sign in.'); }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to complete the request.');
