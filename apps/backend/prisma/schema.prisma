@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  STUDENT
+  COLLEGE_ADMIN
+  SUPER_ADMIN
+}
+
+enum StudentStatus {
+  ACTIVE
+  ON_HOLD
+  DISCONTINUED
+  TRANSFERRED
+  COMPLETED
+  ALUMNI
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMode {
+  ONLINE
+  CASH
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+}
+
+model User {
+  id           String      @id @default(cuid())
+  adminId      String?     @unique
+  email        String      @unique
+  passwordHash String
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  roles        UserRole[]
+  adminScopes  CollegeAdminScope[]
+  auditLogs    AuditLog[]
+}
+
+model UserRole {
+  userId String
+  role   RoleName
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, role])
+}
+
+model State {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  locations Location[]
+}
+
+model Location {
+  id       String    @id @default(cuid())
+  name     String
+  stateId  String
+  state    State     @relation(fields: [stateId], references: [id])
+  colleges College[]
+
+  @@unique([stateId, name])
+}
+
+model College {
+  id         String   @id @default(cuid())
+  name       String
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id])
+  branches   Branch[]
+  students   Student[]
+  adminScopes CollegeAdminScope[]
+
+  @@index([locationId])
+}
+
+model Branch {
+  id       String    @id @default(cuid())
+  name     String
+  collegeId String
+  college  College   @relation(fields: [collegeId], references: [id])
+  students Student[]
+  adminScopes CollegeAdminScope[]
+
+  @@unique([collegeId, name])
+}
+
+model CollegeAdminScope {
+  id        String  @id @default(cuid())
+  userId    String
+  collegeId String
+  branchId  String?
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college   College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  branch    Branch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, collegeId, branchId])
+  @@index([collegeId, branchId])
+}
+
+model Course {
+  id            String          @id @default(cuid())
+  name          String          @unique
+  students      Student[]
+  feeStructures FeeStructure[]
+}
+
+model Student {
+  id             String                  @id @default(cuid())
+  studentUid     String                  @unique
+  name           String
+  gender         String?
+  age            Int?
+  mobile         String
+  email          String?
+  fatherName     String?
+  address        String?
+  village        String?
+  pin            String?
+  admissionYear  Int
+  academicYear   String
+  status         StudentStatus           @default(ACTIVE)
+  collegeId      String
+  branchId       String
+  courseId       String
+  college        College                 @relation(fields: [collegeId], references: [id])
+  branch         Branch                  @relation(fields: [branchId], references: [id])
+  course         Course                  @relation(fields: [courseId], references: [id])
+  account        StudentAccount?
+  feeAssignments FeeAssignment[]
+  payments       Payment[]
+  statusHistory  StudentStatusHistory[]
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@index([collegeId, branchId, status])
+  @@index([mobile])
+}
+
+model StudentAccount {
+  id           String  @id @default(cuid())
+  studentId    String  @unique
+  email        String? @unique
+  passwordHash String
+  student      Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  createdAt    DateTime @default(now())
+}
+
+model FeeStructure {
+  id           String          @id @default(cuid())
+  courseId     String
+  academicYear String
+  totalAmount  Decimal         @db.Decimal(12, 2)
+  course       Course          @relation(fields: [courseId], references: [id])
+  assignments  FeeAssignment[]
+
+  @@unique([courseId, academicYear])
+}
+
+model FeeAssignment {
+  id             String            @id @default(cuid())
+  studentId      String
+  feeStructureId String
+  originalAmount Decimal           @db.Decimal(12, 2)
+  student        Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  feeStructure   FeeStructure      @relation(fields: [feeStructureId], references: [id])
+  installments   FeeInstallment[]
+  discounts      StudentDiscount[]
+}
+
+model FeeInstallment {
+  id             String              @id @default(cuid())
+  feeAssignmentId String
+  dueDate        DateTime
+  amount         Decimal             @db.Decimal(12, 2)
+  feeAssignment  FeeAssignment       @relation(fields: [feeAssignmentId], references: [id], onDelete: Restrict)
+  allocations    PaymentAllocation[]
+}
+
+model Discount {
+  id              String            @id @default(cuid())
+  name            String
+  type            String
+  value           Decimal           @db.Decimal(12, 2)
+  reason          String?
+  studentDiscounts StudentDiscount[]
+}
+
+model StudentDiscount {
+  id             String        @id @default(cuid())
+  feeAssignmentId String
+  discountId     String
+  amount         Decimal       @db.Decimal(12, 2)
+  approvedBy     String
+  approvedAt     DateTime      @default(now())
+  feeAssignment  FeeAssignment @relation(fields: [feeAssignmentId], references: [id])
+  discount       Discount      @relation(fields: [discountId], references: [id])
+}
+
+model Payment {
+  id                  String              @id @default(cuid())
+  studentId           String
+  amount              Decimal             @db.Decimal(12, 2)
+  mode                PaymentMode
+  status              PaymentStatus       @default(PENDING)
+  reference           String?             @unique
+  gatewayOrderId      String?             @unique
+  gatewayTransactionId String?            @unique
+  rawResponse         Json?
+  student             Student             @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  allocations         PaymentAllocation[]
+  receipt             Receipt?
+  createdAt           DateTime            @default(now())
+
+  @@index([studentId, status])
+}
+
+model PaymentAllocation {
+  paymentId     String
+  installmentId String
+  amount        Decimal        @db.Decimal(12, 2)
+  payment       Payment        @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  installment   FeeInstallment @relation(fields: [installmentId], references: [id], onDelete: Restrict)
+
+  @@id([paymentId, installmentId])
+}
+
+model Receipt {
+  id            String   @id @default(cuid())
+  receiptNumber String   @unique
+  paymentId     String   @unique
+  issuedAt      DateTime @default(now())
+  payment       Payment  @relation(fields: [paymentId], references: [id])
+}
+
+model StudentStatusHistory {
+  id         String        @id @default(cuid())
+  studentId  String
+  fromStatus StudentStatus?
+  toStatus   StudentStatus
+  reason     String?
+  changedBy  String
+  createdAt  DateTime      @default(now())
+  student    Student       @relation(fields: [studentId], references: [id], onDelete: Restrict)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}

@@ -1,0 +1,30 @@
+declare module 'lucide-react' {
+  import { ComponentType, SVGProps } from 'react';
+  type IconProps = SVGProps<SVGSVGElement> & { size?: number | string };
+  export const ArrowLeft: ComponentType<IconProps>;
+  export const ArrowRight: ComponentType<IconProps>;
+  export const ArrowUpRight: ComponentType<IconProps>;
+  export const Bell: ComponentType<IconProps>;
+  export const BookOpen: ComponentType<IconProps>;
+  export const Building2: ComponentType<IconProps>;
+  export const CalendarDays: ComponentType<IconProps>;
+  export const CheckCircle2: ComponentType<IconProps>;
+  export const ChevronRight: ComponentType<IconProps>;
+  export const Download: ComponentType<IconProps>;
+  export const Eye: ComponentType<IconProps>;
+  export const EyeOff: ComponentType<IconProps>;
+  export const GraduationCap: ComponentType<IconProps>;
+  export const IndianRupee: ComponentType<IconProps>;
+  export const LockKeyhole: ComponentType<IconProps>;
+  export const FileText: ComponentType<IconProps>;
+  export const LogOut: ComponentType<IconProps>;
+  export const Mail: ComponentType<IconProps>;
+  export const Menu: ComponentType<IconProps>;
+  export const Phone: ComponentType<IconProps>;
+  export const ShieldCheck: ComponentType<IconProps>;
+  export const Sparkles: ComponentType<IconProps>;
+  export const Star: ComponentType<IconProps>;
+  export const Trophy: ComponentType<IconProps>;
+  export const UserRound: ComponentType<IconProps>;
+  export const X: ComponentType<IconProps>;
+}

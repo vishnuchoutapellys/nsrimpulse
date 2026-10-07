@@ -1,0 +1,36 @@
+{
+  "studentId": "NSRTSHYD-001",
+  "name": "CH Vishnu",
+  "fatherName": "Nagabushanam",
+  "age": 26,
+  "courseType": "MPC",
+  "courseDurationYears": 2,
+  "location": "Pragathi Nagar",
+  "mobile": "9014249898",
+  "email": "Vishnuchoutapellys@gmail.com",
+  "village": "Hyderabad, Bachupally",
+  "pin": "500090",
+  "fee": {
+    "total": 180000,
+    "paid": 0,
+    "pending": 180000,
+    "currency": "INR",
+    "installments": [
+      { "label": "Year 1", "amount": 90000, "dueDate": "2026-10-15", "status": "PENDING" },
+      { "label": "Year 2", "amount": 90000, "dueDate": "2027-10-15", "status": "PENDING" }
+    ]
+  },
+  "receipt": {
+    "invoiceNumber": "NSR-INV-2026-NSRTSHYD-001",
+    "transactionNumber": "PENDING-NSRTSHYD-001",
+    "dateTime": "2026-10-07T10:00:00+05:30",
+    "paymentType": "ONLINE",
+    "amount": 0,
+    "status": "PENDING",
+    "note": "Invoice generated. Receipt will be finalized after payment confirmation."
+  },
+  "reminders": [
+    { "id": "reminder-year-1", "title": "Year 1 fee payment due", "message": "The first annual installment of ₹90,000 is due on 15 Oct 2026.", "dueDate": "2026-10-15", "severity": "HIGH", "read": false },
+    { "id": "reminder-year-2", "title": "Year 2 fee scheduled", "message": "The second annual installment of ₹90,000 is due on 15 Oct 2027.", "dueDate": "2027-10-15", "severity": "INFO", "read": false }
+  ]
+}
