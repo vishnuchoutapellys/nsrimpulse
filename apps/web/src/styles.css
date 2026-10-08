@@ -56,7 +56,7 @@ a {
     justify-content: space-between;
     padding: 0 clamp(20px, 2.8vw, 42px);
     border: 1px solid rgba(148, 163, 184, 0.2);
-    background: rgba(255, 255, 255, 0.86);
+    background: #00077b;
     backdrop-filter: blur(18px);
     position: sticky;
     top: 12px;
@@ -69,7 +69,7 @@ a {
     gap: 11px;
     align-items: center;
     text-align: left;
-    color: var(--ink)
+    color: #fff;
 }
 
 .brand-button {
@@ -113,17 +113,17 @@ a {
 
 .nav-item {
     padding: 10px 12px;
-    border-radius: 12px;
     background: transparent;
-    color: var(--ink-soft);
+    color: #fff;
     font-weight: 600;
+    letter-spacing: .5px;
     transition: .2s ease
 }
 
 .nav-item:hover,
 .nav-item.active {
-    background: rgba(37, 99, 235, .08);
-    color: var(--primary)
+    background: #fff;
+    color: #000;
 }
 
 .nav-login,
@@ -1164,7 +1164,9 @@ footer button {
     display: grid;
     grid-template-columns: 1.2fr 1fr auto;
     gap: 40px;
+    background: #00077b;
     padding: 28px 2vw 44px;
+    color: #fff;
     align-items: start
 }
 
@@ -1572,7 +1574,7 @@ footer button {
 
 .site-shell footer p {
     font-size: 12px;
-    color: #71847d
+    color: #ffffff
 }
 
 .footer-links {
@@ -1588,17 +1590,18 @@ footer button {
 }
 
 .footer-links b {
-    font-size: 11px;
+    font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 1px;
-    margin-bottom: 5px
+    margin-bottom: 5px;
+    color: #fff;
 }
 
 .footer-links a,
 .footer-links button {
     background: none;
     text-align: left;
-    color: #71847d;
+    color: #c6b9f8;
     padding: 0
 }
 
@@ -1611,7 +1614,7 @@ footer button {
     grid-column: 1/-1;
     border-top: 1px solid var(--line);
     padding-top: 18px;
-    color: #9aa9a3
+    color: #ffffff
 }
 
 .auth-shell {
