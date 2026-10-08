@@ -86,7 +86,6 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
     <>
       <section className="hero reference-hero" id="home">
         <div className="hero-copy">
-          <p className="eyebrow"><Sparkles size={15} /> WELCOME TO NSR IMPULSE</p>
           <h1>Start your beautiful<br /><em>and bright future.</em></h1>
           <p className="hero-text">Focused preparation, inspiring mentors, and a learning community that helps every student move with purpose.</p>
           <div className="hero-actions">
@@ -106,16 +105,15 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
         </div>
       </section>
 
-      <section className="stats">
+      <section className="stats dark-card">
         {referenceContent.stats.map(([value, label]) => (
           <div key={label}><strong>{value}</strong><span>{label}</span></div>
         ))}
       </section>
 
-      <section className="page-grid intro-section">
-        <div className="section-kicker"><span>01</span><p className="eyebrow">OUR PURPOSE</p></div>
+      <section className="intro-section">
         <div>
-          <h2>Learning with a<br /><em>longer view.</em></h2>
+          <h2>Learning with a <em>longer view.</em></h2>
           <p>NSR Impulse brings together rigorous academic preparation and the human support students need to keep going. Across our campuses, we build habits that last beyond an exam hall.</p>
           <button type="button" className="text-link" onClick={() => onPageChange('courses')}>Discover our facilities <ArrowUpRight size={16} /></button>
         </div>
@@ -124,10 +122,10 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       <section className="facilities">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">WHAT WE BELIEVE</p>
-            <h2>More than<br /><em>a classroom.</em></h2>
+            <h2>More than <em>a classroom.</em></h2>
+            <p>Every detail has a job: make learning clearer, calmer, and more consistent.</p>
+
           </div>
-          <p>Every detail has a job: make learning clearer, calmer, and more consistent.</p>
         </div>
 
         <div className="facility-grid">
@@ -146,10 +144,10 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       <section className="courses-section">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">OUR COURSES</p>
-            <h2>Find your<br /><em>next challenge.</em></h2>
+            <h2>Find your <em>next challenge.</em></h2>
+            <p>Structured pathways for students preparing to take a confident step forward.</p>
+
           </div>
-          <p>Structured pathways for students preparing to take a confident step forward.</p>
         </div>
 
         <div className="course-tabs">
@@ -161,7 +159,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
         <div className="course-feature">
           <div>
             <span className="course-number">01 / 04</span>
-            <h3>Prepare with<br /><em>precision.</em></h3>
+            <h3>Prepare with <em>precision.</em></h3>
             <p>Study plans, regular assessments, and teaching that stays close to the way you learn.</p>
             <button className="primary-button" onClick={onRegister}>Enquire now <ArrowUpRight size={16} /></button>
           </div>
@@ -188,10 +186,10 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       <section className="branches-section">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">OUR BRANCHES</p>
-            <h2>Close to<br /><em>your ambition.</em></h2>
+            <h2>Close to <em>your ambition.</em></h2>
+            <p>Find a campus, find your people, and give your goals a place to grow.</p>
+
           </div>
-          <p>Find a campus, find your people, and give your goals a place to grow.</p>
         </div>
 
         <div className="branch-grid">
@@ -208,8 +206,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
 
       <section className="voices">
         <div className="voice-quote">
-          <p className="eyebrow"><Star size={14} /> STUDENT VOICES</p>
-          <h2>“The right<br /><em>place to begin.</em>”</h2>
+          <h2>“The right <em>place to begin.</em>”</h2>
           <p>From the first lesson to the final result, the best progress feels shared.</p>
         </div>
         <div className="voice-card">
@@ -222,8 +219,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
 
       <section className="contact-section">
         <div>
-          <p className="eyebrow">COME SAY HELLO</p>
-          <h2>Let’s plan your<br /><em>next step.</em></h2>
+          <h2>Let’s plan your <em>next step.</em></h2>
         </div>
         <div className="contact-details">
           <p>Admissions, course guidance, and campus visits are just a conversation away.</p>
@@ -241,7 +237,6 @@ function AboutPage({ onRegister }: { onRegister: () => void }) {
     <section className="page-shell subpage-shell">
       <div className="subpage-hero">
         <div>
-          <p className="eyebrow">ABOUT US</p>
           <h1>Learning that grows <em>with students.</em></h1>
         </div>
         <button className="primary-button" onClick={onRegister}>Apply now <ArrowRight size={17} /></button>
@@ -286,7 +281,6 @@ function CoursesPage({ onRegister }: { onRegister: () => void }) {
     <section className="page-shell subpage-shell">
       <div className="subpage-hero">
         <div>
-          <p className="eyebrow">COURSES</p>
           <h1>Programs built for <em>focus and growth.</em></h1>
         </div>
         <button className="primary-button" onClick={onRegister}>Book counselling <ArrowRight size={17} /></button>
@@ -346,7 +340,6 @@ function BranchesPage({ onRegister }: { onRegister: () => void }) {
     <section className="page-shell subpage-shell">
       <div className="subpage-hero">
         <div>
-          <p className="eyebrow">BRANCHES</p>
           <h1>Campus access, close to <em>your goals.</em></h1>
         </div>
         <button className="primary-button" onClick={onRegister}>Visit a branch <ArrowRight size={17} /></button>
@@ -376,7 +369,6 @@ function ResultsPage({ onRegister }: { onRegister: () => void }) {
     <section className="page-shell subpage-shell">
       <div className="subpage-hero">
         <div>
-          <p className="eyebrow">RESULTS</p>
           <h1>Measured progress, visible <em>outcomes.</em></h1>
         </div>
         <button className="primary-button" onClick={onRegister}>Get result guidance <ArrowRight size={17} /></button>
@@ -415,7 +407,6 @@ function GalleryPage({ onRegister }: { onRegister: () => void }) {
     <section className="page-shell subpage-shell">
       <div className="subpage-hero">
         <div>
-          <p className="eyebrow">GALLERY</p>
           <h1>Snapshots of a vibrant <em>learning culture.</em></h1>
         </div>
         <button className="primary-button" onClick={onRegister}>Join the campus <ArrowRight size={17} /></button>
@@ -438,7 +429,6 @@ function ContactPage({ onRegister }: { onRegister: () => void }) {
     <section className="page-shell subpage-shell">
       <div className="subpage-hero">
         <div>
-          <p className="eyebrow">CONTACT</p>
           <h1>Let’s talk about your <em>next step.</em></h1>
         </div>
         <button className="primary-button" onClick={onRegister}>Schedule a call <ArrowRight size={17} /></button>
