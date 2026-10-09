@@ -9,6 +9,8 @@ type AdminClaims = { userId: string; adminId: string; role: 'COLLEGE_ADMIN' };
 type AdminRequest = Request & { admin?: AdminClaims };
 
 const loginSchema = z.object({ adminId: z.string().trim().min(8).max(40), password: z.string().min(8).max(128) });
+const optionalText = z.preprocess((value) => value === '' ? undefined : value, z.string().trim().max(120).optional());
+const optionalDate = z.preprocess((value) => value === '' ? undefined : value, z.string().date().optional());
 const createStudentSchema = z.object({
   studentUid: z.string().trim().regex(/^NSRTS[A-Z]+-\d{3,6}$/),
   name: z.string().trim().min(2).max(120),
@@ -17,6 +19,15 @@ const createStudentSchema = z.object({
   age: z.number().int().min(14).max(80),
   mobile: z.string().regex(/^[6-9]\d{9}$/),
   email: z.string().email(),
+  motherName: optionalText,
+  dateOfBirth: optionalDate,
+  nationality: optionalText,
+  religion: optionalText,
+  casteCommunity: optionalText,
+  mediumOfInstruction: optionalText,
+  firstLanguage: optionalText,
+  secondLanguage: optionalText,
+  thirdLanguage: optionalText,
   address: z.string().trim().min(5).max(300),
   village: z.string().trim().min(2).max(150),
   pin: z.string().regex(/^\d{6}$/),
@@ -43,6 +54,14 @@ const offlinePaymentSchema = z.object({
 }).superRefine((data, context) => {
   if (data.mode === 'UPI' && !data.referenceNumber) context.addIssue({ code: z.ZodIssueCode.custom, path: ['referenceNumber'], message: 'UPI reference number is required' });
   if (new Date(data.paymentDate).getTime() > Date.now() + 60_000) context.addIssue({ code: z.ZodIssueCode.custom, path: ['paymentDate'], message: 'Payment date cannot be in the future' });
+});
+const certificateIssueSchema = z.object({
+  certificateType: z.enum(['TRANSFER', 'BONAFIDE_CONDUCT']),
+  fields: z.record(z.string().trim().max(500))
+}).superRefine((data, context) => {
+  if (Object.keys(data.fields).length > 30) context.addIssue({ code: z.ZodIssueCode.custom, path: ['fields'], message: 'Too many certificate fields' });
+  if (!data.fields.pupilName?.trim()) context.addIssue({ code: z.ZodIssueCode.custom, path: ['fields', 'pupilName'], message: 'Student name is required' });
+  if (!data.fields.conduct?.trim()) context.addIssue({ code: z.ZodIssueCode.custom, path: ['fields', 'conduct'], message: 'Conduct is required' });
 });
 
 export function createAdminRouter(prisma: PrismaClient) {
@@ -71,11 +90,13 @@ export function createAdminRouter(prisma: PrismaClient) {
       const admin = await loadAdmin(prisma, req.admin!.userId);
       if (!admin) return forbidden(res);
       const courses = await prisma.course.findMany({ orderBy: { name: 'asc' } });
-      return res.json({ success: true, data: {
-        admin: { adminId: admin.adminId, email: admin.email },
-        scopes: admin.adminScopes.map((scope) => ({ college: { id: scope.college.id, name: scope.college.name }, branch: scope.branch ? { id: scope.branch.id, name: scope.branch.name } : null })),
-        courses: courses.map((course) => ({ id: course.id, name: course.name }))
-      }, message: 'Admin context loaded' });
+      return res.json({
+        success: true, data: {
+          admin: { adminId: admin.adminId, email: admin.email },
+          scopes: admin.adminScopes.map((scope) => ({ college: { id: scope.college.id, name: scope.college.name }, branch: scope.branch ? { id: scope.branch.id, name: scope.branch.name } : null })),
+          courses: courses.map((course) => ({ id: course.id, name: course.name }))
+        }, message: 'Admin context loaded'
+      });
     } catch (error) { return next(error); }
   });
 
@@ -91,13 +112,46 @@ export function createAdminRouter(prisma: PrismaClient) {
       const assignment = student.feeAssignments[0];
       const totalFee = Number(assignment?.originalAmount ?? 0);
       const paid = student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-      return res.json({ success: true, data: {
-        student: { studentUid: student.studentUid, name: student.name, fatherName: student.fatherName, gender: student.gender, age: student.age, mobile: student.mobile, email: student.email, address: student.address, village: student.village, pin: student.pin, admissionYear: student.admissionYear, academicYear: student.academicYear, status: student.status, createdAt: student.createdAt.toISOString() },
-        organization: { state: student.college.location.state.name, location: student.college.location.name, college: student.college.name, branch: student.branch.name, course: student.course.name },
-        fees: { totalFee, paid, pending: Math.max(totalFee - paid, 0), installments: assignment?.installments.map((installment) => ({ id: installment.id, amount: Number(installment.amount), paid: installment.allocations.filter((allocation) => allocation.payment.status === PaymentStatus.SUCCESS).reduce((sum, allocation) => sum + Number(allocation.amount), 0), dueDate: installment.dueDate.toISOString() })) ?? [], discounts: assignment?.discounts.map((studentDiscount) => ({ name: studentDiscount.discount.name, amount: Number(studentDiscount.amount), approvedAt: studentDiscount.approvedAt.toISOString() })) ?? [] },
-        payments: student.payments.map((payment) => ({ amount: Number(payment.amount), mode: payment.mode, reference: payment.reference, receiptNumber: payment.receipt?.receiptNumber, paidAt: payment.createdAt.toISOString() })),
-        statusHistory: student.statusHistory
-      }, message: 'Student details loaded' });
+      return res.json({
+        success: true, data: {
+          student: { studentUid: student.studentUid, name: student.name, fatherName: student.fatherName, motherName: student.motherName, dateOfBirth: student.dateOfBirth?.toISOString().slice(0, 10) ?? null, nationality: student.nationality, religion: student.religion, casteCommunity: student.casteCommunity, mediumOfInstruction: student.mediumOfInstruction, firstLanguage: student.firstLanguage, secondLanguage: student.secondLanguage, thirdLanguage: student.thirdLanguage, gender: student.gender, age: student.age, mobile: student.mobile, email: student.email, address: student.address, village: student.village, pin: student.pin, admissionYear: student.admissionYear, academicYear: student.academicYear, status: student.status, createdAt: student.createdAt.toISOString() },
+          organization: { state: student.college.location.state.name, location: student.college.location.name, college: student.college.name, branch: student.branch.name, course: student.course.name },
+          fees: { totalFee, paid, pending: Math.max(totalFee - paid, 0), installments: assignment?.installments.map((installment) => ({ id: installment.id, amount: Number(installment.amount), paid: installment.allocations.filter((allocation) => allocation.payment.status === PaymentStatus.SUCCESS).reduce((sum, allocation) => sum + Number(allocation.amount), 0), dueDate: installment.dueDate.toISOString() })) ?? [], discounts: assignment?.discounts.map((studentDiscount) => ({ name: studentDiscount.discount.name, amount: Number(studentDiscount.amount), approvedAt: studentDiscount.approvedAt.toISOString() })) ?? [] },
+          payments: student.payments.map((payment) => ({ amount: Number(payment.amount), mode: payment.mode, reference: payment.reference, receiptNumber: payment.receipt?.receiptNumber, paidAt: payment.createdAt.toISOString() })),
+          statusHistory: student.statusHistory
+        }, message: 'Student details loaded'
+      });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/students/:studentUid/certificates/issue', async (req: AdminRequest, res, next) => {
+    const params = z.object({ studentUid: z.string().trim().regex(/^NSRTS[A-Z]+-\d{3,6}$/) }).safeParse(req.params);
+    const parsed = certificateIssueSchema.safeParse(req.body);
+    if (!params.success) return validationError(res, params.error.issues);
+    if (!parsed.success) return validationError(res, parsed.error.issues);
+    try {
+      const admin = await loadAdmin(prisma, req.admin!.userId);
+      if (!admin) return forbidden(res);
+      const student = await prisma.student.findUnique({
+        where: { studentUid: params.data.studentUid.toUpperCase() },
+        include: { payments: { where: { status: PaymentStatus.SUCCESS } }, feeAssignments: true }
+      });
+      if (!student) return res.status(404).json({ success: false, error: { code: 'STUDENT_NOT_FOUND', message: 'Student ID was not found' } });
+      if (!isStudentInScope(admin.adminScopes, student.collegeId, student.branchId)) return forbidden(res);
+      const totalFee = Number(student.feeAssignments[0]?.originalAmount ?? 0);
+      const paidAmount = student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      const outstandingAmount = Math.max(totalFee - paidAmount, 0);
+      const audit = await prisma.auditLog.create({
+        data: {
+          userId: admin.id,
+          action: 'STUDENT_CERTIFICATE_GENERATED',
+          entity: 'Student',
+          entityId: student.id,
+          ipAddress: req.ip,
+          newData: { certificateType: parsed.data.certificateType, fields: parsed.data.fields, outstandingAmount }
+        }
+      });
+      return res.status(201).json({ success: true, data: { auditId: audit.id, studentUid: student.studentUid, outstandingAmount }, message: 'Certificate generation recorded' });
     } catch (error) { return next(error); }
   });
 
@@ -114,7 +168,7 @@ export function createAdminRouter(prisma: PrismaClient) {
       if (duplicateContact) return res.status(409).json({ success: false, error: { code: 'DUPLICATE_STUDENT_CONTACT', message: 'A student already uses this mobile number or email' } });
       const result = await prisma.$transaction(async (transaction) => {
         const feeStructure = await transaction.feeStructure.upsert({ where: { courseId_academicYear: { courseId: parsed.data.courseId, academicYear: parsed.data.academicYear } }, update: {}, create: { courseId: parsed.data.courseId, academicYear: parsed.data.academicYear, totalAmount: parsed.data.totalFee } });
-        const student = await transaction.student.create({ data: { studentUid: parsed.data.studentUid, name: parsed.data.name, fatherName: parsed.data.fatherName, gender: parsed.data.gender, age: parsed.data.age, mobile: parsed.data.mobile, email: parsed.data.email, address: parsed.data.address, village: parsed.data.village, pin: parsed.data.pin, admissionYear: parsed.data.admissionYear, academicYear: parsed.data.academicYear, status: StudentStatus.ACTIVE, collegeId: parsed.data.collegeId, branchId: parsed.data.branchId, courseId: parsed.data.courseId } });
+        const student = await transaction.student.create({ data: { studentUid: parsed.data.studentUid, name: parsed.data.name, fatherName: parsed.data.fatherName, motherName: parsed.data.motherName, dateOfBirth: parsed.data.dateOfBirth ? new Date(`${parsed.data.dateOfBirth}T00:00:00.000Z`) : undefined, nationality: parsed.data.nationality, religion: parsed.data.religion, casteCommunity: parsed.data.casteCommunity, mediumOfInstruction: parsed.data.mediumOfInstruction, firstLanguage: parsed.data.firstLanguage, secondLanguage: parsed.data.secondLanguage, thirdLanguage: parsed.data.thirdLanguage, gender: parsed.data.gender, age: parsed.data.age, mobile: parsed.data.mobile, email: parsed.data.email, address: parsed.data.address, village: parsed.data.village, pin: parsed.data.pin, admissionYear: parsed.data.admissionYear, academicYear: parsed.data.academicYear, status: StudentStatus.ACTIVE, collegeId: parsed.data.collegeId, branchId: parsed.data.branchId, courseId: parsed.data.courseId } });
         const assignment = await transaction.feeAssignment.create({ data: { studentId: student.id, feeStructureId: feeStructure.id, originalAmount: parsed.data.totalFee } });
         await transaction.feeInstallment.createMany({ data: parsed.data.installments.map((installment) => ({ feeAssignmentId: assignment.id, amount: installment.amount, dueDate: new Date(installment.dueDate) })) });
         await transaction.studentStatusHistory.create({ data: { studentId: student.id, toStatus: StudentStatus.ACTIVE, reason: 'New admission', changedBy: admin.adminId ?? admin.id } });

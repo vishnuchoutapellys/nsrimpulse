@@ -36,7 +36,7 @@ Run `npx prisma studio --schema apps/backend/prisma/schema.prisma` from the repo
 
 If `P1001: Can't reach database server` appears, PostgreSQL is not running, the port is not `5432`, or the password in `.env` is incorrect. If the VS Code PostgreSQL extension asks for a hostname, enter `127.0.0.1`.
 
-The API is centralized under `/api/v1`. It includes student account registration/login, a 15-minute student access token, authenticated student portal/payment-history/payment routes, scoped College Admin login/context/student search and creation, fee plans, offline collection, receipts, and audit history. Student credentials link to an existing student master record; public registration does not create an unverified student admission. See [docs/api.md](docs/api.md) for routes and authorization.
+The API is centralized under `/api/v1`. It includes student account registration/login, a 15-minute student access token, authenticated student portal/payment-history/payment routes, scoped College Admin login/context/student search and creation, fee plans, offline collection, receipts, TC and Bonafide/Conduct generation, and audit history. Certificate forms prefill available student-profile details and warn about any outstanding fee balance without blocking generation. Student credentials link to an existing student master record; public registration does not create an unverified student admission. See [docs/api.md](docs/api.md) for routes and authorization.
 
 For the seeded demo accounts, use Student ID `NSRTSHYD-001` with password `NSRTSHYD@2026`, or College Admin ID `NSRTSADMMIN-001` with password `NSRTSADMMIN@2026`. Change these credentials and the JWT secrets before exposing the app to a network.
 

@@ -17,5 +17,8 @@ All endpoints use `/api/v1` and return `{ success, data, message }` on success o
 | GET | `/api/v1/admin/students/:studentUid` | College Admin JWT plus assigned scope |
 | POST | `/api/v1/admin/students` | College Admin JWT plus assigned scope |
 | POST | `/api/v1/admin/students/:studentUid/offline-payments` | College Admin JWT plus assigned scope |
+| POST | `/api/v1/admin/students/:studentUid/certificates/issue` | College Admin JWT plus assigned scope; audits TC or Bonafide/Conduct generation and returns current outstanding fees |
 
 Student and College Admin credentials use `Authorization: Bearer <accessToken>`. Student IDs are authorization-bound on every student data/payment route; changing the URL or request body to another ID is denied. The student payment endpoint is a development simulation, not a provider-verified payment flow. Refresh-token rotation and payment provider order/verification/webhook routes are not implemented yet.
+
+Certificate issuance accepts `{ "certificateType": "TRANSFER" | "BONAFIDE_CONDUCT", "fields": { ... } }`. The admin UI loads a scoped student record first, pre-fills available profile fields, and warns about unpaid fees. Outstanding fees do not block certificate generation; the issue endpoint recalculates the balance and writes the document fields and current due amount to the audit log.

@@ -1,13 +1,14 @@
-import { ArrowUpRight, BookOpen, CheckCircle2, Eye, EyeOff, Home, IndianRupee, LockKeyhole, LogOut, UserRound } from 'lucide-react';
+import { ArrowUpRight, BookOpen, CheckCircle2, Eye, EyeOff, FileText, Home, IndianRupee, LockKeyhole, LogOut, UserRound } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 const apiBase = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:4000`;
-type AdminView = 'dashboard' | 'search' | 'create';
+type AdminView = 'dashboard' | 'search' | 'create' | 'certificates';
+type CertificateType = 'TRANSFER' | 'BONAFIDE_CONDUCT';
 type AdminContext = { admin: { adminId: string; email: string }; scopes: Array<{ college: { id: string; name: string }; branch: { id: string; name: string } | null }>; courses: Array<{ id: string; name: string }> };
 type InstallmentInput = { amount: string; dueDate: string };
 type OfflinePaymentResult = { studentUid: string; paymentId: string; amount: number; mode: 'CASH' | 'UPI'; transactionNumber: string; receiptNumber: string; paidAt: string; outstandingAmount?: number };
 type StudentDetail = {
-  student: { studentUid: string; name: string; fatherName: string | null; gender: string | null; age: number | null; mobile: string; email: string | null; address: string | null; village: string | null; pin: string | null; admissionYear: number; academicYear: string; status: string; createdAt: string };
+  student: { studentUid: string; name: string; fatherName: string | null; motherName: string | null; dateOfBirth: string | null; nationality: string | null; religion: string | null; casteCommunity: string | null; mediumOfInstruction: string | null; firstLanguage: string | null; secondLanguage: string | null; thirdLanguage: string | null; gender: string | null; age: number | null; mobile: string; email: string | null; address: string | null; village: string | null; pin: string | null; admissionYear: number; academicYear: string; status: string; createdAt: string };
   organization: { state: string; location: string; college: string; branch: string; course: string };
   fees: { totalFee: number; paid: number; pending: number; installments: Array<{ id: string; amount: number; paid: number; dueDate: string }>; discounts: Array<{ name: string; amount: number; approvedAt: string }> };
   payments: Array<{ amount: number; mode: string; reference: string | null; receiptNumber: string | null; paidAt: string }>;
@@ -47,7 +48,7 @@ function AdminWorkspace({ token, onLogout, onBack }: { token: string; onLogout: 
   useEffect(() => { adminFetch<AdminContext>('/context', token).then(setContext).catch((reason) => setError(reason.message)); }, [token]);
   if (error) return <main className="portal-state"><h1>Admin portal unavailable</h1><p>{error}</p><button className="primary-button" onClick={onLogout}>Sign in again</button></main>;
   if (!context) return <main className="portal-state"><div className="portal-loader"></div><p>Loading authorized scope...</p></main>;
-  return <main className="admin-portal"><header className="portal-top"><button className="brand plain" onClick={onBack}><span className="brand-mark">N</span><span><strong>NSR</strong><small>COLLEGE ADMIN</small></span></button><div className="portal-top-actions"><span className="portal-id">{context.admin.adminId}</span><button className="portal-logout" onClick={onLogout}><LogOut size={16} /> Sign out</button></div></header><div className="admin-layout"><aside className="admin-nav"><div><strong>{context.scopes[0]?.college.name}</strong><small>{context.scopes[0]?.branch?.name ?? 'All branches'}</small></div><nav><button className={view === 'dashboard' ? 'active' : ''} onClick={() => setView('dashboard')}><BookOpen size={17} /> Overview</button><button className={view === 'search' ? 'active' : ''} onClick={() => setView('search')}><UserRound size={17} /> Search student</button><button className={view === 'create' ? 'active' : ''} onClick={() => setView('create')}><IndianRupee size={17} /> New admission</button></nav></aside><section className="admin-main">{view === 'dashboard' && <AdminOverview context={context} onNavigate={setView} />}{view === 'search' && <StudentSearch token={token} />}{view === 'create' && <CreateStudent token={token} context={context} onCreated={() => setView('search')} />}</section></div></main>;
+  return <main className="admin-portal"><header className="portal-top"><button className="brand plain" onClick={onBack}><span className="brand-mark">N</span><span><strong>NSR</strong><small>COLLEGE ADMIN</small></span></button><div className="portal-top-actions"><span className="portal-id">{context.admin.adminId}</span><button className="portal-logout" onClick={onLogout}><LogOut size={16} /> Sign out</button></div></header><div className="admin-layout"><aside className="admin-nav"><div><strong>{context.scopes[0]?.college.name}</strong><small>{context.scopes[0]?.branch?.name ?? 'All branches'}</small></div><nav><button className={view === 'dashboard' ? 'active' : ''} onClick={() => setView('dashboard')}><BookOpen size={17} /> Overview</button><button className={view === 'search' ? 'active' : ''} onClick={() => setView('search')}><UserRound size={17} /> Search student</button><button className={view === 'create' ? 'active' : ''} onClick={() => setView('create')}><IndianRupee size={17} /> New admission</button><button className={view === 'certificates' ? 'active' : ''} onClick={() => setView('certificates')}><FileText size={17} /> Certificates</button></nav></aside><section className="admin-main">{view === 'dashboard' && <AdminOverview context={context} onNavigate={setView} />}{view === 'search' && <StudentSearch token={token} />}{view === 'create' && <CreateStudent token={token} context={context} onCreated={() => setView('search')} />}{view === 'certificates' && <CertificateCenter token={token} />}</section></div></main>;
 }
 
 function AdminOverview({ context, onNavigate }: { context: AdminContext; onNavigate: (view: AdminView) => void }) {
@@ -84,6 +85,190 @@ function StudentSearch({ token }: { token: string }) {
   async function search(event: FormEvent) { event.preventDefault(); await loadStudent(studentId); }
   return <><div className="admin-page-heading compact"><p className="eyebrow">STUDENT SEARCH</p><h1>Find the master record.</h1></div><form className="admin-search" onSubmit={search}><input value={studentId} onChange={(event) => setStudentId(event.target.value)} placeholder="Enter Student ID" required /><button className="primary-button" disabled={busy}>{busy ? 'Searching...' : 'Search'}</button></form>{error && <p className="admin-form-error">{error}</p>}{detail && <StudentDetails detail={detail} token={token} onPaymentRecorded={() => loadStudent(detail.student.studentUid)} />}</>;
 }
+
+type CertificateField = { key: string; label: string; type?: 'text' | 'date'; required?: boolean };
+
+const transferCertificateFields: CertificateField[] = [
+  { key: 'certificateNumber', label: 'Transfer certificate number' },
+  { key: 'collegeName', label: 'Junior college name', required: true },
+  { key: 'pupilName', label: 'Name of the pupil', required: true },
+  { key: 'fatherName', label: 'Name of the father' },
+  { key: 'motherName', label: 'Name of the mother' },
+  { key: 'nationality', label: 'Nationality' },
+  { key: 'religion', label: 'Religion' },
+  { key: 'casteCommunity', label: 'Caste / community' },
+  { key: 'dateOfBirth', label: 'Date of birth', type: 'date' },
+  { key: 'admissionNumber', label: 'Admission number' },
+  { key: 'dateOfAdmission', label: 'Date of admission', type: 'date' },
+  { key: 'classAtAdmission', label: 'Class at admission' },
+  { key: 'mediumOfInstruction', label: 'Medium of instruction' },
+  { key: 'firstLanguage', label: 'First language' },
+  { key: 'secondLanguage', label: 'Second language' },
+  { key: 'thirdLanguage', label: 'Third language' },
+  { key: 'lastClassStudied', label: 'Last class studied' },
+  { key: 'qualifiedForPromotion', label: 'Qualified for promotion' },
+  { key: 'reasonForLeaving', label: 'Reason for leaving' },
+  { key: 'feeConcession', label: 'Fee concession / scholarship' },
+  { key: 'personalMarks', label: 'Personal marks of identification' },
+  { key: 'dateLeft', label: 'Date the pupil left', type: 'date' },
+  { key: 'conduct', label: 'Conduct', required: true },
+  { key: 'issueDate', label: 'Date of issue', type: 'date', required: true }
+];
+
+const bonafideCertificateFields: CertificateField[] = [
+  { key: 'certificateNumber', label: 'Certificate number' },
+  { key: 'admissionNumber', label: 'Admission number' },
+  { key: 'pupilName', label: 'Student name', required: true },
+  { key: 'parentName', label: 'Father / parent name' },
+  { key: 'course', label: 'Course studied', required: true },
+  { key: 'academicYear', label: 'Academic year / group', required: true },
+  { key: 'dateOfBirth', label: 'Date of birth', type: 'date' },
+  { key: 'conduct', label: 'Conduct and character', required: true },
+  { key: 'place', label: 'Place of issue' },
+  { key: 'issueDate', label: 'Date of issue', type: 'date', required: true }
+];
+
+function CertificateCenter({ token }: { token: string }) {
+  const [studentUid, setStudentUid] = useState('');
+  const [detail, setDetail] = useState<StudentDetail | null>(null);
+  const [certificateType, setCertificateType] = useState<CertificateType>('TRANSFER');
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const activeFields = certificateType === 'TRANSFER' ? transferCertificateFields : bonafideCertificateFields;
+
+  async function loadStudent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    setSearching(true);
+    try {
+      const result = await adminFetch<StudentDetail>(`/students/${encodeURIComponent(studentUid.trim().toUpperCase())}`, token);
+      setDetail(result);
+      setFields(makeCertificateFields(result, certificateType));
+    } catch (reason) {
+      setDetail(null);
+      setFields({});
+      setError(reason instanceof Error ? reason.message : 'Unable to load student record');
+    } finally { setSearching(false); }
+  }
+
+  function changeType(nextType: CertificateType) {
+    setCertificateType(nextType);
+    setNotice('');
+    if (detail) setFields(makeCertificateFields(detail, nextType));
+  }
+
+  async function generateCertificate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!detail) return;
+    setError('');
+    setNotice('');
+    setGenerating(true);
+    try {
+      const result = await adminFetch<{ outstandingAmount: number }>(`/students/${encodeURIComponent(detail.student.studentUid)}/certificates/issue`, token, {
+        method: 'POST',
+        body: JSON.stringify({ certificateType, fields })
+      });
+      if (result.outstandingAmount > 0) {
+        const dueAmount = result.outstandingAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
+        setNotice(`Fee due alert: ${dueAmount} remains unpaid. Certificate generation is continuing.`);
+        window.alert(`Fee due alert: ${dueAmount} remains unpaid. The certificate will still be generated.`);
+      } else {
+        setNotice('Certificate generated and recorded successfully.');
+      }
+      await downloadCertificate(certificateType, fields, detail.organization.college);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to generate certificate');
+    } finally { setGenerating(false); }
+  }
+
+  return <div className="certificate-center">
+    <div className="admin-page-heading compact"><p className="eyebrow">STUDENT DOCUMENTS</p><h1>Generate a certificate.</h1><p>Look up the student record. Available profile details are filled in automatically.</p></div>
+    <form className="admin-search certificate-lookup" onSubmit={loadStudent}><input value={studentUid} onChange={(event) => setStudentUid(event.target.value)} placeholder="Enter Student ID" aria-label="Student ID" required /><button className="primary-button" disabled={searching}>{searching ? 'Loading...' : 'Load student'}</button></form>
+    {error && <p className="admin-form-error" role="alert">{error}</p>}
+    {detail && <>
+      {detail.fees.pending > 0 && <div className="certificate-fee-alert" role="status"><IndianRupee size={20} /><div><strong>Outstanding fees</strong><span>₹{detail.fees.pending.toLocaleString('en-IN')} remains unpaid. You may continue, but confirm dues before issuing the certificate.</span></div></div>}
+      <section className="certificate-student-summary"><div><span>STUDENT RECORD</span><strong>{detail.student.name}</strong><small>{detail.student.studentUid} · {detail.organization.course} · {detail.organization.branch}</small></div><div><span>FEE BALANCE</span><strong className={detail.fees.pending > 0 ? 'certificate-balance-due' : ''}>₹{detail.fees.pending.toLocaleString('en-IN')}</strong><small>{detail.fees.pending > 0 ? 'Outstanding' : 'Clear'}</small></div></section>
+      <div className="certificate-type-switch" role="group" aria-label="Certificate type"><button type="button" className={certificateType === 'TRANSFER' ? 'active' : ''} aria-pressed={certificateType === 'TRANSFER'} onClick={() => changeType('TRANSFER')}>Transfer Certificate (TC)</button><button type="button" className={certificateType === 'BONAFIDE_CONDUCT' ? 'active' : ''} aria-pressed={certificateType === 'BONAFIDE_CONDUCT'} onClick={() => changeType('BONAFIDE_CONDUCT')}>Bonafide & Conduct (CC)</button></div>
+      <form className="certificate-fields" onSubmit={generateCertificate}><div className="certificate-fields-heading"><div><p className="eyebrow">{certificateType === 'TRANSFER' ? 'TRANSFER CERTIFICATE' : 'BONAFIDE & CONDUCT CERTIFICATE'}</p><h2>{certificateType === 'TRANSFER' ? 'Transfer Certificate' : 'Bonafide and Conduct Certificate'}</h2></div><span>Prefilled from student record where available</span></div><div className="certificate-field-grid">{activeFields.map((field) => <label key={field.key}><span>{field.label}{field.required ? ' *' : ''}</span><input type={field.type ?? 'text'} value={fields[field.key] ?? ''} onChange={(event) => setFields((current) => ({ ...current, [field.key]: event.target.value }))} required={field.required} /></label>)}</div><div className="certificate-actions"><button className="primary-button" disabled={generating}>{generating ? 'Generating...' : `Generate ${certificateType === 'TRANSFER' ? 'TC' : 'CC'} PDF`}</button></div></form>
+      {notice && <p className={detail.fees.pending > 0 ? 'certificate-notice due' : 'certificate-notice'} role="status">{notice}</p>}
+    </>}
+  </div>;
+}
+
+function makeCertificateFields(detail: StudentDetail, type: CertificateType): Record<string, string> {
+  const date = new Date().toISOString().slice(0, 10);
+  const base = {
+    pupilName: detail.student.name,
+    fatherName: detail.student.fatherName ?? '',
+    admissionNumber: detail.student.studentUid,
+    course: detail.organization.course,
+    academicYear: detail.student.academicYear,
+    issueDate: date,
+    conduct: 'GOOD'
+  };
+  const profile = detail.student;
+  if (type === 'TRANSFER') return { ...base, certificateNumber: `NSR/TC/${new Date().getFullYear()}/${profile.studentUid}`, collegeName: detail.organization.college, qualifiedForPromotion: '', dateOfBirth: profile.dateOfBirth ?? '', dateOfAdmission: '', classAtAdmission: '', mediumOfInstruction: profile.mediumOfInstruction ?? '', firstLanguage: profile.firstLanguage ?? '', secondLanguage: profile.secondLanguage ?? '', thirdLanguage: profile.thirdLanguage ?? '', lastClassStudied: detail.organization.course, reasonForLeaving: '', feeConcession: '', personalMarks: '', motherName: profile.motherName ?? '', nationality: profile.nationality ?? 'INDIAN', religion: profile.religion ?? '', casteCommunity: profile.casteCommunity ?? '', dateLeft: '' };
+  return { ...base, certificateNumber: `NSR/CC/${new Date().getFullYear()}/${profile.studentUid}`, parentName: profile.fatherName ?? '', dateOfBirth: profile.dateOfBirth ?? '', course: detail.organization.course, place: detail.organization.location };
+}
+
+async function downloadCertificate(type: CertificateType, fields: Record<string, string>, collegeName: string) {
+  const { jsPDF } = await import('jspdf');
+  const isTransfer = type === 'TRANSFER';
+  const document = new jsPDF({ orientation: isTransfer ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = document.internal.pageSize.getWidth();
+  document.setDrawColor(23, 61, 55);
+  document.setLineWidth(0.8);
+  document.rect(8, 8, pageWidth - 16, document.internal.pageSize.getHeight() - 16);
+  document.setTextColor(23, 61, 55);
+  document.setFont('helvetica', 'bold');
+  document.setFontSize(isTransfer ? 17 : 18);
+  document.text(collegeName.toUpperCase(), pageWidth / 2, 18, { align: 'center' });
+  document.setFontSize(isTransfer ? 12 : 15);
+  document.text(isTransfer ? 'TRANSFER CERTIFICATE' : 'BONAFIDE AND CONDUCT CERTIFICATE', pageWidth / 2, 27, { align: 'center' });
+  document.setFont('helvetica', 'normal');
+  document.setFontSize(9);
+  document.text(`Certificate No: ${fields.certificateNumber ?? ''}`, 14, 35);
+  if (isTransfer) {
+    const rows: Array<[string, string]> = transferCertificateFields.map((field) => [field.label, fields[field.key] || '—']);
+    const half = Math.ceil(rows.length / 2);
+    const drawColumn = (items: Array<[string, string]>, x: number) => {
+      let y = 43;
+      for (const [label, value] of items) {
+        document.setFont('helvetica', 'bold');
+        document.text(label, x, y);
+        document.setFont('helvetica', 'normal');
+        const valueLines = document.splitTextToSize(value, 67) as string[];
+        document.text(valueLines.slice(0, 2), x + 60, y);
+        y += 10;
+      }
+    };
+    drawColumn(rows.slice(0, half), 14);
+    drawColumn(rows.slice(half), 154);
+    document.setFont('helvetica', 'bold');
+    document.text('Principal signature: ____________________', pageWidth - 86, 194);
+  } else {
+    const statement = `This is to certify that ${fields.pupilName ?? ''}, son/daughter of ${fields.parentName ?? fields.fatherName ?? ''}, is/was a student of ${collegeName}, studying/studied ${fields.course ?? ''} during the academic year ${fields.academicYear ?? ''}. The date of birth as per college records is ${fields.dateOfBirth || '________________'}. His/Her conduct and character are ${fields.conduct ?? ''}.`;
+    document.setFontSize(13);
+    const lines = document.splitTextToSize(statement, pageWidth - 48) as string[];
+    document.text(lines, 24, 85, { lineHeightFactor: 1.8 });
+    document.setFontSize(10);
+    document.text(`Admission No: ${fields.admissionNumber ?? ''}`, 24, 55);
+    document.text(`Course: ${fields.course ?? ''}`, 24, 65);
+    document.text(`Academic year: ${fields.academicYear ?? ''}`, 24, 75);
+    document.text(`Place: ${fields.place ?? ''}`, 24, 153);
+    document.text(`Date: ${fields.issueDate ?? ''}`, 24, 162);
+    document.setFont('helvetica', 'bold');
+    document.text('Principal', pageWidth - 45, 175);
+    document.text('________________________', pageWidth - 68, 170);
+  }
+  document.save(`${fields.certificateNumber || detailFileName(fields.pupilName)}.pdf`);
+}
+
+function detailFileName(value?: string) { return (value || 'student-certificate').trim().replace(/[^a-z0-9-]+/gi, '-'); }
 
 function StudentDetails({ detail, token, onPaymentRecorded }: { detail: StudentDetail; token: string; onPaymentRecorded: () => Promise<void> }) {
   const fields = [['Student ID', detail.student.studentUid], ['Name', detail.student.name], ['Father name', detail.student.fatherName], ['Age', detail.student.age], ['Gender', detail.student.gender], ['Mobile', detail.student.mobile], ['Email', detail.student.email], ['Address', detail.student.address], ['Village', detail.student.village], ['PIN', detail.student.pin], ['Academic year', detail.student.academicYear], ['Status', detail.student.status], ['College', detail.organization.college], ['Branch', detail.organization.branch], ['Course', detail.organization.course]];
@@ -129,7 +314,7 @@ function CreateStudent({ token, context, onCreated }: { token: string; context: 
     const body = { ...form, age: Number(form.age), admissionYear: Number(form.admissionYear), totalFee: Number(totalFee), collegeId: scope.college.id, branchId: scope.branch.id, installments: installments.map((installment) => ({ amount: Number(installment.amount), dueDate: new Date(`${installment.dueDate}T00:00:00+05:30`).toISOString() })) };
     setBusy(true); try { const result = await adminFetch<{ studentUid: string }>('/students', token, { method: 'POST', body: JSON.stringify(body) }); setMessage(`Student ${result.studentUid} created successfully.`); event.currentTarget.reset(); setTotalFee(''); } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to create student'); } finally { setBusy(false); }
   }
-  return <><div className="admin-page-heading compact"><p className="eyebrow">NEW ADMISSION</p><h1>Create student and fee plan.</h1></div><form className="admin-create-form" onSubmit={submit}><fieldset><legend>Student identity</legend><FormField name="studentUid" label="Student ID" placeholder="NSRTSHYD-002" required /><FormField name="name" label="Full name" required /><FormField name="fatherName" label="Father name" required /><label><span>Gender</span><select name="gender" required><option value="">Select</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option></select></label><FormField name="age" label="Age" type="number" min="14" max="80" required /><FormField name="mobile" label="Mobile" placeholder="10-digit number" required /><FormField name="email" label="Email" type="email" required /></fieldset><fieldset><legend>Address & academics</legend><FormField name="address" label="Address" required /><FormField name="village" label="Village / City" required /><FormField name="pin" label="PIN" placeholder="6 digits" required /><FormField name="admissionYear" label="Admission year" type="number" defaultValue={String(currentYear)} required /><FormField name="academicYear" label="Academic year" defaultValue={`${currentYear}-${currentYear + 2}`} required /><label><span>Course</span><select name="courseId" required>{context.courses.map((course) => <option value={course.id} key={course.id}>{course.name}</option>)}</select></label><label><span>College / branch</span><input value={`${scope?.college.name ?? ''} · ${scope?.branch?.name ?? ''}`} disabled /></label></fieldset><fieldset className="fee-fieldset"><legend>Fee assignment</legend><label><span>Total fee (₹)</span><input type="number" min="0.01" step="0.01" value={totalFee} onChange={(event) => splitFee(event.target.value)} required /></label><div className="admin-installment-editor">{installments.map((installment, index) => <div key={index}><strong>Installment {index + 1}</strong><input aria-label={`Installment ${index + 1} amount`} type="number" min="0.01" step="0.01" value={installment.amount} onChange={(event) => setInstallments((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, amount: event.target.value } : item))} required /><input aria-label={`Installment ${index + 1} due date`} type="date" value={installment.dueDate} onChange={(event) => setInstallments((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, dueDate: event.target.value } : item))} required />{installments.length > 1 && <button type="button" onClick={() => setInstallments((items) => items.filter((_, itemIndex) => itemIndex !== index))}>Remove</button>}</div>)}</div><button type="button" className="text-link" onClick={() => setInstallments((items) => [...items, { amount: '', dueDate: `${currentYear + items.length}-10-15` }])} disabled={installments.length >= 12}>+ Add installment</button></fieldset>{error && <p className="admin-form-error">{error}</p>}{message && <p className="admin-form-success">{message}</p>}<div className="admin-form-actions"><button type="button" className="text-link" onClick={onCreated}>Search students</button><button className="primary-button" disabled={busy}>{busy ? 'Creating student...' : 'Create student'}</button></div></form></>;
+  return <><div className="admin-page-heading compact"><p className="eyebrow">NEW ADMISSION</p><h1>Create student and fee plan.</h1></div><form className="admin-create-form" onSubmit={submit}><fieldset><legend>Student identity</legend><FormField name="studentUid" label="Student ID" placeholder="NSRTSHYD-002" required /><FormField name="name" label="Full name" required /><FormField name="fatherName" label="Father name" required /><label><span>Gender</span><select name="gender" required><option value="">Select</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option></select></label><FormField name="age" label="Age" type="number" min="14" max="80" required /><FormField name="mobile" label="Mobile" placeholder="10-digit number" required /><FormField name="email" label="Email" type="email" required /></fieldset><fieldset><legend>Address & academics</legend><FormField name="address" label="Address" required /><FormField name="village" label="Village / City" required /><FormField name="pin" label="PIN" placeholder="6 digits" required /><FormField name="admissionYear" label="Admission year" type="number" defaultValue={String(currentYear)} required /><FormField name="academicYear" label="Academic year" defaultValue={`${currentYear}-${currentYear + 2}`} required /><label><span>Course</span><select name="courseId" required>{context.courses.map((course) => <option value={course.id} key={course.id}>{course.name}</option>)}</select></label><label><span>College / branch</span><input value={`${scope?.college.name ?? ''} · ${scope?.branch?.name ?? ''}`} disabled /></label></fieldset><fieldset><legend>Certificate profile</legend><FormField name="motherName" label="Mother name" /><FormField name="dateOfBirth" label="Date of birth" type="date" /><FormField name="nationality" label="Nationality" defaultValue="INDIAN" /><FormField name="religion" label="Religion" /><FormField name="casteCommunity" label="Caste / community" /><FormField name="mediumOfInstruction" label="Medium of instruction" /><FormField name="firstLanguage" label="First language" /><FormField name="secondLanguage" label="Second language" /><FormField name="thirdLanguage" label="Third language" /></fieldset><fieldset className="fee-fieldset"><legend>Fee assignment</legend><label><span>Total fee (₹)</span><input type="number" min="0.01" step="0.01" value={totalFee} onChange={(event) => splitFee(event.target.value)} required /></label><div className="admin-installment-editor">{installments.map((installment, index) => <div key={index}><strong>Installment {index + 1}</strong><input aria-label={`Installment ${index + 1} amount`} type="number" min="0.01" step="0.01" value={installment.amount} onChange={(event) => setInstallments((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, amount: event.target.value } : item))} required /><input aria-label={`Installment ${index + 1} due date`} type="date" value={installment.dueDate} onChange={(event) => setInstallments((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, dueDate: event.target.value } : item))} required />{installments.length > 1 && <button type="button" onClick={() => setInstallments((items) => items.filter((_, itemIndex) => itemIndex !== index))}>Remove</button>}</div>)}</div><button type="button" className="text-link" onClick={() => setInstallments((items) => [...items, { amount: '', dueDate: `${currentYear + items.length}-10-15` }])} disabled={installments.length >= 12}>+ Add installment</button></fieldset>{error && <p className="admin-form-error">{error}</p>}{message && <p className="admin-form-success">{message}</p>}<div className="admin-form-actions"><button type="button" className="text-link" onClick={onCreated}>Search students</button><button className="primary-button" disabled={busy}>{busy ? 'Creating student...' : 'Create student'}</button></div></form></>;
 }
 
 function FormField({ name, label, ...props }: { name: string; label: string;[key: string]: string | boolean | undefined }) { return <label><span>{label}</span><input name={name} {...props} /></label>; }

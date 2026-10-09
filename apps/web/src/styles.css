@@ -3203,6 +3203,186 @@ footer button {
     outline: none
 }
 
+.certificate-lookup {
+    max-width: 760px;
+    margin-bottom: 18px
+}
+
+.certificate-fee-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 18px 0;
+    padding: 15px 17px;
+    border: 1px solid #edcf91;
+    background: #fff6df;
+    color: #7c5b1e
+}
+
+.certificate-fee-alert svg {
+    flex: 0 0 auto;
+    margin-top: 2px
+}
+
+.certificate-fee-alert strong,
+.certificate-fee-alert span {
+    display: block
+}
+
+.certificate-fee-alert strong {
+    margin-bottom: 4px;
+    font-size: 13px
+}
+
+.certificate-fee-alert span {
+    font-size: 12px;
+    line-height: 1.5
+}
+
+.certificate-student-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: center;
+    margin: 18px 0;
+    padding: 18px 20px;
+    border: 1px solid var(--line);
+    background: #fff
+}
+
+.certificate-student-summary span,
+.certificate-student-summary strong,
+.certificate-student-summary small {
+    display: block
+}
+
+.certificate-student-summary span {
+    color: #81928c;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px
+}
+
+.certificate-student-summary strong {
+    margin-top: 5px;
+    color: var(--ink);
+    font-size: 16px
+}
+
+.certificate-student-summary small {
+    margin-top: 4px;
+    color: #71847e;
+    font-size: 11px
+}
+
+.certificate-student-summary .certificate-balance-due {
+    color: #a56513
+}
+
+.certificate-type-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 20px 0 14px
+}
+
+.certificate-type-switch button {
+    min-height: 40px;
+    padding: 9px 14px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: #61766e;
+    font-size: 12px;
+    font-weight: 700
+}
+
+.certificate-type-switch button.active {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: #fff
+}
+
+.certificate-fields {
+    padding: 22px;
+    border: 1px solid var(--line);
+    background: #fff
+}
+
+.certificate-fields-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    margin-bottom: 20px
+}
+
+.certificate-fields-heading .eyebrow {
+    margin-bottom: 8px
+}
+
+.certificate-fields-heading h2 {
+    margin: 0;
+    font: 600 21px 'DM Sans'
+}
+
+.certificate-fields-heading>span {
+    color: #7b8e86;
+    font-size: 10px
+}
+
+.certificate-field-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px
+}
+
+.certificate-field-grid label {
+    min-width: 0
+}
+
+.certificate-field-grid label>span {
+    display: block;
+    margin-bottom: 6px;
+    color: #506c63;
+    font-size: 10px;
+    font-weight: 700
+}
+
+.certificate-field-grid input {
+    width: 100%;
+    min-width: 0;
+    height: 40px;
+    border: 1px solid #c7d1ca;
+    background: #fafbf8;
+    padding: 0 10px;
+    color: var(--ink);
+    font: 12px 'DM Sans'
+}
+
+.certificate-field-grid input:focus {
+    border-color: var(--coral);
+    outline: 2px solid rgba(227, 109, 84, .14)
+}
+
+.certificate-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px
+}
+
+.certificate-notice {
+    margin: 14px 0;
+    padding: 12px 14px;
+    background: #e1f0e3;
+    color: #397253;
+    font-size: 12px
+}
+
+.certificate-notice.due {
+    background: #fff6df;
+    color: #7c5b1e
+}
+
 .admin-student-detail {
     display: grid;
     gap: 15px
@@ -4308,7 +4488,7 @@ footer button {
 
     .admin-portal .admin-nav nav {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 4px;
         margin: 0;
         padding: 7px 10px calc(7px + env(safe-area-inset-bottom));
@@ -4335,5 +4515,32 @@ footer button {
 
     .admin-portal .admin-main {
         padding: 28px 18px calc(100px + env(safe-area-inset-bottom));
+    }
+
+    .certificate-field-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .certificate-field-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .certificate-fields {
+        padding: 16px;
+    }
+
+    .certificate-fields-heading {
+        display: block;
+    }
+
+    .certificate-fields-heading>span {
+        display: block;
+        margin-top: 8px;
+    }
+
+    .certificate-student-summary {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
