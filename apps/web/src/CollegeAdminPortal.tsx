@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpRight, BookOpen, CheckCircle2, Eye, EyeOff, IndianRupee, LockKeyhole, LogOut, UserRound } from 'lucide-react';
+import { ArrowUpRight, BookOpen, CheckCircle2, Eye, EyeOff, Home, IndianRupee, LockKeyhole, LogOut, UserRound } from 'lucide-react';
 import { FormEvent, useEffect, useState } from 'react';
 
 const apiBase = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:4000`;
@@ -14,12 +14,12 @@ type StudentDetail = {
   statusHistory: Array<{ id: string; fromStatus: string | null; toStatus: string; reason: string | null; changedBy: string; createdAt: string }>;
 };
 
-export function CollegeAdminPortal({ onBack }: { onBack: () => void }) {
+export function CollegeAdminPortal({ onBack, onStudentLogin }: { onBack: () => void; onStudentLogin: () => void }) {
   const [token, setToken] = useState('');
-  return token ? <AdminWorkspace token={token} onLogout={() => setToken('')} onBack={onBack} /> : <AdminLogin onAuthenticated={setToken} onBack={onBack} />;
+  return token ? <AdminWorkspace token={token} onLogout={() => setToken('')} onBack={onBack} /> : <AdminLogin onAuthenticated={setToken} onBack={onBack} onStudentLogin={onStudentLogin} />;
 }
 
-function AdminLogin({ onAuthenticated, onBack }: { onAuthenticated: (token: string) => void; onBack: () => void }) {
+function AdminLogin({ onAuthenticated, onBack, onStudentLogin }: { onAuthenticated: (token: string) => void; onBack: () => void; onStudentLogin: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,7 +37,7 @@ function AdminLogin({ onAuthenticated, onBack }: { onAuthenticated: (token: stri
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to sign in'); }
     finally { setBusy(false); }
   }
-  return <main className="admin-auth"><section className="admin-auth-brand"><button onClick={onBack}><ArrowLeft size={17} /> Back to website</button><div><span className="brand-mark">N</span><p>NSR IMPULSE</p><small>COLLEGE OPERATIONS</small></div><h1>One campus.<br /><em>Clear control.</em></h1><p>Create accurate student records, assign fees once, and keep every action traceable.</p></section><section className="admin-auth-form"><p className="eyebrow">AUTHORIZED ACCESS</p><h2>College Admin</h2><p>Use the account issued by the organization.</p><form onSubmit={submit}><label><span>Admin ID</span><div><UserRound size={17} /><input name="adminId" placeholder="NSRTSADMMIN-001" autoComplete="username" required /></div></label><label><span>Password</span><div><LockKeyhole size={17} /><input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>{error && <p className="admin-form-error">{error}</p>}<button className="primary-button" disabled={busy}>{busy ? 'Signing in...' : 'Sign in as College Admin'}</button></form><p className="admin-demo">Demo ID: <strong>NSRTSADMMIN-001</strong></p></section></main>;
+  return <main className="auth-shell admin-auth"><section className="auth-brand admin-auth-brand"><div className="auth-brand-header"><div className="auth-brand-copy"><span className="brand-mark">N</span><span><strong>NSR</strong><small>IMPULSE KNOWLEDGE PARK</small></span></div><button className="auth-home-button" type="button" onClick={onBack} aria-label="Go to home" title="Home"><Home size={19} /></button></div><div className="auth-quote"><p>"One campus, <em>Clear control."</em></p><span>Accurate records and traceable student services.</span></div></section><section className="auth-panel admin-auth-form"><div className="auth-role-switch" role="group" aria-label="Choose account type"><button type="button" aria-pressed="false" onClick={onStudentLogin}>Student</button><button type="button" className="active" aria-pressed="true">College Admin</button></div><h1>College <em>Admin.</em></h1><p className="auth-intro">Use the account issued by your organization.</p><form onSubmit={submit}><label className="field"><span>Admin ID</span><div className="input-wrap"><UserRound size={17} /><input name="adminId" placeholder="NSRTSADMMIN-001" autoComplete="username" required /></div></label><label className="field"><span>Password</span><div className="input-wrap"><LockKeyhole size={17} /><input name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>{error && <p className="admin-form-error">{error}</p>}<button className="primary-button auth-submit" disabled={busy}>{busy ? 'Signing in...' : 'Sign in as College Admin'}</button></form><p className="admin-demo">Demo ID: <strong>NSRTSADMMIN-001</strong></p></section></main>;
 }
 
 function AdminWorkspace({ token, onLogout, onBack }: { token: string; onLogout: () => void; onBack: () => void }) {

@@ -35,10 +35,10 @@ export function App() {
         <Route path="gallery" element={<GalleryPage onRegister={() => navigate('/register')} />} />
         <Route path="contact" element={<ContactPage onRegister={() => navigate('/register')} />} />
       </Route>
-      <Route path="login" element={<AuthPage mode="login" onModeChange={() => navigate('/register')} onBack={() => navigate('/')} onAuthenticated={authenticateStudent} />} />
-      <Route path="register" element={<AuthPage mode="register" onModeChange={() => navigate('/login')} onBack={() => navigate('/')} onAuthenticated={authenticateStudent} />} />
+      <Route path="login" element={<AuthPage mode="login" onModeChange={() => navigate('/register')} onBack={() => navigate('/')} onAdminLogin={() => navigate('/admin')} onAuthenticated={authenticateStudent} />} />
+      <Route path="register" element={<AuthPage mode="register" onModeChange={() => navigate('/login')} onBack={() => navigate('/')} onAdminLogin={() => navigate('/admin')} onAuthenticated={authenticateStudent} />} />
       <Route path="student" element={studentId && studentAccessToken ? <StudentPortal studentId={studentId} accessToken={studentAccessToken} onBack={() => { setStudentId(''); setStudentAccessToken(''); navigate('/'); }} /> : <Navigate to="/login" replace />} />
-      <Route path="admin" element={<CollegeAdminPortal onBack={() => navigate('/')} />} />
+      <Route path="admin" element={<CollegeAdminPortal onBack={() => navigate('/')} onStudentLogin={() => navigate('/login')} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -62,7 +62,7 @@ function PublicLayout() {
               {item.label}
             </NavLink>
           ))}
-          <Link className="nav-login" to="/login">Student login <ArrowUpRight size={16} /></Link>
+          <Link className="nav-login" to="/login">Login <ArrowUpRight size={16} /></Link>
         </nav>
       </header>
       <Outlet />
