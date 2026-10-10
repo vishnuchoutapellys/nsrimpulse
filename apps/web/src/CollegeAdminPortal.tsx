@@ -48,7 +48,7 @@ function AdminWorkspace({ token, onLogout, onBack }: { token: string; onLogout: 
   useEffect(() => { adminFetch<AdminContext>('/context', token).then(setContext).catch((reason) => setError(reason.message)); }, [token]);
   if (error) return <main className="portal-state"><h1>Admin portal unavailable</h1><p>{error}</p><button className="primary-button" onClick={onLogout}>Sign in again</button></main>;
   if (!context) return <main className="portal-state"><div className="portal-loader"></div><p>Loading authorized scope...</p></main>;
-  return <main className="admin-portal"><header className="portal-top"><button className="brand plain" onClick={onBack}><span className="brand-mark">N</span><span><strong>NSR</strong><small>COLLEGE ADMIN</small></span></button><div className="portal-top-actions"><span className="portal-id">{context.admin.adminId}</span><button className="portal-logout" onClick={onLogout}><LogOut size={16} /> Sign out</button></div></header><div className="admin-layout"><aside className="admin-nav"><div><strong>{context.scopes[0]?.college.name}</strong><small>{context.scopes[0]?.branch?.name ?? 'All branches'}</small></div><nav><button className={view === 'dashboard' ? 'active' : ''} onClick={() => setView('dashboard')}><BookOpen size={17} /> Overview</button><button className={view === 'search' ? 'active' : ''} onClick={() => setView('search')}><UserRound size={17} /> Search student</button><button className={view === 'create' ? 'active' : ''} onClick={() => setView('create')}><IndianRupee size={17} /> New admission</button><button className={view === 'certificates' ? 'active' : ''} onClick={() => setView('certificates')}><FileText size={17} /> Certificates</button></nav></aside><section className="admin-main">{view === 'dashboard' && <AdminOverview context={context} onNavigate={setView} />}{view === 'search' && <StudentSearch token={token} />}{view === 'create' && <CreateStudent token={token} context={context} onCreated={() => setView('search')} />}{view === 'certificates' && <CertificateCenter token={token} />}</section></div></main>;
+  return <main className={`admin-portal ${view === 'dashboard' ? 'admin-overview-mode' : ''}`}><header className="portal-top"><button className="brand plain" onClick={onBack}><span className="brand-mark">N</span><span><strong>NSR</strong><small>COLLEGE ADMIN</small></span></button><div className="portal-top-actions"><span className="portal-id">{context.admin.adminId}</span><button className="portal-logout" onClick={onLogout}><LogOut size={16} /> Sign out</button></div></header><div className="admin-layout"><aside className="admin-nav"><div><strong>{context.scopes[0]?.college.name}</strong><small>{context.scopes[0]?.branch?.name ?? 'All branches'}</small></div><nav><button className={view === 'dashboard' ? 'active' : ''} onClick={() => setView('dashboard')}><BookOpen size={17} /> Overview</button><button className={view === 'search' ? 'active' : ''} onClick={() => setView('search')}><UserRound size={17} /> Search student</button><button className={view === 'create' ? 'active' : ''} onClick={() => setView('create')}><IndianRupee size={17} /> New admission</button><button className={view === 'certificates' ? 'active' : ''} onClick={() => setView('certificates')}><FileText size={17} /> Certificates</button></nav></aside><section className="admin-main">{view === 'dashboard' && <AdminOverview context={context} onNavigate={setView} />}{view === 'search' && <StudentSearch token={token} />}{view === 'create' && <CreateStudent token={token} context={context} onCreated={() => setView('search')} />}{view === 'certificates' && <CertificateCenter token={token} />}</section></div></main>;
 }
 
 function AdminOverview({ context, onNavigate }: { context: AdminContext; onNavigate: (view: AdminView) => void }) {
@@ -56,7 +56,7 @@ function AdminOverview({ context, onNavigate }: { context: AdminContext; onNavig
   const assignedBranches = new Set(context.scopes.map((scope) => scope.branch?.id).filter(Boolean)).size;
   const branchCount = assignedBranches || 'All';
   return (
-    <>
+    <div className="admin-overview-page">
       <div className="admin-page-heading admin-welcome">
         <div><p className="eyebrow">CAMPUS OPERATIONS</p><h1>Good morning,<br /><em>{context.admin.adminId}</em></h1><p>Your authorized workspace is ready. Choose an action or review your access scope.</p></div>
         <div className="admin-date"><span>WORKSPACE</span><strong>College administration</strong><small>Secure · Role-scoped access</small></div>
@@ -72,7 +72,7 @@ function AdminOverview({ context, onNavigate }: { context: AdminContext; onNavig
         <button onClick={() => onNavigate('search')}><span>02</span><BookOpen size={24} /><h2>Find student</h2><p>Search by immutable Student ID to review academic and financial details.</p><b>Search records <ArrowUpRight size={15} /></b></button>
       </div>
       <section className="portal-card admin-scope-card"><div className="admin-section-title"><div><p className="eyebrow">AUTHORIZED SCOPE</p><h2>Your access</h2></div><CheckCircle2 size={21} /></div>{context.scopes.map((scope) => <div key={`${scope.college.id}-${scope.branch?.id}`}><CheckCircle2 size={17} /><span><strong>{scope.college.name}</strong><small>{scope.branch?.name ?? 'All branches'}</small></span></div>)}</section>
-    </>
+    </div>
   );
 }
 

@@ -14,7 +14,16 @@
     --panel: #fff;
     --dark: #0b1220;
     --ink-soft: #475569;
-    --success: #136c4f
+    --success: #136c4f;
+    --text-xs: 10px;
+    --text-sm: 12px;
+    --text-md: 12px;
+    --text-body: 14px;
+    --control-height: 32px;
+    --control-height-sm: 40px;
+    --control-radius: 12px;
+    --control-radius-sm: 10px;
+    --control-gap: 8px
 }
 
 * {
@@ -45,7 +54,7 @@ a {
 .site-shell {
     max-width: 1500px;
     margin: auto;
-    padding: 18px 18px 0;
+    padding: 2px;
     overflow: hidden
 }
 
@@ -1170,17 +1179,18 @@ footer button {
 
 .main-footer {
     display: grid;
-    grid-template-columns: 1.2fr 1fr auto;
-    gap: 40px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 24px 48px;
     background: #00077b;
-    padding: 28px 2vw 44px;
+    padding: 30px clamp(28px, 7vw, 120px);
     color: #fff;
-    align-items: start
+    align-items: center
 }
 
 .main-footer p {
-    color: #475569;
-    max-width: 350px
+    color: #dbeafe;
+    max-width: 420px;
+    margin: 12px 0 0
 }
 
 .footer-links {
@@ -1210,7 +1220,7 @@ footer button {
 }
 
 .copyright {
-    color: #64748b
+    color: #cbd5e1
 }
 
 .main-footer button {
@@ -1573,10 +1583,6 @@ footer button {
 }
 
 .site-shell footer {
-    padding: 48px clamp(32px, 7vw, 100px);
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 30px;
     position: relative
 }
 
@@ -1619,10 +1625,11 @@ footer button {
 }
 
 .copyright {
-    grid-column: 1/-1;
-    border-top: 1px solid var(--line);
-    padding-top: 18px;
-    color: #ffffff
+    align-self: end;
+    border: 0;
+    padding: 0;
+    color: #cbd5e1;
+    text-align: right
 }
 
 .auth-shell {
@@ -1986,6 +1993,10 @@ footer button {
 .portal-id {
     font: 12px 'Playfair Display';
     color: #6d8179
+}
+
+.student-header-name {
+    display: none
 }
 
 .portal-logout {
@@ -2660,7 +2671,8 @@ footer button {
     color: var(--ink);
     padding: 10px 14px;
     font-size: 12px;
-    font-weight: 700
+    font-weight: 700;
+    margin-left: 5px;
 }
 
 .fee-actions {
@@ -4233,8 +4245,8 @@ footer button {
 @media (max-width: 600px) {
     .site-shell footer.main-footer {
         grid-template-columns: minmax(0, 1fr);
-        gap: 22px;
-        padding: 30px 22px 24px;
+        gap: 18px;
+        padding: 28px 22px 22px;
     }
 
     .main-footer>div:first-child {
@@ -4247,38 +4259,14 @@ footer button {
         line-height: 1.45;
     }
 
-    .main-footer .footer-links {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 20px;
-        width: 100%;
-    }
-
-    .main-footer .footer-links>div {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        align-content: start;
-        gap: 9px 12px;
-        min-width: 0;
-        font-size: 11px;
-    }
-
-    .main-footer .footer-links b {
-        grid-column: 1 / -1;
-        margin: 0 0 3px;
-    }
-
-    .main-footer .footer-link {
-        min-width: 0;
-        line-height: 1.3;
-    }
-
     .main-footer .copyright {
         grid-column: 1;
         margin: 0;
         padding-top: 14px;
+        border-top: 1px solid rgba(255, 255, 255, .24);
         font-size: 10px;
         line-height: 1.45;
+        text-align: left;
     }
 }
 
@@ -4311,6 +4299,24 @@ footer button {
         border-radius: 12px;
         background: #f1f5f9;
         color: #475569;
+    }
+
+    .student-portal .portal-top-actions {
+        min-width: 0;
+        gap: 8px;
+    }
+
+    .student-portal .student-header-name {
+        display: block;
+        max-width: min(30vw, 118px);
+        overflow: hidden;
+        color: #1e293b;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.2;
+        text-align: right;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .student-portal .portal-layout {
@@ -4542,5 +4548,1175 @@ footer button {
 
     .certificate-student-summary {
         grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Mobile typography only: keep desktop sizing unchanged. */
+@media (max-width: 600px) {
+    html {
+        font-size: 14px;
+    }
+
+    body {
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .site-shell {
+        padding: 8px 8px 0;
+    }
+
+    .brand strong {
+        font-size: 14px;
+    }
+
+    .brand small {
+        font-size: 7px;
+    }
+
+    .eyebrow {
+        margin-bottom: 10px;
+        font-size: 9px;
+        line-height: 1.35;
+        letter-spacing: 1.4px;
+    }
+
+    .hero h1,
+    .page-hero h1,
+    .page-heading h1,
+    .intro-section h2,
+    .facilities h2,
+    .courses-section h2,
+    .branches-section h2,
+    .voices h2,
+    .contact-section h2,
+    .results-section h2 {
+        font-size: 30px;
+        line-height: 1.08;
+        letter-spacing: 0;
+    }
+
+    .hero-text,
+    .section-heading>p,
+    .intro-section>div:last-child>p,
+    .contact-details p {
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .section-heading h2,
+    .course-feature h3,
+    .voice-card p {
+        font-size: 27px;
+        line-height: 1.12;
+        letter-spacing: 0;
+    }
+
+    .facility-grid h3,
+    .pathway-grid h3,
+    .branch-grid h3 {
+        font-size: 20px;
+    }
+
+    .stats strong,
+    .result-list strong,
+    .course-visual strong {
+        font-size: 27px;
+    }
+
+    .auth-panel h1,
+    .auth-brand h1,
+    .admin-auth-brand h1 {
+        font-size: 30px;
+        line-height: 1.08;
+        letter-spacing: 0;
+    }
+
+    .auth-panel h2,
+    .admin-auth-form h2 {
+        font-size: 28px;
+    }
+
+    .auth-intro,
+    .auth-panel input,
+    .admin-auth-form input {
+        font-size: 13px;
+    }
+
+    .student-portal .portal-heading h1,
+    .admin-page-heading h1,
+    .admin-page-heading.compact h1,
+    .admin-welcome h1 {
+        font-size: 27px;
+        line-height: 1.12;
+        letter-spacing: 0;
+    }
+
+    .student-portal .portal-stat strong,
+    .student-portal .portal-stat.pending strong,
+    .fee-summary strong,
+    .metric-grid strong {
+        font-size: 27px;
+    }
+
+    .student-portal .card-heading h2,
+    .admin-portal .card-heading h2,
+    .admin-action-grid h2,
+    .reminder-item h2,
+    .history-main h2 {
+        font-size: 18px;
+        line-height: 1.25;
+    }
+
+    .portal-card,
+    .panel,
+    .admin-action-grid button {
+        font-size: 12px;
+    }
+
+    .detail-grid strong,
+    .table-row,
+    .fee-table-row,
+    .installment-row strong,
+    .admin-installment,
+    .admin-record-row strong,
+    .history-identifiers span {
+        font-size: 11px;
+    }
+
+    .panel-label,
+    .table-label,
+    .fee-table-label,
+    .detail-grid span,
+    .admin-record-row small,
+    .history-date,
+    .history-identifiers b {
+        font-size: 8px;
+        letter-spacing: .7px;
+    }
+
+    .receipt-label,
+    .receipt-meta strong,
+    .receipt-student p,
+    .receipt-line,
+    .receipt-total {
+        font-size: 10px;
+    }
+
+    .receipt-student strong {
+        font-size: 19px;
+    }
+
+    .payment-dialog h2 {
+        font-size: 25px;
+    }
+
+    .payment-intro,
+    .payment-field input,
+    .payment-field select,
+    .admin-create-form input,
+    .admin-create-form select,
+    .admin-offline-payment input,
+    .admin-offline-payment select,
+    .admin-search input {
+        font-size: 12px;
+    }
+
+    button,
+    .primary-button,
+    .text-link {
+        font-size: 12px;
+    }
+}
+
+/* Mobile public navigation: fixed above page content and aligned for touch. */
+@media (max-width: 800px) {
+    .site-shell .topbar {
+        top: 0;
+        z-index: 100;
+        height: 64px;
+        padding: 0 14px;
+        border-radius: 0;
+    }
+
+    .site-shell .menu-button {
+        display: grid;
+        width: 44px;
+        height: 44px;
+        flex: 0 0 44px;
+        place-items: center;
+        padding: 0;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, .14);
+        color: #fff;
+    }
+
+    .site-shell .nav {
+        display: none;
+    }
+
+    .site-shell .nav.open {
+        position: fixed;
+        z-index: 99;
+        top: 64px;
+        right: 8px;
+        left: 8px;
+        display: flex;
+        width: auto;
+        max-height: calc(100dvh - 72px);
+        flex-direction: column;
+        align-items: stretch;
+        gap: 3px;
+        padding: 12px;
+        overflow-y: auto;
+        border: 1px solid #dbe4ef;
+        border-radius: 0 0 16px 16px;
+        background: rgba(255, 255, 255, .99);
+        box-shadow: 0 20px 45px rgba(15, 23, 42, .2);
+    }
+
+    .site-shell .nav.open .nav-item {
+        display: flex;
+        width: 100%;
+        min-height: 42px;
+        align-items: center;
+        padding: 0 13px;
+        border-radius: 10px;
+        color: #1e293b;
+        font-size: 13px;
+        text-align: left;
+    }
+
+    .site-shell .nav.open .nav-item:hover,
+    .site-shell .nav.open .nav-item.active {
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+
+    .site-shell .nav.open .nav-login {
+        width: 100%;
+        min-height: 44px;
+        margin-top: 7px;
+        justify-content: center;
+        padding: 0 14px;
+        border-radius: 11px;
+        font-size: 13px;
+    }
+}
+
+/* Mobile action controls: consistent sizing without changing desktop or nav tabs. */
+@media (max-width: 600px) {
+    .primary-button,
+    .nav-login,
+    .auth-submit,
+    .pay-installment-button,
+    .print-button,
+    .payment-submit,
+    .history-download,
+    .admin-offline-payment form>.primary-button {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.2;
+        text-align: center;
+    }
+
+    .text-link,
+    .back-button,
+    .forgot,
+    .portal-logout {
+        display: inline-flex;
+        min-height: 40px;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 0 12px;
+        border-radius: 10px;
+        font-size: 12px;
+        line-height: 1.2;
+    }
+
+    .payment-close,
+    .input-wrap>button,
+    .admin-auth-form label button {
+        display: grid;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        place-items: center;
+        padding: 0;
+        border-radius: 10px;
+    }
+
+    .admin-installment-editor button {
+        min-height: 40px;
+        padding: 0 12px;
+        border-radius: 10px;
+        background: #fff1f2;
+        color: #be123c;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .hero-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+
+    .hero-actions>.primary-button,
+    .hero-actions>.text-link,
+    .auth-submit,
+    .student-portal .pay-installment-button,
+    .student-portal .reminder-card>.primary-button,
+    .payment-submit,
+    .payment-success>.primary-button,
+    .print-button,
+    .history-summary>.primary-button,
+    .contact-form>.primary-button,
+    .course-feature .primary-button,
+    .portal-state>.primary-button,
+    .admin-search>.primary-button,
+    .admin-offline-payment form>.primary-button,
+    .admin-payment-result>.primary-button {
+        width: 100%;
+    }
+
+    .student-portal .portal-stat.pending small {
+        display: block;
+    }
+
+    .student-portal .pay-installment-button {
+        margin: 16px 0 0;
+    }
+
+    .fee-actions {
+        width: 100%;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .fee-actions>.primary-button,
+    .fee-actions>.text-link {
+        width: 100%;
+    }
+
+    .admin-form-actions {
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .admin-form-actions>.primary-button,
+    .admin-form-actions>.text-link {
+        min-width: 0;
+    }
+
+    .admin-payment-result {
+        align-items: stretch;
+    }
+
+    .admin-payment-result>.primary-button,
+    .admin-payment-result>.text-link {
+        width: 100%;
+    }
+
+    button:disabled,
+    .primary-button:disabled,
+    .text-link:disabled {
+        cursor: not-allowed;
+        opacity: .55;
+        transform: none;
+    }
+
+    button:focus-visible,
+    a:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, .3);
+        outline-offset: 2px;
+    }
+
+    button svg,
+    a svg {
+        flex: 0 0 auto;
+    }
+}
+
+/* Mobile typography only: keep desktop sizing unchanged. */
+@media (max-width: 600px) {
+    html {
+        font-size: 14px;
+    }
+
+    body {
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .site-shell {
+        padding: 8px 8px 0;
+    }
+
+    .brand strong {
+        font-size: 14px;
+    }
+
+    .brand small {
+        font-size: 7px;
+    }
+
+    .eyebrow {
+        margin-bottom: 10px;
+        font-size: 9px;
+        line-height: 1.35;
+        letter-spacing: 1.4px;
+    }
+
+    .hero h1,
+    .page-hero h1,
+    .page-heading h1,
+    .intro-section h2,
+    .facilities h2,
+    .courses-section h2,
+    .branches-section h2,
+    .voices h2,
+    .contact-section h2,
+    .results-section h2 {
+        font-size: 30px;
+        line-height: 1.08;
+        letter-spacing: 0;
+    }
+
+    .hero-text,
+    .section-heading>p,
+    .intro-section>div:last-child>p,
+    .contact-details p {
+        font-size: 12px;
+        line-height: 1.6;
+    }
+
+    .section-heading h2,
+    .course-feature h3,
+    .voice-card p {
+        font-size: 27px;
+        line-height: 1.12;
+        letter-spacing: 0;
+    }
+
+    .facility-grid h3,
+    .pathway-grid h3,
+    .branch-grid h3 {
+        font-size: 20px;
+    }
+
+    .stats strong,
+    .result-list strong,
+    .course-visual strong {
+        font-size: 27px;
+    }
+
+    .auth-panel h1,
+    .auth-brand h1,
+    .admin-auth-brand h1 {
+        font-size: 30px;
+        line-height: 1.08;
+        letter-spacing: 0;
+    }
+
+    .auth-panel h2,
+    .admin-auth-form h2 {
+        font-size: 28px;
+    }
+
+    .auth-intro,
+    .auth-panel input,
+    .admin-auth-form input {
+        font-size: 13px;
+    }
+
+    .student-portal .portal-heading h1,
+    .admin-page-heading h1,
+    .admin-page-heading.compact h1,
+    .admin-welcome h1 {
+        font-size: 27px;
+        line-height: 1.12;
+        letter-spacing: 0;
+    }
+
+    .student-portal .portal-stat strong,
+    .student-portal .portal-stat.pending strong,
+    .fee-summary strong,
+    .metric-grid strong {
+        font-size: 27px;
+    }
+
+    .student-portal .card-heading h2,
+    .admin-portal .card-heading h2,
+    .admin-action-grid h2,
+    .reminder-item h2,
+    .history-main h2 {
+        font-size: 18px;
+        line-height: 1.25;
+    }
+
+    .portal-card,
+    .panel,
+    .admin-action-grid button {
+        font-size: 12px;
+    }
+
+    .detail-grid strong,
+    .table-row,
+    .fee-table-row,
+    .installment-row strong,
+    .admin-installment,
+    .admin-record-row strong,
+    .history-identifiers span {
+        font-size: 11px;
+    }
+
+    .panel-label,
+    .table-label,
+    .fee-table-label,
+    .detail-grid span,
+    .admin-record-row small,
+    .history-date,
+    .history-identifiers b {
+        font-size: 8px;
+        letter-spacing: .7px;
+    }
+
+    .receipt-label,
+    .receipt-meta strong,
+    .receipt-student p,
+    .receipt-line,
+    .receipt-total {
+        font-size: 10px;
+    }
+
+    .receipt-student strong {
+        font-size: 19px;
+    }
+
+    .payment-dialog h2 {
+        font-size: 25px;
+    }
+
+    .payment-intro,
+    .payment-field input,
+    .payment-field select,
+    .admin-create-form input,
+    .admin-create-form select,
+    .admin-offline-payment input,
+    .admin-offline-payment select,
+    .admin-search input {
+        font-size: 12px;
+    }
+
+    button,
+    .primary-button,
+    .text-link {
+        font-size: 12px;
+    }
+}
+
+/* Mobile public navigation: fixed above page content and aligned for touch. */
+@media (max-width: 800px) {
+    .site-shell .topbar {
+        top: 0;
+        z-index: 100;
+        height: 64px;
+        padding: 0 14px;
+        border-radius: 0;
+    }
+
+    .site-shell .menu-button {
+        display: grid;
+        width: 44px;
+        height: 44px;
+        flex: 0 0 44px;
+        place-items: center;
+        padding: 0;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, .14);
+        color: #fff;
+    }
+
+    .site-shell .nav {
+        display: none;
+    }
+
+    .site-shell .nav.open {
+        position: fixed;
+        z-index: 99;
+        top: 64px;
+        right: 8px;
+        left: 8px;
+        display: flex;
+        width: auto;
+        max-height: calc(100dvh - 72px);
+        flex-direction: column;
+        align-items: stretch;
+        gap: 3px;
+        padding: 12px;
+        overflow-y: auto;
+        border: 1px solid #dbe4ef;
+        border-radius: 0 0 16px 16px;
+        background: rgba(255, 255, 255, .99);
+        box-shadow: 0 20px 45px rgba(15, 23, 42, .2);
+    }
+
+    .site-shell .nav.open .nav-item {
+        display: flex;
+        width: 100%;
+        min-height: 42px;
+        align-items: center;
+        padding: 0 13px;
+        border-radius: 10px;
+        color: #1e293b;
+        font-size: 13px;
+        text-align: left;
+    }
+
+    .site-shell .nav.open .nav-item:hover,
+    .site-shell .nav.open .nav-item.active {
+        background: #eff6ff;
+        color: #1d4ed8;
+    }
+
+    .site-shell .nav.open .nav-login {
+        width: 100%;
+        min-height: 44px;
+        margin-top: 7px;
+        justify-content: center;
+        padding: 0 14px;
+        border-radius: 11px;
+        font-size: 13px;
+    }
+}
+
+/* Mobile action controls: consistent sizing without changing desktop or nav tabs. */
+@media (max-width: 600px) {
+    .primary-button,
+    .nav-login,
+    .auth-submit,
+    .pay-installment-button,
+    .print-button,
+    .payment-submit,
+    .history-download,
+    .admin-offline-payment form>.primary-button {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.2;
+        text-align: center;
+    }
+
+    .text-link,
+    .back-button,
+    .forgot,
+    .portal-logout {
+        display: inline-flex;
+        min-height: 40px;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 0 12px;
+        border-radius: 10px;
+        font-size: 12px;
+        line-height: 1.2;
+    }
+
+    .payment-close,
+    .input-wrap>button,
+    .admin-auth-form label button {
+        display: grid;
+        width: 40px;
+        min-width: 40px;
+        height: 40px;
+        place-items: center;
+        padding: 0;
+        border-radius: 10px;
+    }
+
+    .admin-installment-editor button {
+        min-height: 40px;
+        padding: 0 12px;
+        border-radius: 10px;
+        background: #fff1f2;
+        color: #be123c;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .hero-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+
+    .hero-actions>.primary-button,
+    .hero-actions>.text-link,
+    .auth-submit,
+    .student-portal .pay-installment-button,
+    .student-portal .reminder-card>.primary-button,
+    .payment-submit,
+    .payment-success>.primary-button,
+    .print-button,
+    .history-summary>.primary-button,
+    .contact-form>.primary-button,
+    .course-feature .primary-button,
+    .portal-state>.primary-button,
+    .admin-search>.primary-button,
+    .admin-offline-payment form>.primary-button,
+    .admin-payment-result>.primary-button {
+        width: 100%;
+    }
+
+    .student-portal .portal-stat.pending small {
+        display: block;
+    }
+
+    .student-portal .pay-installment-button {
+        margin: 16px 0 0;
+    }
+
+    .fee-actions {
+        width: 100%;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .fee-actions>.primary-button,
+    .fee-actions>.text-link {
+        width: 100%;
+    }
+
+    .admin-form-actions {
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .admin-form-actions>.primary-button,
+    .admin-form-actions>.text-link {
+        min-width: 0;
+    }
+
+    .admin-payment-result {
+        align-items: stretch;
+    }
+
+    .admin-payment-result>.primary-button,
+    .admin-payment-result>.text-link {
+        width: 100%;
+    }
+
+    button:disabled,
+    .primary-button:disabled,
+    .text-link:disabled {
+        cursor: not-allowed;
+        opacity: .55;
+        transform: none;
+    }
+
+    button:focus-visible,
+    a:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, .3);
+        outline-offset: 2px;
+    }
+
+    button svg,
+    a svg {
+        flex: 0 0 auto;
+    }
+}
+
+/* College Admin overview: a complete desktop workspace without page scrolling. */
+@media (min-width: 801px) {
+    .admin-portal.admin-overview-mode {
+        height: 100dvh;
+        min-height: 620px;
+        overflow: hidden;
+    }
+
+    .admin-overview-mode .admin-layout {
+        height: calc(100dvh - 76px);
+        min-height: 544px;
+        overflow: hidden;
+    }
+
+    .admin-overview-mode .admin-nav {
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .admin-overview-mode .admin-main {
+        height: 100%;
+        max-width: 1400px;
+        padding: clamp(18px, 2.4vh, 26px) clamp(24px, 4vw, 58px);
+        overflow: hidden;
+    }
+
+    .admin-overview-page {
+        display: grid;
+        height: 100%;
+        min-height: 0;
+        grid-template-rows: auto minmax(82px, 96px) auto minmax(132px, 1fr) minmax(72px, 84px);
+        gap: clamp(8px, 1.25vh, 12px);
+    }
+
+    .admin-overview-page .admin-welcome {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 220px;
+        align-items: center;
+        gap: 24px;
+        margin: 0;
+    }
+
+    .admin-overview-page .admin-welcome .eyebrow {
+        margin-bottom: 5px;
+        font-size: 9px;
+        letter-spacing: 1.3px;
+    }
+
+    .admin-overview-page .admin-welcome h1 {
+        font-size: clamp(24px, 2.1vw, 30px);
+        line-height: 1.08;
+    }
+
+    .admin-overview-page .admin-welcome>div:first-child>p:last-child {
+        max-width: 570px;
+        margin: 8px 0 0;
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .admin-overview-page .admin-date {
+        min-width: 0;
+        padding: 14px 17px;
+        border-color: #d9e4f0;
+        background: linear-gradient(145deg, #fff, #f8fbff);
+        box-shadow: 0 14px 30px rgba(15, 23, 42, .06);
+    }
+
+    .admin-overview-page .admin-overview-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin: 0;
+    }
+
+    .admin-overview-page .admin-overview-metrics article {
+        min-height: 0;
+        height: 100%;
+        padding: 12px 18px;
+        border-color: #dfe8f2;
+        background: linear-gradient(155deg, #fff 55%, #f5f9ff);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .045);
+    }
+
+    .admin-overview-page .admin-overview-metrics strong {
+        margin-top: 6px;
+        font-size: 24px;
+        line-height: 1;
+    }
+
+    .admin-overview-page .admin-overview-metrics small {
+        margin-top: 4px;
+    }
+
+    .admin-overview-page>.admin-section-title {
+        margin: 0;
+    }
+
+    .admin-overview-page>.admin-section-title .eyebrow {
+        margin-bottom: 2px;
+        font-size: 9px;
+        letter-spacing: 1.1px;
+    }
+
+    .admin-overview-page>.admin-section-title h2 {
+        font-size: 15px;
+        line-height: 1.2;
+    }
+
+    .admin-overview-page .admin-action-grid {
+        min-height: 0;
+        gap: 14px;
+    }
+
+    .admin-overview-page .admin-action-grid button {
+        min-height: 0;
+        height: 100%;
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) auto;
+        grid-template-rows: auto auto auto;
+        column-gap: 14px;
+        align-content: center;
+        padding: 14px 18px;
+        border-color: #dce6f1;
+        background: linear-gradient(145deg, #fff, #fbfdff);
+        box-shadow: 0 14px 30px rgba(15, 23, 42, .055);
+    }
+
+    .admin-overview-page .admin-action-grid button:hover {
+        border-color: #60a5fa;
+        background: linear-gradient(145deg, #fff, #f2f7ff);
+    }
+
+    .admin-overview-page .admin-action-grid h2 {
+        grid-column: 2;
+        grid-row: 1;
+        margin: 0 0 3px;
+        font-size: 18px;
+        line-height: 1.2;
+    }
+
+    .admin-overview-page .admin-action-grid p {
+        grid-column: 2;
+        grid-row: 2;
+        margin: 0;
+        font-size: 11px;
+        line-height: 1.35;
+    }
+
+    .admin-overview-page .admin-action-grid button>svg {
+        grid-column: 1;
+        grid-row: 1 / span 3;
+        align-self: center;
+        width: 25px;
+        height: 25px;
+    }
+
+    .admin-overview-page .admin-action-grid button>span {
+        top: 13px;
+        right: 14px;
+        font-size: 9px;
+    }
+
+    .admin-overview-page .admin-action-grid button>b {
+        grid-column: 2;
+        grid-row: 3;
+        margin-top: 7px;
+        font-size: 10px;
+    }
+
+    .admin-overview-page .admin-scope-card {
+        display: grid;
+        grid-template-columns: minmax(190px, .65fr) minmax(0, 1.35fr);
+        align-items: center;
+        gap: 18px;
+        margin: 0;
+        height: 100%;
+        min-height: 0;
+        padding: 10px 16px;
+        border-color: #dce6f1;
+        background: linear-gradient(100deg, #fff, #f5f9ff);
+        box-shadow: 0 12px 26px rgba(15, 23, 42, .045);
+    }
+
+    .admin-overview-page .admin-scope-card .admin-section-title {
+        margin: 0;
+    }
+
+    .admin-overview-page .admin-scope-card .eyebrow {
+        margin: 0 0 2px;
+        font-size: 8px;
+        letter-spacing: 1.1px;
+    }
+
+    .admin-overview-page .admin-scope-card .admin-section-title h2 {
+        font-size: 15px;
+        line-height: 1.15;
+    }
+
+    .admin-overview-page .admin-scope-card>div:not(.admin-section-title) {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 0 0 18px;
+        border-top: 0;
+        border-left: 1px solid #dce6f1;
+    }
+
+    .admin-overview-page .admin-scope-card>div:not(.admin-section-title) strong {
+        font-size: 11px;
+        line-height: 1.2;
+    }
+
+    .admin-overview-page .admin-scope-card>div:not(.admin-section-title) small {
+        margin-top: 2px;
+        font-size: 9px;
+    }
+}
+
+/* Mobile authentication exposes student access only; desktop keeps both roles. */
+@media (max-width: 600px) {
+    .auth-role-switch {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .auth-role-switch button:nth-child(2) {
+        display: none;
+    }
+}
+
+/* Canonical control and type system. Keep this layer last in the cascade. */
+body {
+    font-size: var(--text-body);
+    line-height: 1.55;
+}
+
+p,
+li,
+input,
+select,
+textarea {
+    font-size: var(--text-md);
+}
+
+.eyebrow,
+.panel-label,
+.table-label,
+.fee-table-label,
+.detail-grid span,
+.payment-field>span,
+.admin-create-form label>span,
+.admin-offline-payment label>span,
+.contact-form label span {
+    font-size: var(--text-xs);
+    line-height: 1.35;
+}
+
+.primary-button,
+.nav-login,
+.auth-submit,
+.pay-installment-button,
+.print-button,
+.payment-submit,
+.history-download,
+.admin-offline-payment form>.primary-button {
+    display: inline-flex;
+    min-height: var(--control-height);
+    align-items: center;
+    justify-content: center;
+    gap: var(--control-gap);
+    padding: 0 16px;
+    border: 0;
+    border-radius: var(--control-radius);
+    font-size: var(--text-md);
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.text-link,
+.back-button,
+.forgot,
+.portal-logout {
+    display: inline-flex;
+    min-height: var(--control-height-sm);
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 12px;
+    border-radius: var(--control-radius-sm);
+    font-size: var(--text-sm);
+    line-height: 1.2;
+}
+
+.menu-button,
+.payment-close,
+.auth-home-button,
+.input-wrap>button,
+.admin-auth-form label button {
+    width: var(--control-height-sm);
+    min-width: var(--control-height-sm);
+    height: var(--control-height-sm);
+    padding: 0;
+    border-radius: var(--control-radius-sm);
+}
+
+.auth-role-switch button,
+.auth-tabs button,
+.course-tabs button,
+.certificate-type-switch button {
+    min-height: var(--control-height-sm);
+    border-radius: var(--control-radius-sm);
+    font-size: var(--text-sm);
+    font-weight: 700;
+}
+
+.contact-form input,
+.contact-form select,
+.payment-field input,
+.payment-field select,
+.admin-search input,
+.admin-create-form label input,
+.admin-create-form label select,
+.admin-offline-payment input,
+.admin-offline-payment select {
+    min-height: var(--control-height);
+    border-radius: var(--control-radius-sm);
+    font-size: var(--text-md);
+}
+
+button:disabled,
+.primary-button:disabled,
+.text-link:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+    transform: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, .3);
+    outline-offset: 2px;
+}
+
+button svg,
+a svg {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
+    :root {
+        --text-body: 13px;
+        --text-md: 12px;
+        --text-sm: 11px;
+        --text-xs: 9px;
+    }
+
+    .primary-button,
+    .nav-login,
+    .auth-submit,
+    .pay-installment-button,
+    .print-button,
+    .payment-submit,
+    .history-download,
+    .admin-offline-payment form>.primary-button {
+        font-size: var(--text-md);
+    }
+
+    .text-link,
+    .back-button,
+    .forgot,
+    .portal-logout {
+        font-size: var(--text-md);
     }
 }

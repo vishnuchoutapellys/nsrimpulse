@@ -53,27 +53,26 @@ function PublicLayout() {
           <span className="brand-mark">N</span>
           <span><strong>NSR</strong><small>IMPULSE KNOWLEDGE PARK</small></span>
         </Link>
-        <button className="menu-button" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu">
+        <button className="menu-button" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu" aria-expanded={mobileOpen} aria-controls="public-navigation">
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <nav className={mobileOpen ? 'nav open' : 'nav'}>
+        <nav id="public-navigation" className={mobileOpen ? 'nav open' : 'nav'}>
           {navItems.map((item) => (
             <NavLink key={item.path} to={item.path} className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'} onClick={() => setMobileOpen(false)}>
               {item.label}
             </NavLink>
           ))}
-          <Link className="nav-login" to="/login">Login <ArrowUpRight size={16} /></Link>
+          <Link className="nav-login" to="/login" onClick={() => setMobileOpen(false)}>Login <ArrowUpRight size={16} /></Link>
         </nav>
       </header>
       <Outlet />
       <footer className="main-footer">
-        <div>
-          <Link className="brand" to="/"><span className="brand-mark">N</span><span><strong>NSR</strong><small>IMPULSE KNOWLEDGE PARK</small></span></Link>
+        <div className="footer-brand-block">
+          <Link className="brand" to="/">
+            <span className="brand-mark">N</span>
+            <span><strong>NSR</strong><small>IMPULSE KNOWLEDGE PARK</small></span>
+          </Link>
           <p>One connected community for ambitious learners.</p>
-        </div>
-        <div className="footer-links">
-          <div><b>Explore</b>{navItems.map((item) => <Link key={item.path} className="footer-link" to={item.path}>{item.label}</Link>)}</div>
-          <div><b>Student access</b><Link className="footer-link" to="/login">Sign in</Link><Link className="footer-link" to="/register">Register</Link><Link className="footer-link" to="/admin">College admin</Link></div>
         </div>
         <small className="copyright">© 2026 NSR Impulse Knowledge Park. All rights reserved.</small>
       </footer>
