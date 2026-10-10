@@ -21,12 +21,12 @@ type PaymentHistoryResponse = {
 
 const apiBase = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:4000`;
 
-export function PaymentHistory({ studentId }: { studentId: string }) {
+export function PaymentHistory({ studentId, accessToken }: { studentId: string; accessToken: string }) {
   const [history, setHistory] = useState<PaymentHistoryResponse | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch(`${apiBase}/api/v1/students/${encodeURIComponent(studentId)}/payments?page=1&pageSize=50`, { cache: 'no-store' })
+    fetch(`${apiBase}/api/v1/students/${encodeURIComponent(studentId)}/payments?page=1&pageSize=50`, { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store' })
       .then(async (response) => {
         const result = await response.json() as { success?: boolean; data?: PaymentHistoryResponse; error?: { message?: string } };
         if (!response.ok || !result.success || !result.data) throw new Error(result.error?.message ?? 'Unable to load payment history');

@@ -14,6 +14,7 @@ declare module 'lucide-react' {
   export const Eye: ComponentType<IconProps>;
   export const EyeOff: ComponentType<IconProps>;
   export const GraduationCap: ComponentType<IconProps>;
+  export const Home: ComponentType<IconProps>;
   export const IndianRupee: ComponentType<IconProps>;
   export const LockKeyhole: ComponentType<IconProps>;
   export const FileText: ComponentType<IconProps>;

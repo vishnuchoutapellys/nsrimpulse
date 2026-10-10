@@ -1,3 +1,5 @@
 # Authentication
 
-Use short-lived JWT access tokens and rotated, revocable refresh tokens stored server-side. Student registration links an already-created `Student` through verified Student ID plus registered contact; it never creates a second master student row. All login, role, scope, and account state changes are audited.
+Student login returns a 15-minute JWT with the `STUDENT` role and immutable `studentUid` claim. Portal, payment-history, and student-payment routes require that bearer token and compare its identity to the requested or submitted student ID. College Admin login returns an 8-hour `COLLEGE_ADMIN` JWT; each admin operation reloads the active user and authorized college/branch scopes from PostgreSQL before reading or mutating student data.
+
+Public student account registration links credentials to an already-created `Student` after matching name, mobile, and email. It does not create an admission or pending applicant. The current application does not yet implement refresh-token rotation/revocation, logout revocation, or access-token renewal; users must sign in again when the student token expires. Add persistent, hashed refresh sessions and rotation/reuse detection before production deployment. Login and account registration events are written to the audit log where implemented.

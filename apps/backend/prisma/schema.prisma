@@ -127,6 +127,15 @@ model Student {
   mobile         String
   email          String?
   fatherName     String?
+  motherName     String?
+  dateOfBirth    DateTime?               @db.Date
+  nationality    String?
+  religion       String?
+  casteCommunity String?
+  mediumOfInstruction String?
+  firstLanguage  String?
+  secondLanguage String?
+  thirdLanguage  String?
   address        String?
   village        String?
   pin            String?
