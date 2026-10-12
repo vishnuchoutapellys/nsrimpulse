@@ -1,6 +1,7 @@
 import { ArrowRight, ArrowUpRight, Bell, BookOpen, Building2, CalendarDays, CheckCircle2, ChevronRight, GraduationCap, IndianRupee, Menu, ShieldCheck, Sparkles, Star, Trophy, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import nsrLogo from '../../assets/nsrLogo.png';
 import { AuthPage } from './AuthPage';
 import { CollegeAdminPortal } from './CollegeAdminPortal';
 import { referenceContent } from './referenceContent';
@@ -49,9 +50,8 @@ function PublicLayout() {
   return (
     <main className="site-shell">
       <header className="topbar">
-        <Link className="brand brand-button" to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          <span className="brand-mark">N</span>
-          <span><strong>NSR</strong><small>IMPULSE KNOWLEDGE PARK</small></span>
+        <Link className="brand brand-button header-logo-link" to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="NSR Impulse Knowledge Park home">
+          <img className="header-logo" src={nsrLogo} alt="" />
         </Link>
         <button className="menu-button" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu" aria-expanded={mobileOpen} aria-controls="public-navigation">
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -69,7 +69,7 @@ function PublicLayout() {
       <footer className="main-footer">
         <div className="footer-brand-block">
           <Link className="brand" to="/">
-            <span className="brand-mark">N</span>
+            <img className="brand-logo" src={nsrLogo} alt="NSR Impulse Knowledge Park" />
             <span><strong>NSR</strong><small>IMPULSE KNOWLEDGE PARK</small></span>
           </Link>
           <p>One connected community for ambitious learners.</p>

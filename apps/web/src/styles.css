@@ -86,17 +86,36 @@ a {
     padding: 0
 }
 
+.header-logo-link {
+    flex: 0 0 auto;
+}
+
+.header-logo {
+    display: block;
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    border-radius: 50%;
+}
+
 .brand-mark {
     display: grid;
     place-items: center;
-    background: linear-gradient(135deg, #f59e0b, #f97316);
-    color: white;
+    background: transparent url('../../assets/nsrLogo.png') center / contain no-repeat;
+    color: transparent;
     width: 38px;
     height: 38px;
     border-radius: 50%;
-    font-family: Georgia;
-    font-size: 22px;
-    box-shadow: 0 12px 24px rgba(245, 158, 11, .35)
+    font-size: 0;
+    box-shadow: none
+}
+
+.brand-logo {
+    display: block;
+    width: 38px;
+    height: 38px;
+    object-fit: contain;
+    border-radius: 50%;
 }
 
 .brand strong {
