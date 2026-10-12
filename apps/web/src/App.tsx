@@ -51,7 +51,7 @@ function PublicLayout() {
     <main className="site-shell">
       <header className="topbar">
         <Link className="brand brand-button header-logo-link" to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="NSR Impulse Knowledge Park home">
-          <img className="header-logo" src={nsrLogo} alt="" />
+          <img className="brand-wordmark" src={nsrLogo} alt="NSR Impulse Educational Institutions" />
         </Link>
         <button className="menu-button" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu" aria-expanded={mobileOpen} aria-controls="public-navigation">
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -69,8 +69,7 @@ function PublicLayout() {
       <footer className="main-footer">
         <div className="footer-brand-block">
           <Link className="brand" to="/">
-            <img className="brand-logo" src={nsrLogo} alt="NSR Impulse Knowledge Park" />
-            <span><strong>NSR</strong><small>IMPULSE KNOWLEDGE PARK</small></span>
+            <img className="brand-wordmark" src={nsrLogo} alt="NSR Impulse Educational Institutions" />
           </Link>
           <p>One connected community for ambitious learners.</p>
         </div>
