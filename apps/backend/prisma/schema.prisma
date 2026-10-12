@@ -160,12 +160,37 @@ model Student {
 }
 
 model StudentAccount {
-  id           String  @id @default(cuid())
-  studentId    String  @unique
-  email        String? @unique
-  passwordHash String
-  student      Student @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  createdAt    DateTime @default(now())
+  id                  String                   @id @default(cuid())
+  studentId           String                   @unique
+  email               String?                  @unique
+  passwordHash        String
+  mustChangePassword  Boolean                  @default(true)
+  failedLoginAttempts Int                      @default(0)
+  lockedUntil         DateTime?
+  passwordChangedAt   DateTime?
+  student             Student                  @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  resetChallenges     PasswordResetChallenge[]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+}
+
+model PasswordResetChallenge {
+  id                String         @id @default(cuid())
+  accountId         String
+  emailOtpHash      String
+  mobileOtpHash     String
+  expiresAt         DateTime
+  attemptsRemaining Int            @default(5)
+  emailVerifiedAt   DateTime?
+  mobileVerifiedAt  DateTime?
+  resetTokenHash    String?
+  resetTokenExpiresAt DateTime?
+  consumedAt        DateTime?
+  createdAt         DateTime       @default(now())
+  account           StudentAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId, createdAt])
+  @@index([expiresAt])
 }
 
 model FeeStructure {

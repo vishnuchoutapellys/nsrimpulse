@@ -5856,3 +5856,23 @@ a svg {
         font-size: var(--text-md);
     }
 }
+
+.auth-back-link,
+.auth-forgot-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    background: transparent;
+    color: #2563eb;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.auth-back-link {
+    margin-bottom: 22px;
+}
+
+.auth-forgot-link {
+    margin: 4px 0 18px auto;
+}

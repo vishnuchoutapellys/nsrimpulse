@@ -11,16 +11,16 @@ describe('student identity rules', () => {
 
 describe('student access tokens', () => {
   it('accepts a signed student token only for its own record', () => {
-    const token = issueStudentAccessToken('NSRTSHYD-001', jwtSecret);
+    const token = issueStudentAccessToken('NSRHYD-001', jwtSecret);
     const claims = verifyStudentAccessToken(token, jwtSecret);
 
-    expect(claims).toEqual({ studentUid: 'NSRTSHYD-001', role: 'STUDENT' });
-    expect(studentCanAccessRecord(claims ?? undefined, 'NSRTSHYD-001')).toBe(true);
-    expect(studentCanAccessRecord(claims ?? undefined, 'NSRTSHYD-002')).toBe(false);
+    expect(claims).toEqual({ studentUid: 'NSRHYD-001', role: 'STUDENT' });
+    expect(studentCanAccessRecord(claims ?? undefined, 'NSRHYD-001')).toBe(true);
+    expect(studentCanAccessRecord(claims ?? undefined, 'NSRHYD-002')).toBe(false);
   });
 
   it('rejects malformed and incorrectly signed tokens', () => {
-    const token = issueStudentAccessToken('NSRTSHYD-001', jwtSecret);
+    const token = issueStudentAccessToken('NSRHYD-001', jwtSecret);
 
     expect(verifyStudentAccessToken('not-a-jwt', jwtSecret)).toBeNull();
     expect(verifyStudentAccessToken(token, 'different-secret')).toBeNull();

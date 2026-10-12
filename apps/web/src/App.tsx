@@ -2,10 +2,10 @@ import { ArrowRight, ArrowUpRight, Bell, BookOpen, Building2, CalendarDays, Chec
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import nsrLogo from '../../assets/nsrLogo.png';
-import { AuthPage } from './AuthPage';
 import { CollegeAdminPortal } from './CollegeAdminPortal';
 import { referenceContent } from './referenceContent';
 import { StudentPortal } from './StudentPortal';
+import { StudentLoginPage } from './StudentLoginPage';
 
 const navItems = [
   { path: '/about', label: 'About Us' },
@@ -36,8 +36,8 @@ export function App() {
         <Route path="gallery" element={<GalleryPage onRegister={() => navigate('/register')} />} />
         <Route path="contact" element={<ContactPage onRegister={() => navigate('/register')} />} />
       </Route>
-      <Route path="login" element={<AuthPage mode="login" onModeChange={() => navigate('/register')} onBack={() => navigate('/')} onAdminLogin={() => navigate('/admin')} onAuthenticated={authenticateStudent} />} />
-      <Route path="register" element={<AuthPage mode="register" onModeChange={() => navigate('/login')} onBack={() => navigate('/')} onAdminLogin={() => navigate('/admin')} onAuthenticated={authenticateStudent} />} />
+      <Route path="login" element={<StudentLoginPage onBack={() => navigate('/')} onAdminLogin={() => navigate('/admin')} onAuthenticated={authenticateStudent} />} />
+      <Route path="register" element={<Navigate to="/login" replace />} />
       <Route path="student" element={studentId && studentAccessToken ? <StudentPortal studentId={studentId} accessToken={studentAccessToken} onBack={() => { setStudentId(''); setStudentAccessToken(''); navigate('/'); }} /> : <Navigate to="/login" replace />} />
       <Route path="admin" element={<CollegeAdminPortal onBack={() => navigate('/')} onStudentLogin={() => navigate('/login')} />} />
       <Route path="*" element={<Navigate to="/" replace />} />

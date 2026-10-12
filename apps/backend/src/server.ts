@@ -8,12 +8,15 @@ import { PaymentMode, PaymentStatus, Prisma, PrismaClient } from '@prisma/client
 import bcrypt from 'bcryptjs';
 import type { NextFunction, Request, Response } from 'express';
 import { createAdminRouter } from './adminRoutes.js';
+import { createNotificationService } from './notifications.js';
 import { issueStudentAccessToken, studentCanAccessRecord, verifyStudentAccessToken, type StudentClaims } from './studentAuth.js';
+import { createStudentAuthRouter } from './studentAuthRoutes.js';
 
 dotenv.config({ path: new URL('../../../.env', import.meta.url) });
 
 const app = express();
 const prisma = new PrismaClient();
+const notifications = createNotificationService();
 const jwtAccessSecret = process.env.JWT_ACCESS_SECRET;
 if (!jwtAccessSecret) throw new Error('JWT_ACCESS_SECRET is required');
 type StudentRequest = Request<{ studentUid: string }> & { student?: StudentClaims };
@@ -38,19 +41,9 @@ const studentSchema = z.object({
   admissionYear: z.number().int().min(2000).max(2100),
   academicYear: z.string().min(4)
 });
-const studentIdPattern = /^NSRTS[A-Z]+-\d{3,6}$/;
-const passwordSchema = z.string().min(8).max(128).regex(/[A-Z]/, 'Password must include an uppercase letter').regex(/\d/, 'Password must include a number').regex(/[^A-Za-z0-9]/, 'Password must include a special character');
-const loginSchema = z.object({ studentId: z.string().trim().regex(studentIdPattern), password: z.string().min(8).max(128) });
-const registerSchema = z.object({
-  name: z.string().trim().min(2),
-  studentUid: z.string().trim().regex(studentIdPattern),
-  mobile: z.string().regex(/^[6-9]\d{9}$/),
-  email: z.string().trim().email(),
-  password: passwordSchema,
-  confirmPassword: z.string().min(8).max(128)
-}).refine((value) => value.password === value.confirmPassword, { path: ['confirmPassword'], message: 'Passwords do not match' });
+const studentIdPattern = /^NSR[A-Z]+-\d{3,6}$/;
 const studentPaymentSchema = z.object({
-  studentUid: z.string().regex(/^NSRTS[A-Z]+-\d{3}$/),
+  studentUid: z.string().regex(/^NSR[A-Z]+-\d{3,6}$/),
   amount: z.number().finite().positive().multipleOf(0.01),
   mode: z.enum(['ONLINE', 'UPI', 'CASH', 'BANK_TRANSFER', 'CHEQUE', 'OTHER']),
   idempotencyKey: z.string().uuid()
@@ -64,41 +57,7 @@ app.get('/api/v1/public/overview', (_req, res) => res.json({
     message: 'Education pathways designed around confident careers.'
   }
 }));
-app.post('/api/v1/auth/login', async (req, res, next) => {
-  const parsed = loginSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Enter a valid Student ID and password', details: parsed.error.issues } });
-  try {
-    const student = await prisma.student.findUnique({ where: { studentUid: parsed.data.studentId }, include: { account: true } });
-    const passwordMatches = student?.account ? await bcrypt.compare(parsed.data.password, student.account.passwordHash) : false;
-    if (!student || !passwordMatches || student.status === 'DISCONTINUED') return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Student ID or password is incorrect' } });
-    const accessToken = issueStudentAccessToken(student.studentUid, jwtAccessSecret);
-    return res.json({ success: true, data: { authenticated: true, studentId: student.studentUid, accessToken, expiresIn: 900 }, message: 'Login successful' });
-  } catch (error) { return next(error); }
-});
-app.post('/api/v1/auth/register', async (req, res, next) => {
-  const parsed = registerSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Check the registration details', details: parsed.error.issues } });
-  try {
-    const studentUid = parsed.data.studentUid.toUpperCase();
-    const student = await prisma.student.findUnique({ where: { studentUid }, include: { account: true } });
-    if (!student) return res.status(404).json({ success: false, error: { code: 'STUDENT_NOT_FOUND', message: 'No student record exists for this Student ID. Use the exact ID issued by your college.' } });
-    if (student.status === 'DISCONTINUED') return res.status(403).json({ success: false, error: { code: 'ACCOUNT_DISABLED', message: 'Registration is disabled for this student record' } });
-    if (student.account) return res.status(409).json({ success: false, error: { code: 'ACCOUNT_ALREADY_EXISTS', message: 'An account already exists for this Student ID. Please sign in.' } });
-    const normalizeName = (value: string) => value.replace(/\s+/g, ' ').trim().toLowerCase();
-    const identityMatches = normalizeName(student.name) === normalizeName(parsed.data.name) && student.mobile === parsed.data.mobile && student.email?.trim().toLowerCase() === parsed.data.email.toLowerCase();
-    if (!identityMatches) return res.status(403).json({ success: false, error: { code: 'IDENTITY_MISMATCH', message: 'Name, mobile, or email does not match the college student record' } });
-    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-    const account = await prisma.$transaction(async (transaction) => {
-      const created = await transaction.studentAccount.create({ data: { studentId: student.id, email: parsed.data.email.toLowerCase(), passwordHash } });
-      await transaction.auditLog.create({ data: { action: 'STUDENT_ACCOUNT_REGISTERED', entity: 'StudentAccount', entityId: created.id, ipAddress: req.ip, newData: { studentUid, email: parsed.data.email.toLowerCase() } } });
-      return created;
-    });
-    return res.status(201).json({ success: true, data: { linked: true, studentId: student.studentUid, accountId: account.id }, message: 'Student account created successfully. You can now sign in.' });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ success: false, error: { code: 'ACCOUNT_ALREADY_EXISTS', message: 'An account already exists for this Student ID or email' } });
-    return next(error);
-  }
-});
+app.use('/api/v1/auth', createStudentAuthRouter(prisma, notifications, jwtAccessSecret));
 app.post('/api/v1/students/validate', (req, res) => {
   const parsed = studentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid student details', details: parsed.error.issues } });
@@ -252,7 +211,7 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
     return next(error);
   }
 });
-app.use('/api/v1/admin', createAdminRouter(prisma));
+app.use('/api/v1/admin', createAdminRouter(prisma, notifications));
 
 app.use((_req, res) => res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Route not found' } }));
 app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -55,7 +55,7 @@ async function fetchStudentRecord(studentId: string, accessToken: string): Promi
 }
 
 function validateStudentRecord(record: StudentRecord): void {
-  if (!/^NSRTS[A-Z]+-\d{3}$/.test(record.studentId)) throw new Error('Invalid student ID');
+  if (!/^NSR[A-Z]+-\d{3,6}$/.test(record.studentId)) throw new Error('Invalid student ID');
   if (!record.name.trim() || !record.fatherName.trim()) throw new Error('Student name and father name are required');
   if (!/^[6-9]\d{9}$/.test(record.mobile)) throw new Error('Invalid mobile number');
   if (!/^\S+@\S+\.\S+$/.test(record.email)) throw new Error('Invalid email address');
