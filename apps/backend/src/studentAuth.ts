@@ -1,4 +1,3 @@
-```ts
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 
@@ -44,4 +43,3 @@ export function studentCanAccessRecord(
 ) {
   return claims?.studentUid === studentUid;
 }
-```
