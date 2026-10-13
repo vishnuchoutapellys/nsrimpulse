@@ -4,7 +4,7 @@ import { z } from 'zod';
 export type StudentClaims = { studentUid: string; role: 'STUDENT' };
 
 const studentClaimsSchema = z.object({
-    studentUid: z.string().regex(/^NSRTS[A-Z]+-\d{3,6}$/),
+    studentUid: z.string().regex(/^NSR[A-Z]+-\d{3,6}$/),
     role: z.literal('STUDENT')
 });
 

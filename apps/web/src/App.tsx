@@ -1,10 +1,12 @@
 import { ArrowRight, ArrowUpRight, Bell, BookOpen, Building2, CalendarDays, CheckCircle2, ChevronRight, GraduationCap, IndianRupee, Menu, ShieldCheck, Sparkles, Star, Trophy, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AuthPage } from './AuthPage';
+import nsrLogo from '../../assets/nsrLogo.png';
 import { CollegeAdminPortal } from './CollegeAdminPortal';
 import { referenceContent } from './referenceContent';
 import { StudentPortal } from './StudentPortal';
+import { StudentLoginPage } from './StudentLoginPage';
+import { getIstGreeting } from './timeGreeting';
 
 const navItems = [
   { path: '/about', label: 'About Us' },
@@ -35,8 +37,8 @@ export function App() {
         <Route path="gallery" element={<GalleryPage onRegister={() => navigate('/register')} />} />
         <Route path="contact" element={<ContactPage onRegister={() => navigate('/register')} />} />
       </Route>
-      <Route path="login" element={<AuthPage mode="login" onModeChange={() => navigate('/register')} onBack={() => navigate('/')} onAdminLogin={() => navigate('/admin')} onAuthenticated={authenticateStudent} />} />
-      <Route path="register" element={<AuthPage mode="register" onModeChange={() => navigate('/login')} onBack={() => navigate('/')} onAdminLogin={() => navigate('/admin')} onAuthenticated={authenticateStudent} />} />
+      <Route path="login" element={<StudentLoginPage onBack={() => navigate('/')} onAdminLogin={() => navigate('/admin')} onAuthenticated={authenticateStudent} />} />
+      <Route path="register" element={<Navigate to="/login" replace />} />
       <Route path="student" element={studentId && studentAccessToken ? <StudentPortal studentId={studentId} accessToken={studentAccessToken} onBack={() => { setStudentId(''); setStudentAccessToken(''); navigate('/'); }} /> : <Navigate to="/login" replace />} />
       <Route path="admin" element={<CollegeAdminPortal onBack={() => navigate('/')} onStudentLogin={() => navigate('/login')} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -49,9 +51,8 @@ function PublicLayout() {
   return (
     <main className="site-shell">
       <header className="topbar">
-        <Link className="brand brand-button" to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          <span className="brand-mark">N</span>
-          <span><strong>NSR</strong><small>IMPULSE KNOWLEDGE PARK</small></span>
+        <Link className="brand brand-button header-logo-link" to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="NSR Impulse Knowledge Park home">
+          <img className="brand-wordmark" src={nsrLogo} alt="NSR Impulse Educational Institutions" />
         </Link>
         <button className="menu-button" onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle menu" aria-expanded={mobileOpen} aria-controls="public-navigation">
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -69,8 +70,7 @@ function PublicLayout() {
       <footer className="main-footer">
         <div className="footer-brand-block">
           <Link className="brand" to="/">
-            <span className="brand-mark">N</span>
-            <span><strong>NSR</strong><small>IMPULSE KNOWLEDGE PARK</small></span>
+            <img className="brand-wordmark" src={nsrLogo} alt="NSR Impulse Educational Institutions" />
           </Link>
           <p>One connected community for ambitious learners.</p>
         </div>
@@ -467,5 +467,5 @@ function ContactPage({ onRegister }: { onRegister: () => void }) {
   );
 }
 
-function StudentDashboard({ onBack }: { onBack: () => void }) { return <main className="dashboard"><header className="dash-top"><button className="brand plain" onClick={onBack}><span className="brand-mark">N</span><span><strong>NSR</strong><small>STUDENT PWA</small></span></button><div className="dash-actions"><button aria-label="Notifications"><Bell size={19} /></button><span className="avatar">AK</span></div></header><div className="dash-content"><div className="dash-heading"><div><p className="eyebrow">GOOD MORNING, ARJUN</p><h1>Your learning, <em>in motion.</em></h1></div><span className="status"><CheckCircle2 size={15} /> Active student</span></div><section className="student-grid"><div className="student-id panel"><div className="panel-label">STUDENT ID <span>Immutable record</span></div><strong>NSR-TS-HYD-2026-000001</strong><p>Arjun Kumar · BCA · Hyderabad Campus</p></div><div className="fee-card panel"><div className="panel-label">OUTSTANDING FEES <IndianRupee size={16} /></div><strong>₹70,000</strong><p>of ₹1,00,000 total payable</p><button className="primary-button">Pay next installment <ArrowUpRight size={16} /></button></div><div className="quick panel"><div className="panel-label">QUICK ACCESS</div><div className="quick-links"><button><BookOpen /> Results</button><button><CalendarDays /> Documents</button><button><Bell /> Notices</button></div></div><div className="next panel"><div className="panel-label">NEXT INSTALLMENT <span>Due 15 Nov 2026</span></div><strong>₹25,000</strong><div className="progress"><span></span></div><small>1 of 4 installments paid</small></div></section></div></main>; }
-function AdminDashboard({ onBack }: { onBack: () => void }) { return <main className="dashboard admin-dashboard"><header className="dash-top"><button className="brand plain" onClick={onBack}><span className="brand-mark">N</span><span><strong>NSR</strong><small>COLLEGE ADMIN</small></span></button><span className="admin-user">Hyderabad Campus · Admin</span></header><div className="dash-content"><div className="dash-heading"><div><p className="eyebrow">OPERATIONS OVERVIEW</p><h1>Good morning, <em>Meera.</em></h1></div><button className="primary-button">Add student <ArrowUpRight size={16} /></button></div><div className="metric-grid"><div><span>Total students</span><strong>1,248</strong><small>↑ 8.4% this year</small></div><div><span>Pending fees</span><strong>₹18.4L</strong><small>Across 326 students</small></div><div><span>Today's collection</span><strong>₹2.1L</strong><small>↑ 12.7% vs yesterday</small></div><div><span>New admissions</span><strong>38</strong><small>Last 30 days</small></div></div><section className="admin-table panel"><div className="table-head"><div><p className="eyebrow">RECENT ACTIVITY</p><h2>Admissions & payments</h2></div><button className="text-link">View all <ArrowUpRight size={15} /></button></div><div className="table-row table-label"><span>Student</span><span>Course</span><span>Status</span><span>Amount</span></div>{[['Riya Sharma', 'B.Com · Hyderabad', 'New admission', '₹40,000'], ['Karan Reddy', 'BCA · Hyderabad', 'Payment received', '₹25,000'], ['Sana Khan', 'MBA · Hyderabad', 'Fee reminder', '₹15,000']].map(row => <div className="table-row" key={row[0]}><span><b>{row[0]}</b><small>{row[1]}</small></span><span className="mobile-hide">{row[1]}</span><span className="tag">{row[2]}</span><strong>{row[3]}</strong></div>)}</section></div></main>; }
+function StudentDashboard({ onBack }: { onBack: () => void }) { return <main className="dashboard"><header className="dash-top"><button className="brand plain" onClick={onBack}><span className="brand-mark">N</span><span><strong>NSR</strong><small>STUDENT PWA</small></span></button><div className="dash-actions"><button aria-label="Notifications"><Bell size={19} /></button><span className="avatar">AK</span></div></header><div className="dash-content"><div className="dash-heading"><div><p className="eyebrow">{getIstGreeting().toUpperCase()}, ARJUN</p><h1>Your learning, <em>in motion.</em></h1></div><span className="status"><CheckCircle2 size={15} /> Active student</span></div><section className="student-grid"><div className="student-id panel"><div className="panel-label">STUDENT ID <span>Immutable record</span></div><strong>NSR-TS-HYD-2026-000001</strong><p>Arjun Kumar · BCA · Hyderabad Campus</p></div><div className="fee-card panel"><div className="panel-label">OUTSTANDING FEES <IndianRupee size={16} /></div><strong>₹70,000</strong><p>of ₹1,00,000 total payable</p><button className="primary-button">Pay next installment <ArrowUpRight size={16} /></button></div><div className="quick panel"><div className="panel-label">QUICK ACCESS</div><div className="quick-links"><button><BookOpen /> Results</button><button><CalendarDays /> Documents</button><button><Bell /> Notices</button></div></div><div className="next panel"><div className="panel-label">NEXT INSTALLMENT <span>Due 15 Nov 2026</span></div><strong>₹25,000</strong><div className="progress"><span></span></div><small>1 of 4 installments paid</small></div></section></div></main>; }
+function AdminDashboard({ onBack }: { onBack: () => void }) { return <main className="dashboard admin-dashboard"><header className="dash-top"><button className="brand plain" onClick={onBack}><span className="brand-mark">N</span><span><strong>NSR</strong><small>COLLEGE ADMIN</small></span></button><span className="admin-user">Hyderabad Campus · Admin</span></header><div className="dash-content"><div className="dash-heading"><div><p className="eyebrow">OPERATIONS OVERVIEW</p><h1>{getIstGreeting()}, <em>Meera.</em></h1></div><button className="primary-button">Add student <ArrowUpRight size={16} /></button></div><div className="metric-grid"><div><span>Total students</span><strong>1,248</strong><small>↑ 8.4% this year</small></div><div><span>Pending fees</span><strong>₹18.4L</strong><small>Across 326 students</small></div><div><span>Today's collection</span><strong>₹2.1L</strong><small>↑ 12.7% vs yesterday</small></div><div><span>New admissions</span><strong>38</strong><small>Last 30 days</small></div></div><section className="admin-table panel"><div className="table-head"><div><p className="eyebrow">RECENT ACTIVITY</p><h2>Admissions & payments</h2></div><button className="text-link">View all <ArrowUpRight size={15} /></button></div><div className="table-row table-label"><span>Student</span><span>Course</span><span>Status</span><span>Amount</span></div>{[['Riya Sharma', 'B.Com · Hyderabad', 'New admission', '₹40,000'], ['Karan Reddy', 'BCA · Hyderabad', 'Payment received', '₹25,000'], ['Sana Khan', 'MBA · Hyderabad', 'Fee reminder', '₹15,000']].map(row => <div className="table-row" key={row[0]}><span><b>{row[0]}</b><small>{row[1]}</small></span><span className="mobile-hide">{row[1]}</span><span className="tag">{row[2]}</span><strong>{row[3]}</strong></div>)}</section></div></main>; }

@@ -24,11 +24,11 @@ A multi-tenant education management PWA foundation for students, college adminis
 5. Install dependencies with `npm install`.
 6. Generate Prisma Client: `npm run db:generate`.
 7. Create all tables and the first migration: `npm run db:migrate -- --name init`.
-8. Insert the demo hierarchy and student `NSRTSHYD-001`: `npm run db:seed`.
+8. Insert the demo hierarchy and student `NSRHYD-001`: `npm run db:seed`.
 9. Start the API: `npm run dev:backend`.
 10. In another terminal, start the PWA: `npm run dev:web`.
 
-The seed is safe to run again for this demo. It reuses Telangana, Pragathi Nagar, the NSR college, branch, MPC course, and Student ID `NSRTSHYD-001` rather than creating a duplicate student.
+The seed is safe to run again for this demo. It reuses Telangana, Pragathi Nagar, the NSR college, branch, MPC course, and Student ID `NSRHYD-001` rather than creating a duplicate student.
 
 ### Verify the database
 
@@ -36,13 +36,13 @@ Run `npx prisma studio --schema apps/backend/prisma/schema.prisma` from the repo
 
 If `P1001: Can't reach database server` appears, PostgreSQL is not running, the port is not `5432`, or the password in `.env` is incorrect. If the VS Code PostgreSQL extension asks for a hostname, enter `127.0.0.1`.
 
-The API is centralized under `/api/v1`. It includes student account registration/login, a 15-minute student access token, authenticated student portal/payment-history/payment routes, scoped College Admin login/context/student search and creation, fee plans, offline collection, receipts, TC and Bonafide/Conduct generation, and audit history. Certificate forms prefill available student-profile details and warn about any outstanding fee balance without blocking generation. Student credentials link to an existing student master record; public registration does not create an unverified student admission. See [docs/api.md](docs/api.md) for routes and authorization.
+The API is centralized under `/api/v1`. It includes admin-managed student accounts, forced first-login password changes, dual email/mobile OTP password recovery, a 15-minute student access token, authenticated student portal/payment-history/payment routes, scoped College Admin operations, fee plans, offline collection, receipts, certificate generation, and audit history. Students cannot self-register. See [docs/api.md](docs/api.md) for routes and authorization.
 
-For the seeded demo accounts, use Student ID `NSRTSHYD-001` with password `NSRTSHYD@2026`, or College Admin ID `NSRTSADMMIN-001` with password `NSRTSADMMIN@2026`. Change these credentials and the JWT secrets before exposing the app to a network.
+For the seeded demo accounts, use Student ID `NSRHYD-001` with password `NSRHYD@2026`, or College Admin ID `NSRADMIN-001` with password `NSRADMIN@2026`. These demo credentials sign in directly. Change all seeded credentials and JWT secrets before exposing the app to a network.
 
 ## Production readiness
 
-The repository is a functioning PWA foundation, not a complete production payment/authentication deployment. Online payments are currently simulated and must not be treated as gateway-verified settlement. Refresh-token rotation/revocation, gateway order/signature/webhook verification, applicant approval and bulk import, email delivery, secure document storage, automated tenant-boundary API tests, and production PWA icon assets remain required before launch. Student APIs reject anonymous requests and tokens for another Student ID; College Admin routes enforce assigned college/branch scope.
+The repository is a functioning PWA foundation, not a complete production payment deployment. Online payments are currently simulated and must not be treated as gateway-verified settlement. Refresh-token rotation/revocation, gateway order/signature/webhook verification, applicant approval and bulk import, secure document storage, automated tenant-boundary API tests, and production PWA icon assets remain required before launch. Configure and verify real SMTP and SMS providers before using credential delivery or password recovery. Student APIs reject anonymous requests and tokens for another Student ID; College Admin routes enforce assigned college/branch scope.
 
 Use separate, high-entropy `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` values from a secret manager in production. Serve over HTTPS, configure `WEB_ORIGIN` to the exact deployed web origin, restrict database network access, and replace seeded demo credentials.
 

@@ -1,9 +1,10 @@
 import { PaymentMode, PaymentStatus, Prisma, PrismaClient, StudentStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { NextFunction, Request, Response, Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import type { NotificationService } from './notifications.js';
 
 type AdminClaims = { userId: string; adminId: string; role: 'COLLEGE_ADMIN' };
 type AdminRequest = Request & { admin?: AdminClaims };
@@ -12,7 +13,6 @@ const loginSchema = z.object({ adminId: z.string().trim().min(8).max(40), passwo
 const optionalText = z.preprocess((value) => value === '' ? undefined : value, z.string().trim().max(120).optional());
 const optionalDate = z.preprocess((value) => value === '' ? undefined : value, z.string().date().optional());
 const createStudentSchema = z.object({
-  studentUid: z.string().trim().regex(/^NSRTS[A-Z]+-\d{3,6}$/),
   name: z.string().trim().min(2).max(120),
   fatherName: z.string().trim().min(2).max(120),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
@@ -64,7 +64,7 @@ const certificateIssueSchema = z.object({
   if (!data.fields.conduct?.trim()) context.addIssue({ code: z.ZodIssueCode.custom, path: ['fields', 'conduct'], message: 'Conduct is required' });
 });
 
-export function createAdminRouter(prisma: PrismaClient) {
+export function createAdminRouter(prisma: PrismaClient, notifications: NotificationService) {
   const router = Router();
   const jwtSecret = process.env.JWT_ACCESS_SECRET;
   if (!jwtSecret) throw new Error('JWT_ACCESS_SECRET is required');
@@ -125,7 +125,7 @@ export function createAdminRouter(prisma: PrismaClient) {
   });
 
   router.post('/students/:studentUid/certificates/issue', async (req: AdminRequest, res, next) => {
-    const params = z.object({ studentUid: z.string().trim().regex(/^NSRTS[A-Z]+-\d{3,6}$/) }).safeParse(req.params);
+    const params = z.object({ studentUid: z.string().trim().regex(/^NSR[A-Z]+-\d{3,6}$/) }).safeParse(req.params);
     const parsed = certificateIssueSchema.safeParse(req.body);
     if (!params.success) return validationError(res, params.error.issues);
     if (!parsed.success) return validationError(res, parsed.error.issues);
@@ -162,21 +162,33 @@ export function createAdminRouter(prisma: PrismaClient) {
       const admin = await loadAdmin(prisma, req.admin!.userId);
       if (!admin) return forbidden(res);
       if (!isStudentInScope(admin.adminScopes, parsed.data.collegeId, parsed.data.branchId)) return forbidden(res);
-      const branch = await prisma.branch.findUnique({ where: { id: parsed.data.branchId } });
+      const branch = await prisma.branch.findUnique({ where: { id: parsed.data.branchId }, include: { college: { include: { location: true } } } });
       if (!branch || branch.collegeId !== parsed.data.collegeId) return res.status(400).json({ success: false, error: { code: 'INVALID_BRANCH', message: 'Branch does not belong to the selected college' } });
-      const duplicateContact = await prisma.student.findFirst({ where: { OR: [{ mobile: parsed.data.mobile }, { email: parsed.data.email }] } });
+      const normalizedEmail = parsed.data.email.toLowerCase();
+      const duplicateContact = await prisma.student.findFirst({ where: { OR: [{ mobile: parsed.data.mobile }, { email: normalizedEmail }] } });
       if (duplicateContact) return res.status(409).json({ success: false, error: { code: 'DUPLICATE_STUDENT_CONTACT', message: 'A student already uses this mobile number or email' } });
+      const temporaryPassword = generateTemporaryPassword();
+      const passwordHash = await bcrypt.hash(temporaryPassword, 12);
       const result = await prisma.$transaction(async (transaction) => {
+        const studentUid = await generateStudentUid(transaction, branch.college.location.name);
         const feeStructure = await transaction.feeStructure.upsert({ where: { courseId_academicYear: { courseId: parsed.data.courseId, academicYear: parsed.data.academicYear } }, update: {}, create: { courseId: parsed.data.courseId, academicYear: parsed.data.academicYear, totalAmount: parsed.data.totalFee } });
-        const student = await transaction.student.create({ data: { studentUid: parsed.data.studentUid, name: parsed.data.name, fatherName: parsed.data.fatherName, motherName: parsed.data.motherName, dateOfBirth: parsed.data.dateOfBirth ? new Date(`${parsed.data.dateOfBirth}T00:00:00.000Z`) : undefined, nationality: parsed.data.nationality, religion: parsed.data.religion, casteCommunity: parsed.data.casteCommunity, mediumOfInstruction: parsed.data.mediumOfInstruction, firstLanguage: parsed.data.firstLanguage, secondLanguage: parsed.data.secondLanguage, thirdLanguage: parsed.data.thirdLanguage, gender: parsed.data.gender, age: parsed.data.age, mobile: parsed.data.mobile, email: parsed.data.email, address: parsed.data.address, village: parsed.data.village, pin: parsed.data.pin, admissionYear: parsed.data.admissionYear, academicYear: parsed.data.academicYear, status: StudentStatus.ACTIVE, collegeId: parsed.data.collegeId, branchId: parsed.data.branchId, courseId: parsed.data.courseId } });
+        const student = await transaction.student.create({ data: { studentUid, name: parsed.data.name, fatherName: parsed.data.fatherName, motherName: parsed.data.motherName, dateOfBirth: parsed.data.dateOfBirth ? new Date(`${parsed.data.dateOfBirth}T00:00:00.000Z`) : undefined, nationality: parsed.data.nationality, religion: parsed.data.religion, casteCommunity: parsed.data.casteCommunity, mediumOfInstruction: parsed.data.mediumOfInstruction, firstLanguage: parsed.data.firstLanguage, secondLanguage: parsed.data.secondLanguage, thirdLanguage: parsed.data.thirdLanguage, gender: parsed.data.gender, age: parsed.data.age, mobile: parsed.data.mobile, email: normalizedEmail, address: parsed.data.address, village: parsed.data.village, pin: parsed.data.pin, admissionYear: parsed.data.admissionYear, academicYear: parsed.data.academicYear, status: StudentStatus.ACTIVE, collegeId: parsed.data.collegeId, branchId: parsed.data.branchId, courseId: parsed.data.courseId } });
+        const account = await transaction.studentAccount.create({ data: { studentId: student.id, email: normalizedEmail, passwordHash, mustChangePassword: true } });
         const assignment = await transaction.feeAssignment.create({ data: { studentId: student.id, feeStructureId: feeStructure.id, originalAmount: parsed.data.totalFee } });
         await transaction.feeInstallment.createMany({ data: parsed.data.installments.map((installment) => ({ feeAssignmentId: assignment.id, amount: installment.amount, dueDate: new Date(installment.dueDate) })) });
         await transaction.studentStatusHistory.create({ data: { studentId: student.id, toStatus: StudentStatus.ACTIVE, reason: 'New admission', changedBy: admin.adminId ?? admin.id } });
-        await transaction.auditLog.create({ data: { userId: admin.id, action: 'STUDENT_CREATED', entity: 'Student', entityId: student.id, ipAddress: req.ip, newData: { studentUid: student.studentUid, collegeId: student.collegeId, branchId: student.branchId, courseId: student.courseId, totalFee: parsed.data.totalFee } } });
+        try {
+          await notifications.sendEmail(normalizedEmail, 'Your NSR Impulse student account', `Hello ${student.name},\n\nYour student account has been created.\nStudent ID: ${student.studentUid}\nTemporary password: ${temporaryPassword}\n\nSign in and change this temporary password immediately. Do not share these credentials.\n`);
+        } catch (deliveryError) {
+          console.error('Student credential email delivery failed', deliveryError);
+          throw new AdminCredentialDeliveryError();
+        }
+        await transaction.auditLog.create({ data: { userId: admin.id, action: 'STUDENT_CREATED', entity: 'Student', entityId: student.id, ipAddress: req.ip, newData: { studentUid: student.studentUid, accountId: account.id, credentialsDeliveredTo: normalizedEmail, collegeId: student.collegeId, branchId: student.branchId, courseId: student.courseId, totalFee: parsed.data.totalFee } } });
         return { studentUid: student.studentUid, name: student.name, status: student.status, totalFee: parsed.data.totalFee, installmentCount: parsed.data.installments.length };
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-      return res.status(201).json({ success: true, data: result, message: 'Student and fee plan created successfully' });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15_000 });
+      return res.status(201).json({ success: true, data: result, message: 'Student account created and credentials sent by email' });
     } catch (error) {
+      if (error instanceof AdminCredentialDeliveryError) return res.status(503).json({ success: false, error: { code: 'CREDENTIAL_DELIVERY_UNAVAILABLE', message: 'Student credentials could not be delivered. Check email provider configuration and try again.' } });
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ success: false, error: { code: 'DUPLICATE_STUDENT_ID', message: 'Student ID already exists' } });
       return next(error);
     }
@@ -260,4 +272,28 @@ function forbidden(res: Response) {
 
 class AdminPaymentError extends Error {
   constructor(public readonly code: string, message: string, public readonly status: number) { super(message); }
+}
+
+class AdminCredentialDeliveryError extends Error {}
+
+async function generateStudentUid(transaction: Prisma.TransactionClient, locationName: string) {
+  const locationCode = locationName.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3).padEnd(3, 'X');
+  const prefix = `NSR${locationCode}-`;
+  const existing = await transaction.student.findMany({ where: { studentUid: { startsWith: prefix } }, select: { studentUid: true } });
+  const highestSequence = existing.reduce((highest, student) => Math.max(highest, Number(student.studentUid.slice(prefix.length)) || 0), 0);
+  return `${prefix}${String(highestSequence + 1).padStart(3, '0')}`;
+}
+
+function generateTemporaryPassword() {
+  const characters = [
+    'ABCDEFGHJKLMNPQRSTUVWXYZ'[randomInt(24)]!,
+    'abcdefghijkmnopqrstuvwxyz'[randomInt(25)]!,
+    '23456789'[randomInt(8)]!,
+    ...Array.from({ length: 3 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'[randomInt(57)]!)
+  ];
+  for (let index = characters.length - 1; index > 0; index--) {
+    const swapIndex = randomInt(index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex]!, characters[index]!];
+  }
+  return characters.join('');
 }
