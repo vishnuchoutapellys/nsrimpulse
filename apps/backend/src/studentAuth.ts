@@ -31,7 +31,10 @@ export function verifyStudentAccessToken(
     const verifiedPayload: unknown = jwt.verify(token, secret);
     const claims = studentClaimsSchema.safeParse(verifiedPayload);
 
-    return claims.success ? claims.data : null;
+    if (!claims.success) return null;
+    const { studentUid, role } = claims.data;
+    if (!studentUid || role !== 'STUDENT') return null;
+    return { studentUid, role };
   } catch {
     return null;
   }
