@@ -5433,8 +5433,17 @@ footer button {
 
     .student-overview-mode .portal-heading h3 {
         margin: 0;
+        color: #2563eb;
         font-size: 18px;
+        font-weight: 700;
         line-height: 1.2;
+    }
+
+    .student-overview-mode .portal-heading h3 em {
+        color: #d9573f;
+        font-family: 'Playfair Display', serif;
+        font-style: normal;
+        border-bottom: 2px solid #f59e0b;
     }
 
     .student-overview-mode .portal-stat-grid {

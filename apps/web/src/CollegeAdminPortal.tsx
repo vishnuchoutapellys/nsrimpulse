@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import nsrLogo from "../../assets/nsrLogo.png";
+import { getIstGreeting } from "./timeGreeting";
 
 const apiBase =
   import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:4000`;
@@ -384,7 +385,7 @@ function AdminOverview({
         <div>
           <p className="eyebrow">CAMPUS OPERATIONS</p>
           <h3>
-            Good morning,&nbsp;&nbsp;&nbsp;<em>{context.admin.adminId}</em>
+            {getIstGreeting()},&nbsp;&nbsp;&nbsp;<em>{context.admin.adminId}</em>
           </h3>
           <p>
             Your authorized workspace is ready. Choose an action or review your
