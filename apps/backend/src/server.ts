@@ -219,8 +219,16 @@ app.use((error: Error, _req: express.Request, res: express.Response, _next: expr
   return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected server error occurred' } });
 });
 
-const port = Number(process.env.PORT ?? 4000);
-app.listen(port, () => console.log(`NSR Impulse API listening on ${port}`));
+export default app;
+
+// Keep the local development server working.
+// Vercel handles incoming requests in production.
+if (process.env.VERCEL !== '1') {
+  const port = Number(process.env.PORT ?? 4000);
+  app.listen(port, () => {
+    console.log(`NSR Impulse API listening on ${port}`);
+  });
+}
 
 function authenticateStudent(secret: string) {
   return (req: StudentRequest, res: Response, next: NextFunction) => {
