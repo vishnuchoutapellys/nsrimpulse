@@ -37,10 +37,10 @@ export function App() {
         <Route path="gallery" element={<GalleryPage onRegister={() => navigate('/register')} />} />
         <Route path="contact" element={<ContactPage onRegister={() => navigate('/register')} />} />
       </Route>
-      <Route path="login" element={<StudentLoginPage onBack={() => navigate('/')} onAdminLogin={() => navigate('/admin')} onAuthenticated={authenticateStudent} />} />
+      <Route path="login" element={<StudentDashboard onBack={() => navigate('/')} />} />
       <Route path="register" element={<Navigate to="/login" replace />} />
       <Route path="student" element={studentId && studentAccessToken ? <StudentPortal studentId={studentId} accessToken={studentAccessToken} onBack={() => { setStudentId(''); setStudentAccessToken(''); navigate('/'); }} /> : <Navigate to="/login" replace />} />
-      <Route path="admin" element={<CollegeAdminPortal onBack={() => navigate('/')} onStudentLogin={() => navigate('/login')} />} />
+      <Route path="admin" element={<AdminDashboard onBack={() => navigate('/')} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
