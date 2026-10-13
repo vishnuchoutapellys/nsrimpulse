@@ -13,10 +13,9 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import nsrLogo from "../../assets/nsrLogo.png";
+import { apiBase } from "./api";
 import { getIstGreeting } from "./timeGreeting";
 
-const apiBase =
-  import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:4000`;
 type AdminView = "dashboard" | "search" | "create" | "certificates";
 type CertificateType = "TRANSFER" | "BONAFIDE_CONDUCT";
 type AdminContext = {

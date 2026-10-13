@@ -1,6 +1,7 @@
 import { ArrowLeft, Bell, BookOpen, CalendarDays, CheckCircle2, Download, FileText, IndianRupee, LogOut, UserRound, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { PaymentHistory } from './PaymentHistory';
+import { apiBase } from './api';
 
 type StudentRecord = {
   studentId: string;
@@ -35,7 +36,6 @@ type StudentRecord = {
 type PortalTab = 'overview' | 'profile' | 'fees' | 'receipt' | 'history' | 'reminders';
 type PaymentMode = 'UPI' | 'ONLINE' | 'CASH' | 'BANK_TRANSFER' | 'CHEQUE' | 'OTHER';
 type PaymentResult = { transactionNumber: string; receiptNumber: string; amount: number; mode: PaymentMode; paidAt: string; outstandingAmount: number };
-const apiBase = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:4000`;
 let studentRecord: StudentRecord;
 
 function createPaymentRequestId(): string {

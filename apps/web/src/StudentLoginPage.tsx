@@ -1,10 +1,10 @@
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Home, LockKeyhole, Mail, Phone } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import nsrLogo from '../../assets/nsrLogo.png';
+import { apiBase } from './api';
 
 type AuthStep = 'login' | 'change-password' | 'forgot' | 'verify' | 'reset';
 type ApiResult = { success?: boolean; data?: Record<string, unknown>; message?: string; error?: { message?: string } };
-const apiBase = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:4000`;
 const studentIdPattern = /^NSR[A-Z]+-\d{3,6}$/;
 
 export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { onBack: () => void; onAdminLogin: () => void; onAuthenticated: (studentId: string, accessToken: string) => void }) {

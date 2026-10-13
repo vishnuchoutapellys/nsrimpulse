@@ -1,6 +1,7 @@
 import { Download, FileText, IndianRupee } from 'lucide-react';
 import type { jsPDF as JsPdfDocument } from 'jspdf';
 import { useEffect, useState } from 'react';
+import { apiBase } from './api';
 
 type PaymentHistoryItem = {
   id: string;
@@ -19,7 +20,6 @@ type PaymentHistoryResponse = {
   pagination: { page: number; pageSize: number; totalItems: number; totalPages: number };
 };
 
-const apiBase = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:4000`;
 
 export function PaymentHistory({ studentId, accessToken }: { studentId: string; accessToken: string }) {
   const [history, setHistory] = useState<PaymentHistoryResponse | null>(null);
