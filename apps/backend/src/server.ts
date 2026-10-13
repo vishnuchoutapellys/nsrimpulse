@@ -20,7 +20,9 @@ const notifications = createNotificationService();
 const jwtAccessSecret = process.env.JWT_ACCESS_SECRET;
 if (!jwtAccessSecret) throw new Error('JWT_ACCESS_SECRET is required');
 type StudentRequest = Request<{ studentUid: string }> & { student?: StudentClaims };
-app.use(helmet());
+app.use(
+  (helmet as unknown as (options?: object) => express.RequestHandler)()
+);
 const configuredWebOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
 app.use(cors({
   origin: (origin, callback) => {
