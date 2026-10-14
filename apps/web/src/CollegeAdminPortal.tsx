@@ -9,6 +9,7 @@ import {
   IndianRupee,
   LockKeyhole,
   LogOut,
+  ShieldCheck,
   UserRound,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
@@ -166,94 +167,148 @@ function AdminLogin({
     }
   }
   return (
-    <main className="auth-shell admin-auth">
-      <section className="auth-brand admin-auth-brand">
-        <div className="auth-brand-header">
-          <div className="auth-brand-copy">
-            <img
-              className="brand-wordmark"
-              src={nsrLogo}
-              alt="NSR Impulse Educational Institutions"
-            />
-          </div>
-          <button
-            className="auth-home-button"
-            type="button"
-            onClick={onBack}
-            aria-label="Go to home"
-            title="Home"
-          >
-            <Home size={19} />
-          </button>
-        </div>
-        <div className="auth-quote">
-          <p>
-            "One campus, <em>Clear control."</em>
-          </p>
-          <span>Accurate records and traceable student services.</span>
-        </div>
-      </section>
-      <section className="auth-panel admin-auth-form">
-        <div
-          className="auth-role-switch"
-          role="group"
-          aria-label="Choose account type"
-        >
-          <button type="button" aria-pressed="false" onClick={onStudentLogin}>
-            Student
-          </button>
-          <button type="button" className="active" aria-pressed="true">
-            College Admin
-          </button>
-        </div>
-        <h1>
-          College <em>Admin.</em>
-        </h1>
-        <p className="auth-intro">
-          Use the account issued by your organization.
-        </p>
-        <form onSubmit={submit}>
-          <label className="field">
-            <span>Admin ID</span>
-            <div className="input-wrap">
-              <UserRound size={17} />
-              <input
-                name="adminId"
-                placeholder="NSRADMIN-001"
-                autoComplete="username"
-                required
-              />
-            </div>
-          </label>
-          <label className="field">
-            <span>Password</span>
-            <div className="input-wrap">
-              <LockKeyhole size={17} />
-              <input
-                name="password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                required
-              />
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans selection:bg-amber-500 selection:text-slate-950 relative overflow-hidden">
+      {/* Ambient Glows */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <main className="w-full max-w-5xl bg-slate-900/80 backdrop-blur-2xl border border-slate-800 rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 relative z-10">
+
+        {/* Left Branding Sidebar */}
+        <section className="lg:col-span-5 bg-gradient-to-br from-slate-900 via-indigo-950/60 to-slate-950 p-8 lg:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800 relative">
+          <div className="space-y-8">
+            <div className="flex items-center justify-between">
+              <div className="bg-white/95 p-3 rounded-2xl shadow-lg inline-block">
+                <img
+                  className="h-10 w-auto object-contain"
+                  src={nsrLogo}
+                  alt="NSR Impulse Educational Institutions"
+                />
+              </div>
               <button
+                className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors border border-slate-700/80"
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                onClick={onBack}
+                aria-label="Go to home"
+                title="Home"
               >
-                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                <Home size={18} />
               </button>
             </div>
-          </label>
-          {error && <p className="admin-form-error">{error}</p>}
-          <button className="primary-button auth-submit" disabled={busy}>
-            {busy ? "Signing in..." : "Sign in as College Admin"}
-          </button>
-        </form>
-        <p className="admin-demo">
-          Demo ID: <strong>NSRADMIN-001</strong>
-        </p>
-      </section>
-    </main>
+
+            <div className="space-y-3 pt-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold">
+                <ShieldCheck size={13} /> Admin Portal
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
+                Institutional <span className="text-amber-400 italic font-normal">management portal.</span>
+              </h2>
+            </div>
+          </div>
+
+          <div className="mt-12 space-y-2 border-t border-slate-800/80 pt-6">
+            <p className="text-slate-300 italic text-base">
+              “One campus, <span className="text-amber-400 font-semibold italic">clear control.”</span>
+            </p>
+            <span className="text-xs text-slate-400 block font-medium">Accurate records and traceable student services.</span>
+          </div>
+        </section>
+
+        {/* Right Admin Form Panel */}
+        <section className="lg:col-span-7 p-8 lg:p-12 space-y-8 flex flex-col justify-center">
+
+          {/* Role Switcher */}
+          <div
+            className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-950 border border-slate-800/80 max-w-xs"
+            role="group"
+            aria-label="Choose account type"
+          >
+            <button
+              type="button"
+              className="flex-1 py-2 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+              onClick={onStudentLogin}
+            >
+              Student
+            </button>
+            <button
+              type="button"
+              className="flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all bg-amber-500 text-slate-950 shadow-md"
+              aria-pressed="true"
+            >
+              College Admin
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold text-white tracking-tight">
+              College <span className="text-amber-400 italic font-normal">Admin.</span>
+            </h1>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Use the account issued by your organization.
+            </p>
+          </div>
+
+          <form onSubmit={submit} className="space-y-5">
+            <label className="block space-y-2">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Admin ID</span>
+              <div className="relative flex items-center">
+                <span className="absolute left-4 text-slate-500">
+                  <UserRound size={17} />
+                </span>
+                <input
+                  name="adminId"
+                  placeholder="NSRADMIN-001"
+                  autoComplete="username"
+                  required
+                  className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors text-sm"
+                />
+              </div>
+            </label>
+
+            <label className="block space-y-2">
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Password</span>
+              <div className="relative flex items-center">
+                <span className="absolute left-4 text-slate-500">
+                  <LockKeyhole size={17} />
+                </span>
+                <input
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  className="w-full pl-11 pr-11 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-4 text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
+            </label>
+
+            {error && (
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium" role="alert">
+                {error}
+              </div>
+            )}
+
+            <button
+              className="w-full py-4 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
+              disabled={busy}
+            >
+              {busy ? "Signing in..." : "Sign in as College Admin"}
+            </button>
+          </form>
+
+          <p className="text-xs text-slate-400 pt-2 border-t border-slate-800/60">
+            Demo ID: <strong className="text-amber-400 font-mono">NSRADMIN-001</strong>
+          </p>
+        </section>
+      </main>
+    </div>
   );
 }
 
