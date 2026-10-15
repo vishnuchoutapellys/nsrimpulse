@@ -6,7 +6,7 @@ export type StudentClaims = {
   role: 'STUDENT';
 };
 
-export const studentIdPattern = /^(?:NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/;
+export const studentIdPattern = /^(?:demo-account-\d+|NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/;
 
 const studentClaimsSchema = z.object({
   studentUid: z.string().regex(studentIdPattern),
