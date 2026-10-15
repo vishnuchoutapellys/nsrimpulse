@@ -5,7 +5,7 @@ import { apiBase } from './api';
 
 type AuthStep = 'login' | 'change-password' | 'forgot' | 'verify' | 'reset';
 type ApiResult = { success?: boolean; data?: Record<string, unknown>; message?: string; error?: { message?: string } };
-const studentIdPattern = /^(?:NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/;
+const studentIdPattern = /^(?:demo-account-\d+|NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/i;
 
 export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { onBack: () => void; onAdminLogin: () => void; onAuthenticated: (studentId: string, accessToken: string) => void }) {
   const [step, setStep] = useState<AuthStep>('login');
@@ -35,9 +35,12 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setMessage('');
     const data = new FormData(event.currentTarget);
-    const normalizedStudentId = String(data.get('studentId') ?? '').trim().toUpperCase();
+    const rawInput = String(data.get('studentId') ?? '').trim();
+    const normalizedStudentId = rawInput.toLowerCase().startsWith('demo-')
+      ? rawInput.toLowerCase()
+      : rawInput.toUpperCase();
     const password = String(data.get('password') ?? '');
-    if (!studentIdPattern.test(normalizedStudentId)) return setError('Enter the Student ID issued by your college (e.g., NSRHYD-001).');
+    if (!studentIdPattern.test(normalizedStudentId)) return setError('Enter the Student ID issued by your college (e.g., NSRHYD-001 or demo-account-001).');
     if (password.length < 6) return setError('Enter your password.');
     setBusy(true);
     try {
@@ -73,7 +76,10 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
 
   async function submitForgot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setMessage('');
-    const normalizedStudentId = String(new FormData(event.currentTarget).get('studentId') ?? '').trim().toUpperCase();
+    const rawForgotInput = String(new FormData(event.currentTarget).get('studentId') ?? '').trim();
+    const normalizedStudentId = rawForgotInput.toLowerCase().startsWith('demo-')
+      ? rawForgotInput.toLowerCase()
+      : rawForgotInput.toUpperCase();
     if (!studentIdPattern.test(normalizedStudentId)) return setError('Enter the Student ID issued by your college.');
     setBusy(true);
     try {
