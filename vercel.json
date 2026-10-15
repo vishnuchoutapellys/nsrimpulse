@@ -1,4 +1,0 @@
-{
-  "buildCommand": "npm --workspace apps/backend exec -- prisma generate && npm run build",
-  "outputDirectory": "apps/web/dist"
-}
