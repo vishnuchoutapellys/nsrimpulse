@@ -9,7 +9,7 @@ import bcrypt from 'bcryptjs';
 import type { NextFunction, Request, Response } from 'express';
 import { createAdminRouter } from './adminRoutes.js';
 import { createNotificationService } from './notifications.js';
-import { issueStudentAccessToken, studentCanAccessRecord, verifyStudentAccessToken, type StudentClaims } from './studentAuth.js';
+import { issueStudentAccessToken, studentCanAccessRecord, studentIdPattern, verifyStudentAccessToken, type StudentClaims } from './studentAuth.js';
 import { createStudentAuthRouter } from './studentAuthRoutes.js';
 
 dotenv.config({ path: new URL('../../../.env', import.meta.url) });
@@ -43,9 +43,8 @@ const studentSchema = z.object({
   admissionYear: z.number().int().min(2000).max(2100),
   academicYear: z.string().min(4)
 });
-const studentIdPattern = /^NSR[A-Z]+-\d{3,6}$/;
 const studentPaymentSchema = z.object({
-  studentUid: z.string().regex(/^NSR[A-Z]+-\d{3,6}$/),
+  studentUid: z.string().regex(studentIdPattern),
   amount: z.number().finite().positive().multipleOf(0.01),
   mode: z.enum(['ONLINE', 'UPI', 'CASH', 'BANK_TRANSFER', 'CHEQUE', 'OTHER']),
   idempotencyKey: z.string().uuid()

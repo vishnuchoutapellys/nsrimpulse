@@ -5,7 +5,7 @@ import { apiBase } from './api';
 
 type AuthStep = 'login' | 'change-password' | 'forgot' | 'verify' | 'reset';
 type ApiResult = { success?: boolean; data?: Record<string, unknown>; message?: string; error?: { message?: string } };
-const studentIdPattern = /^NSR(?:[A-Z]+|-[A-Z]+)-\d{3,6}$/;
+const studentIdPattern = /^(?:NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/;
 
 export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { onBack: () => void; onAdminLogin: () => void; onAuthenticated: (studentId: string, accessToken: string) => void }) {
   const [step, setStep] = useState<AuthStep>('login');

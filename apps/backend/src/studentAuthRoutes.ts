@@ -5,9 +5,8 @@ import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import type { NotificationService } from './notifications.js';
-import { issueStudentAccessToken } from './studentAuth.js';
+import { issueStudentAccessToken, studentIdPattern } from './studentAuth.js';
 
-const studentIdPattern = /^NSR[A-Z]+-\d{3,6}$/;
 const passwordSchema = z.string().min(8).max(128).regex(/[A-Z]/, 'Password must include an uppercase letter').regex(/[a-z]/, 'Password must include a lowercase letter').regex(/\d/, 'Password must include a number').regex(/[^A-Za-z0-9]/, 'Password must include a special character');
 const loginSchema = z.object({ studentId: z.string().trim().regex(studentIdPattern), password: z.string().min(6).max(128) });
 const changePasswordSchema = z.object({ changeToken: z.string().min(1), currentPassword: z.string().min(6).max(128), newPassword: passwordSchema });

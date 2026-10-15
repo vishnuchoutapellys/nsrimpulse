@@ -5,6 +5,7 @@ import { NextFunction, Request, Response, Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import type { NotificationService } from './notifications.js';
+import { studentIdPattern } from './studentAuth.js';
 
 type AdminClaims = { userId: string; adminId: string; role: 'COLLEGE_ADMIN' };
 type AdminRequest = Request & { admin?: AdminClaims };
@@ -125,7 +126,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
   });
 
   router.post('/students/:studentUid/certificates/issue', async (req: AdminRequest, res, next) => {
-    const params = z.object({ studentUid: z.string().trim().regex(/^NSR[A-Z]+-\d{3,6}$/) }).safeParse(req.params);
+    const params = z.object({ studentUid: z.string().trim().regex(studentIdPattern) }).safeParse(req.params);
     const parsed = certificateIssueSchema.safeParse(req.body);
     if (!params.success) return validationError(res, params.error.issues);
     if (!parsed.success) return validationError(res, parsed.error.issues);

@@ -10,6 +10,13 @@ describe('student identity rules', () => {
 });
 
 describe('student access tokens', () => {
+  it('accepts both legacy and long issued student IDs', () => {
+    for (const studentUid of ['NSRHYD-001', 'NSR-TS-HYD-2026-000001']) {
+      const token = issueStudentAccessToken(studentUid, jwtSecret);
+      expect(verifyStudentAccessToken(token, jwtSecret)).toEqual({ studentUid, role: 'STUDENT' });
+    }
+  });
+
   it('accepts a signed student token only for its own record', () => {
     const token = issueStudentAccessToken('NSRHYD-001', jwtSecret);
     const claims = verifyStudentAccessToken(token, jwtSecret);
