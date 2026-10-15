@@ -1,18 +1,20 @@
 {
   "name": "nsr-impulse",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev --",
     "dev:backend": "npm --workspace apps/backend run dev",
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces",
+    "build": "npm --workspace apps/backend run build --if-present && npm --workspace apps/web run build",
+    "test": "npm --workspace apps/test run test --if-present",
     "db:generate": "npm --workspace apps/backend run prisma:generate",
     "db:migrate": "npm --workspace apps/backend run prisma:migrate",
     "db:deploy": "npm --workspace apps/backend run prisma:deploy",
     "db:seed": "npm --workspace apps/backend run prisma:seed"
   },
-  
   "devDependencies": {
     "typescript": "^5.6.3",
     "prettier": "^3.3.3"

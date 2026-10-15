@@ -1,7 +1,4 @@
-
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
   "buildCommand": "npm --workspace apps/backend exec -- prisma generate && npm run build",
   "outputDirectory": "apps/web/dist"
 }
