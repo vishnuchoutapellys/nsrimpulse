@@ -3,12 +3,13 @@
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev:web": "npm --workspace apps/web run dev",
+    "dev:web": "npm --workspace apps/web run dev --",
     "dev:backend": "npm --workspace apps/backend run dev",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
     "db:generate": "npm --workspace apps/backend run prisma:generate",
     "db:migrate": "npm --workspace apps/backend run prisma:migrate",
+    "db:deploy": "npm --workspace apps/backend run prisma:deploy",
     "db:seed": "npm --workspace apps/backend run prisma:seed"
   },
   "devDependencies": {

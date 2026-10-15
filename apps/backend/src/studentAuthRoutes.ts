@@ -146,7 +146,10 @@ export function createStudentAuthRouter(prisma: PrismaClient, notifications: Not
 function verifyChangeToken(token: string, secret: string): ChangeClaims | null {
   try {
     const parsed = z.object({ purpose: z.literal('STUDENT_PASSWORD_CHANGE'), accountId: z.string(), studentUid: z.string().regex(studentIdPattern) }).safeParse(jwt.verify(token, secret));
-    return parsed.success ? parsed.data : null;
+    if (!parsed.success) return null;
+    const { purpose, accountId, studentUid } = parsed.data;
+    if (purpose !== 'STUDENT_PASSWORD_CHANGE' || !accountId || !studentUid) return null;
+    return { purpose, accountId, studentUid };
   } catch { return null; }
 }
 

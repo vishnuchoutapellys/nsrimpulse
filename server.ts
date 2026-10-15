@@ -1,7 +1,11 @@
+import type { Request, Response } from 'express';
 
-import express from 'express';
-import app from './apps/backend/src/server.js';
+type BackendApp = typeof import('./apps/backend/src/server.js').default;
 
-void express;
+let backendAppPromise: Promise<BackendApp> | undefined;
 
-export default app;
+export default async function handler(req: Request, res: Response) {
+	backendAppPromise ??= import('./apps/backend/src/server.js').then((module) => module.default);
+	const app = await backendAppPromise;
+	return app(req, res);
+}
