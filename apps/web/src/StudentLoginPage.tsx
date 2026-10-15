@@ -23,6 +23,10 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
 
   async function request(path: string, body: Record<string, string>) {
     const response = await fetch(`${apiBase}/api/v1/auth/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Authentication service returned ${response.status}. Check the API deployment configuration.`);
+    }
     const result = await response.json() as ApiResult;
     if (!response.ok || !result.success) throw new Error(result.error?.message ?? 'Unable to complete the request.');
     return result;
