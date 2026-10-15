@@ -8,6 +8,7 @@
     "test": "vitest run",
     "prisma:generate": "dotenv -e ../../.env -- prisma generate",
     "prisma:migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "prisma:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
     "prisma:seed": "dotenv -e ../../.env -- prisma db seed"
   },
   "dependencies": {
