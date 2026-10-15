@@ -15,6 +15,19 @@ import { createStudentAuthRouter } from './studentAuthRoutes.js';
 dotenv.config({ path: new URL('../../../.env', import.meta.url) });
 
 const app = express();
+app.use(cors({
+  origin: [
+    'https://www.nsrimpulse.com',
+    'https://nsrimpulse.com',
+    'http://localhost:5173'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json()); // Essential for reading req.body in POST requests
+app.use(express.urlencoded({ extended: true }));
 const prisma = new PrismaClient();
 const notifications = createNotificationService();
 const jwtAccessSecret = process.env.JWT_ACCESS_SECRET;
