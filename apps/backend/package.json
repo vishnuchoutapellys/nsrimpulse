@@ -9,7 +9,8 @@
     "prisma:generate": "dotenv -e ../../.env -- prisma generate",
     "prisma:migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "prisma:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
-    "prisma:seed": "dotenv -e ../../.env -- prisma db seed"
+    "prisma:seed": "dotenv -e ../../.env -- prisma db seed",
+    "postinstall": "prisma generate --schema=prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
