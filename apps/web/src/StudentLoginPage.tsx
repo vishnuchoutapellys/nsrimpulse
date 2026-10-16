@@ -1,13 +1,17 @@
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Home, LockKeyhole, Mail, Phone, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Home, LockKeyhole, Mail, Phone, Sparkles, UserRound as User } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import nsrLogo from '../../assets/nsrLogo.png';
 import { apiBase } from './api';
 
 type AuthStep = 'login' | 'change-password' | 'forgot' | 'verify' | 'reset';
+type AuthMode = 'signin' | 'register';
+type RoleType = 'STUDENT' | 'COLLEGE_ADMIN';
+
 type ApiResult = { success?: boolean; data?: Record<string, unknown>; message?: string; error?: { message?: string } };
 const studentIdPattern = /^(?:demo-account-\d+|NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/i;
 
 export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { onBack: () => void; onAdminLogin: () => void; onAuthenticated: (studentId: string, accessToken: string) => void }) {
+  const [mode, setMode] = useState<AuthMode>('signin');
   const [step, setStep] = useState<AuthStep>('login');
   const [studentId, setStudentId] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
@@ -19,7 +23,11 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // Registration specific state
+  const [regRole, setRegRole] = useState<RoleType>('STUDENT');
+
   function moveTo(nextStep: AuthStep) { setStep(nextStep); setError(''); setMessage(''); setShowPassword(false); }
+  function switchMode(newMode: AuthMode) { setMode(newMode); setError(''); setMessage(''); setStep('login'); }
 
   async function request(path: string, body: Record<string, string>) {
     const response = await fetch(`${apiBase}/api/v1/auth/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -28,7 +36,7 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
       throw new Error(`Authentication service returned ${response.status}. Check the API deployment configuration.`);
     }
     const result = await response.json() as ApiResult;
-    if (!response.ok || !result.success) throw new Error(result.error?.message ?? 'Unable to complete the request.');
+    if (!response.ok || !result.success) throw new Error(result.error?.message ?? result.message ?? 'Unable to complete the request.');
     return result;
   }
 
@@ -55,6 +63,36 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
         onAuthenticated(normalizedStudentId, responseData.accessToken);
       }
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to sign in.'); }
+    finally { setBusy(false); }
+  }
+
+  async function submitRegister(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setError(''); setMessage('');
+    const data = new FormData(event.currentTarget);
+    const name = String(data.get('name') ?? '').trim();
+    const password = String(data.get('password') ?? '');
+    const validation = validateNewPassword(password, password); // check basic strength
+    if (validation) return setError(validation);
+
+    setBusy(true);
+    try {
+      let bodyData: Record<string, string> = { role: regRole, name, password };
+
+      if (regRole === 'STUDENT') {
+        const rawUid = String(data.get('studentUid') ?? '').trim();
+        const normalizedUid = rawUid.toLowerCase().startsWith('demo-') ? rawUid.toLowerCase() : rawUid.toUpperCase();
+        if (!studentIdPattern.test(normalizedUid)) return setError('Enter a valid Student ID (e.g. demo-account-001).');
+        bodyData.studentUid = normalizedUid;
+        bodyData.mobile = String(data.get('mobile') ?? '').trim();
+      } else {
+        bodyData.email = String(data.get('email') ?? '').trim();
+        bodyData.adminSecretKey = String(data.get('adminSecretKey') ?? '');
+      }
+
+      const result = await request('register', bodyData);
+      setMessage(result.message ?? 'Registration successful! You can now sign in.');
+      setMode('signin');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to register account.'); }
     finally { setBusy(false); }
   }
 
@@ -120,7 +158,7 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
     finally { setBusy(false); }
   }
 
-  const isLogin = step === 'login';
+  const isLogin = mode === 'signin' && step === 'login';
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans selection:bg-amber-500 selection:text-slate-950 relative overflow-hidden">
@@ -150,10 +188,14 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
 
             <div className="space-y-3 pt-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold">
-                <Sparkles size={13} /> Student Portal
+                <Sparkles size={13} /> {mode === 'signin' ? 'Student Portal' : 'Account Registration'}
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
-                Welcome back to your <span className="text-amber-400 italic font-normal">learning hub.</span>
+                {mode === 'signin' ? (
+                  <>Welcome back to your <span className="text-amber-400 italic font-normal">learning hub.</span></>
+                ) : (
+                  <>Begin your journey with <span className="text-amber-400 italic font-normal">NSR Impulse.</span></>
+                )}
               </h2>
             </div>
           </div>
@@ -165,26 +207,61 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
         </div>
 
         {/* Right Authentication Panel */}
-        <section className="lg:col-span-7 p-8 lg:p-12 space-y-8 flex flex-col justify-center">
+        <section className="lg:col-span-7 p-8 lg:p-12 space-y-6 flex flex-col justify-center">
 
-          {/* Role Switcher */}
-          <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-950 border border-slate-800/80 max-w-xs">
-            <button
-              type="button"
-              className="flex-1 py-2 px-4 rounded-xl text-xs font-bold transition-all bg-amber-500 text-slate-950 shadow-md"
-            >
-              Student
-            </button>
-            <button
-              type="button"
-              className="flex-1 py-2 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors"
-              onClick={onAdminLogin}
-            >
-              College Admin
-            </button>
+          {/* Top Switcher: Sign In vs Register & Role Switcher */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            {/* Mode Switcher (Sign In / Register) */}
+            <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-950 border border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => switchMode('signin')}
+                className={`py-1.5 px-4 rounded-xl text-xs font-bold transition-all ${mode === 'signin' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                Sign In
+              </button>
+              <button
+                type="button"
+                onClick={() => switchMode('register')}
+                className={`py-1.5 px-4 rounded-xl text-xs font-bold transition-all ${mode === 'register' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                Register
+              </button>
+            </div>
+
+            {/* Role Switcher (Student / College Admin) */}
+            <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-950 border border-slate-800/80">
+              <button
+                type="button"
+                className={`py-1.5 px-3 rounded-xl text-xs font-semibold transition-all ${(mode === 'signin' || regRole === 'STUDENT') ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-white'}`}
+                onClick={() => {
+                  if (mode === 'signin') {
+                    // Stay on student signin
+                  } else {
+                    setRegRole('STUDENT');
+                  }
+                }}
+              >
+                Student
+              </button>
+              <button
+                type="button"
+                className={`py-1.5 px-3 rounded-xl text-xs font-semibold transition-all ${mode === 'signin' ? 'text-slate-400 hover:text-white' : (regRole === 'COLLEGE_ADMIN' ? 'text-amber-400 font-bold' : 'text-slate-400 hover:text-white')}`}
+                onClick={() => {
+                  if (mode === 'signin') {
+                    onAdminLogin();
+                  } else {
+                    setRegRole('COLLEGE_ADMIN');
+                  }
+                }}
+              >
+                College Admin
+              </button>
+            </div>
           </div>
 
-          {!isLogin && (
+          {/* Back button for sub-steps */}
+          {(!isLogin && mode === 'signin') && (
             <button
               className="inline-flex items-center gap-2 text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors"
               type="button"
@@ -194,25 +271,54 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
             </button>
           )}
 
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white tracking-tight">
-              {step === 'login' ? <>Student <span className="text-amber-400 italic font-normal">Sign In.</span></> :
-                step === 'change-password' ? <>Secure your <span className="text-amber-400 italic font-normal">account.</span></> :
-                  step === 'forgot' ? <>Forgot your <span className="text-amber-400 italic font-normal">password?</span></> :
-                    step === 'verify' ? <>Verify both <span className="text-amber-400 italic font-normal">codes.</span></> :
-                      <>Set a new <span className="text-amber-400 italic font-normal">password.</span></>}
+          <div className="space-y-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+              {mode === 'register' ? (
+                <>Create <span className="text-amber-400 italic font-normal">Account.</span></>
+              ) : (
+                step === 'login' ? <>Student <span className="text-amber-400 italic font-normal">Sign In.</span></> :
+                  step === 'change-password' ? <>Secure your <span className="text-amber-400 italic font-normal">account.</span></> :
+                    step === 'forgot' ? <>Forgot your <span className="text-amber-400 italic font-normal">password?</span></> :
+                      step === 'verify' ? <>Verify both <span className="text-amber-400 italic font-normal">codes.</span></> :
+                        <>Set a new <span className="text-amber-400 italic font-normal">password.</span></>
+              )}
             </h1>
             <p className="text-sm text-slate-400 leading-relaxed">
-              {step === 'login' ? 'Use the Student ID and password issued by your college.' :
-                step === 'change-password' ? 'Your temporary password must be changed before accessing the student portal.' :
-                  step === 'forgot' ? 'We will send separate verification codes to your registered email and mobile.' :
-                    step === 'verify' ? 'Enter the code from your email and the code sent to your mobile.' :
-                      'Choose a secure password for future sign-ins.'}
+              {mode === 'register' ? (
+                regRole === 'STUDENT' ? 'Register using your college-issued student ID and mobile number.' : 'Register as a College Admin using your institutional email and secret key.'
+              ) : (
+                step === 'login' ? 'Use the Student ID and password issued by your college.' :
+                  step === 'change-password' ? 'Your temporary password must be changed before accessing the student portal.' :
+                    step === 'forgot' ? 'We will send separate verification codes to your registered email and mobile.' :
+                      step === 'verify' ? 'Enter the code from your email and the code sent to your mobile.' :
+                        'Choose a secure password for future sign-ins.'
+              )}
             </p>
           </div>
 
           {/* Forms */}
-          {step === 'login' && (
+          {mode === 'register' && (
+            <form onSubmit={submitRegister} className="space-y-4">
+              <AuthField name="name" label="Full Name" placeholder="John Doe" icon={<User size={17} />} />
+
+              {regRole === 'STUDENT' ? (
+                <>
+                  <AuthField name="studentUid" label="College-issued Student ID" placeholder="demo-account-001" icon={<LockKeyhole size={17} />} />
+                  <AuthField name="mobile" label="Mobile Number" placeholder="9876543210" inputMode="tel" icon={<Phone size={17} />} />
+                </>
+              ) : (
+                <>
+                  <AuthField name="email" label="Institutional Email" type="email" placeholder="admin@nsrimpulse.com" icon={<Mail size={17} />} />
+                  <AuthField name="adminSecretKey" label="Admin Registration Secret Key" type="password" placeholder="Enter secret setup key" icon={<LockKeyhole size={17} />} />
+                </>
+              )}
+
+              <PasswordField name="password" label="Password" show={showPassword} onToggle={() => setShowPassword(!showPassword)} autoComplete="new-password" />
+              <SubmitButton busy={busy}>Register Account <ArrowRight size={17} /></SubmitButton>
+            </form>
+          )}
+
+          {mode === 'signin' && step === 'login' && (
             <form onSubmit={submitLogin} className="space-y-5">
               <AuthField name="studentId" label="College-issued Student ID" placeholder="NSRHYD-001" icon={<LockKeyhole size={17} />} defaultValue={studentId} />
               <PasswordField name="password" label="Password" show={showPassword} onToggle={() => setShowPassword(!showPassword)} autoComplete="current-password" />
@@ -225,7 +331,7 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
             </form>
           )}
 
-          {step === 'change-password' && (
+          {mode === 'signin' && step === 'change-password' && (
             <form onSubmit={submitPasswordChange} className="space-y-5">
               <PasswordField name="newPassword" label="New password" show={showPassword} onToggle={() => setShowPassword(!showPassword)} autoComplete="new-password" />
               <AuthField name="confirmPassword" label="Confirm new password" type="password" icon={<LockKeyhole size={17} />} />
@@ -233,14 +339,14 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
             </form>
           )}
 
-          {step === 'forgot' && (
+          {mode === 'signin' && step === 'forgot' && (
             <form onSubmit={submitForgot} className="space-y-5">
               <AuthField name="studentId" label="College-issued Student ID" placeholder="NSRHYD-001" icon={<LockKeyhole size={17} />} defaultValue={studentId} />
               <SubmitButton busy={busy}>Send verification codes <ArrowRight size={17} /></SubmitButton>
             </form>
           )}
 
-          {step === 'verify' && (
+          {mode === 'signin' && step === 'verify' && (
             <form onSubmit={submitOtp} className="space-y-5">
               <AuthField name="emailOtp" label="Email OTP" placeholder="6-digit code" inputMode="numeric" maxLength={6} icon={<Mail size={17} />} />
               <AuthField name="mobileOtp" label="Mobile OTP" placeholder="6-digit code" inputMode="numeric" maxLength={6} icon={<Phone size={17} />} />
@@ -248,7 +354,7 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
             </form>
           )}
 
-          {step === 'reset' && (
+          {mode === 'signin' && step === 'reset' && (
             <form onSubmit={submitReset} className="space-y-5">
               <PasswordField name="newPassword" label="New password" show={showPassword} onToggle={() => setShowPassword(!showPassword)} autoComplete="new-password" />
               <AuthField name="confirmPassword" label="Confirm new password" type="password" icon={<LockKeyhole size={17} />} />
@@ -284,7 +390,7 @@ function validateNewPassword(password: string, confirmation: string) {
 
 function AuthField({ name, label, icon, type = 'text', ...props }: { name: string; label: string; icon: JSX.Element; type?: string;[key: string]: unknown }) {
   return (
-    <label className="block space-y-2">
+    <label className="block space-y-1.5">
       <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">{label}</span>
       <div className="relative flex items-center">
         <span className="absolute left-4 text-slate-500">{icon}</span>
@@ -292,7 +398,7 @@ function AuthField({ name, label, icon, type = 'text', ...props }: { name: strin
           name={name}
           type={type}
           required
-          className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors text-sm"
+          className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors text-sm"
           {...props}
         />
       </div>
@@ -302,7 +408,7 @@ function AuthField({ name, label, icon, type = 'text', ...props }: { name: strin
 
 function PasswordField({ name, label, show, onToggle, autoComplete }: { name: string; label: string; show: boolean; onToggle: () => void; autoComplete: string }) {
   return (
-    <label className="block space-y-2">
+    <label className="block space-y-1.5">
       <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">{label}</span>
       <div className="relative flex items-center">
         <span className="absolute left-4 text-slate-500"><LockKeyhole size={17} /></span>
@@ -311,7 +417,7 @@ function PasswordField({ name, label, show, onToggle, autoComplete }: { name: st
           type={show ? 'text' : 'password'}
           autoComplete={autoComplete}
           required
-          className="w-full pl-11 pr-11 py-3.5 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors text-sm"
+          className="w-full pl-11 pr-11 py-3 rounded-xl bg-slate-950 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors text-sm"
         />
         <button
           type="button"
@@ -329,7 +435,7 @@ function PasswordField({ name, label, show, onToggle, autoComplete }: { name: st
 function SubmitButton({ busy, children }: { busy: boolean; children: React.ReactNode }) {
   return (
     <button
-      className="w-full py-4 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
+      className="w-full py-3.5 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50 mt-2"
       disabled={busy}
     >
       {busy ? 'Please wait...' : children}

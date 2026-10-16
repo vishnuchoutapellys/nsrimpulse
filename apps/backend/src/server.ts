@@ -4,7 +4,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { PaymentMode, PaymentStatus, Prisma, PrismaClient } from '@prisma/client';
+import { PaymentMode, PaymentStatus, Prisma, PrismaClient, RoleName } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import type { NextFunction, Request, Response } from 'express';
 import { createAdminRouter } from './adminRoutes.js';
@@ -232,7 +232,165 @@ app.use((error: Error, _req: express.Request, res: express.Response, _next: expr
   console.error('Unhandled API error', error);
   return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected server error occurred' } });
 });
+// ==========================================
+// 1. REGISTER ENDPOINT
+// ==========================================
+app.post('/api/v1/auth/register', async (req, res) => {
+  try {
+    const { role, studentUid, email, name, mobile, password, adminSecretKey, collegeId, branchId, courseId } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
 
+    // --- STUDENT REGISTRATION ---
+    if (role === 'STUDENT') {
+      const normalizedUid = studentUid.toLowerCase().startsWith('demo-')
+        ? studentUid.toLowerCase()
+        : studentUid.toUpperCase();
+
+      // Use an interactive transaction to create both Student and StudentAccount
+      const result = await prisma.$transaction(async (tx) => {
+        // Step A: Create the base Student record
+        const student = await tx.student.create({
+          data: {
+            studentUid: normalizedUid,
+            name,
+            mobile: mobile || '0000000000',
+            admissionYear: new Date().getFullYear(),
+            academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+            // Optional: attach default college, branch, course if passed or use fallback IDs
+            collegeId: collegeId || 'default-college-id',
+            branchId: branchId || 'default-branch-id',
+            courseId: courseId || 'default-course-id',
+          },
+        });
+
+        // Step B: Create StudentAccount linked to Student.id
+        const account = await tx.studentAccount.create({
+          data: {
+            studentId: student.id, // Foreign key referencing Student.id
+            email: email || null,
+            passwordHash: hashedPassword,
+            mustChangePassword: false,
+          },
+        });
+
+        return { student, account };
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Student registered successfully',
+        studentUid: result.student.studentUid,
+      });
+    }
+
+    // --- COLLEGE ADMIN / SUPER ADMIN REGISTRATION ---
+    if (role === 'COLLEGE_ADMIN' || role === 'SUPER_ADMIN') {
+      if (adminSecretKey !== process.env.ADMIN_REGISTRATION_SECRET) {
+        return res.status(403).json({ message: 'Invalid admin secret key' });
+      }
+
+      const user = await prisma.user.create({
+        data: {
+          email,
+          passwordHash: hashedPassword,
+          roles: {
+            create: {
+              role: role as RoleName,
+            },
+          },
+        },
+        include: {
+          roles: true,
+        },
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Admin account created successfully',
+        userId: user.id,
+      });
+    }
+
+    return res.status(400).json({ message: 'Invalid role specified' });
+  } catch (error: any) {
+    console.error('Registration Error:', error);
+    return res.status(500).json({ message: error.message || 'Registration failed' });
+  }
+});
+
+// ==========================================
+// 2. LOGIN ENDPOINT
+// ==========================================
+app.post('/api/v1/auth/login', async (req, res) => {
+  try {
+    const { role, studentUid, email, password } = req.body;
+
+    // --- STUDENT LOGIN ---
+    if (role === 'STUDENT' || !role) {
+      const normalizedUid = studentUid.toLowerCase().startsWith('demo-')
+        ? studentUid.toLowerCase()
+        : studentUid.toUpperCase();
+
+      // Find Student by studentUid
+      const student = await prisma.student.findUnique({
+        where: { studentUid: normalizedUid },
+        include: { account: true, college: true, branch: true, course: true },
+      });
+
+      if (!student || !student.account) {
+        return res.status(401).json({ message: 'Invalid Student ID or password' });
+      }
+
+      // Verify bcrypt passwordHash
+      const isPasswordValid = await bcrypt.compare(password, student.account.passwordHash);
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: 'Invalid Student ID or password' });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        user: {
+          id: student.id,
+          studentUid: student.studentUid,
+          name: student.name,
+          college: student.college.name,
+          branch: student.branch.name,
+        },
+      });
+    }
+
+    // --- ADMIN LOGIN ---
+    if (role === 'ADMIN' || role === 'COLLEGE_ADMIN') {
+      const user = await prisma.user.findUnique({
+        where: { email },
+        include: { roles: true },
+      });
+
+      if (!user) {
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Admin login successful',
+        user: {
+          id: user.id,
+          email: user.email,
+          roles: user.roles.map((r) => r.role),
+        },
+      });
+    }
+  } catch (error: any) {
+    console.error('Login Error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+});
 export default app;
 
 // Keep the local development server working.
