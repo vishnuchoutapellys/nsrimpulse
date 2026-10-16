@@ -226,12 +226,6 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
   }
 });
 app.use('/api/v1/admin', createAdminRouter(prisma, notifications));
-
-app.use((_req, res) => res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Route not found' } }));
-app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled API error', error);
-  return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected server error occurred' } });
-});
 // ==========================================
 // 1. REGISTER ENDPOINT
 // ==========================================
@@ -317,7 +311,6 @@ app.post('/api/v1/auth/register', async (req, res) => {
     return res.status(500).json({ message: error.message || 'Registration failed' });
   }
 });
-
 // ==========================================
 // 2. LOGIN ENDPOINT
 // ==========================================
@@ -391,6 +384,12 @@ app.post('/api/v1/auth/login', async (req, res) => {
     return res.status(500).json({ message: 'Internal server error' });
   }
 });
+app.use((_req, res) => res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Route not found' } }));
+app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled API error', error);
+  return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected server error occurred' } });
+});
+
 export default app;
 
 // Keep the local development server working.
