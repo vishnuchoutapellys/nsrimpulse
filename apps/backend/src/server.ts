@@ -240,9 +240,25 @@ app.post('/api/v1/auth/register', async (req, res) => {
         ? studentUid.toLowerCase()
         : studentUid.toUpperCase();
 
-      // Use an interactive transaction to create both Student and StudentAccount
       const result = await prisma.$transaction(async (tx) => {
-        // Step A: Create the base Student record
+        // Dynamically fetch valid existing foreign keys from your DB
+        const college = collegeId
+          ? await tx.college.findUnique({ where: { id: collegeId } })
+          : await tx.college.findFirst();
+
+        const branch = branchId
+          ? await tx.branch.findUnique({ where: { id: branchId } })
+          : await tx.branch.findFirst();
+
+        const course = courseId
+          ? await tx.course.findUnique({ where: { id: courseId } })
+          : await tx.course.findFirst();
+
+        if (!college || !branch || !course) {
+          throw new Error('Database is missing required College, Branch, or Course records. Please run your database seed script first.');
+        }
+
+        // Step A: Create the base Student record with valid relational IDs
         const student = await tx.student.create({
           data: {
             studentUid: normalizedUid,
@@ -250,10 +266,9 @@ app.post('/api/v1/auth/register', async (req, res) => {
             mobile: mobile || '0000000000',
             admissionYear: new Date().getFullYear(),
             academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
-            // Optional: attach default college, branch, course if passed or use fallback IDs
-            collegeId: collegeId || 'default-college-id',
-            branchId: branchId || 'default-branch-id',
-            courseId: courseId || 'default-course-id',
+            collegeId: college.id,
+            branchId: branch.id,
+            courseId: course.id,
           },
         });
 
@@ -276,7 +291,6 @@ app.post('/api/v1/auth/register', async (req, res) => {
         studentUid: result.student.studentUid,
       });
     }
-
     // --- COLLEGE ADMIN / SUPER ADMIN REGISTRATION ---
     if (role === 'COLLEGE_ADMIN' || role === 'SUPER_ADMIN') {
       if (adminSecretKey !== process.env.ADMIN_REGISTRATION_SECRET) {
