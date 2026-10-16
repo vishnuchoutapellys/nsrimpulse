@@ -77,59 +77,103 @@ app.post('/api/v1/students/validate', (req, res) => {
   if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid student details', details: parsed.error.issues } });
   return res.status(202).json({ success: true, data: { validated: true }, message: 'Student details are valid' });
 });
-app.get('/api/v1/students/:studentUid/portal', authenticateStudent(jwtAccessSecret), async (req: StudentRequest, res, next) => {
-  if (!studentCanAccessRecord(req.student, req.params.studentUid)) return forbiddenStudent(res);
+app.get('/api/v1/students/:studentId/portal', async (req, res) => {
   try {
+    const { studentId } = req.params;
+    const normalizedUid = studentId.toLowerCase().startsWith('demo-') ? studentId.toLowerCase() : studentId.toUpperCase();
+
     const student = await prisma.student.findUnique({
-      where: { studentUid: req.params.studentUid },
+      where: { studentUid: normalizedUid },
       include: {
         college: { include: { location: true } },
         branch: true,
         course: true,
-        payments: { include: { receipt: true }, orderBy: { createdAt: 'desc' } },
-        feeAssignments: { include: { feeStructure: true, installments: { include: { allocations: { include: { payment: true } } }, orderBy: { dueDate: 'asc' } } }, orderBy: { id: 'asc' } }
-      }
+        feeAssignments: {
+          include: {
+            installments: true,
+            feeStructure: true,
+          },
+        },
+        payments: { include: { receipt: true } },
+      },
     });
-    if (!student) return res.status(404).json({ success: false, error: { code: 'STUDENT_NOT_FOUND', message: 'Student ID was not found' } });
-    const assignment = student.feeAssignments[0];
-    if (!assignment) return res.status(409).json({ success: false, error: { code: 'FEE_ASSIGNMENT_NOT_FOUND', message: 'No fee assignment exists for this student' } });
-    const paid = student.payments.filter((payment) => payment.status === PaymentStatus.SUCCESS).reduce((total, payment) => total + Number(payment.amount), 0);
-    const total = Number(assignment.originalAmount);
-    const pending = Math.max(total - paid, 0);
-    const installmentData = assignment.installments.map((installment, index) => {
-      const installmentPaid = installment.allocations.filter((allocation) => allocation.payment.status === PaymentStatus.SUCCESS).reduce((sum, allocation) => sum + Number(allocation.amount), 0);
-      const installmentAmount = Number(installment.amount);
-      return { id: installment.id, label: `Year ${index + 1}`, amount: installmentAmount, paid: installmentPaid, dueDate: installment.dueDate.toISOString().slice(0, 10), status: installmentPaid >= installmentAmount ? 'PAID' : installmentPaid > 0 ? 'PARTIAL' : 'PENDING' };
-    });
-    const reminders = installmentData.filter((installment) => installment.status !== 'PAID').map((installment, index) => ({
-      id: installment.id,
-      title: `${installment.label} fee payment due`,
-      message: `₹${(installment.amount - installment.paid).toLocaleString('en-IN')} remains due for ${installment.label}.`,
-      dueDate: installment.dueDate,
-      severity: index === 0 ? 'HIGH' : 'INFO',
-      read: false
-    }));
-    const latestPayment = student.payments.find((payment) => payment.status === PaymentStatus.SUCCESS);
-    return res.json({
-      success: true, data: {
+
+    if (!student) {
+      return res.status(404).json({ success: false, error: { message: 'Student account not found' } });
+    }
+
+    // Check if fee assignment exists
+    const feeAssignment = student.feeAssignments[0];
+    if (!feeAssignment || student.status === 'ON_HOLD') {
+      return res.status(200).json({
+        success: true,
+        data: {
+          approvalPending: true,
+          studentId: student.studentUid,
+          name: student.name,
+          fatherName: student.fatherName ?? 'Not Provided',
+          mobile: student.mobile,
+          email: student.email ?? 'Not Provided',
+          village: student.village ?? 'Not Provided',
+          pin: student.pin ?? '000000',
+          courseType: student.course?.name ?? 'MPC',
+          location: student.college?.name ?? 'Hyderabad',
+          status: student.status,
+        },
+      });
+    }
+
+    // Full student record response when fees are assigned
+    const totalFee = Number(feeAssignment.originalAmount);
+    const totalPaid = student.payments
+      .filter((p) => p.status === 'SUCCESS')
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        approvalPending: false,
         studentId: student.studentUid,
         name: student.name,
         fatherName: student.fatherName ?? '',
-        age: student.age ?? 0,
-        courseType: student.course.name,
+        age: student.age ?? 18,
+        courseType: student.course?.name ?? 'MPC',
         courseDurationYears: 2,
-        location: student.college.location.name,
+        location: student.college?.name ?? 'Hyderabad',
         mobile: student.mobile,
         email: student.email ?? '',
-        village: student.village ?? student.address ?? '',
+        village: student.village ?? '',
         pin: student.pin ?? '',
-        fee: { total, paid, pending, currency: 'INR', installments: installmentData.map(({ label, amount, dueDate, status }) => ({ label, amount, dueDate, status })) },
-        receipt: { invoiceNumber: latestPayment?.receipt?.receiptNumber ?? `NSR-INV-${student.admissionYear}-${student.studentUid}`, transactionNumber: latestPayment?.reference ?? `PENDING-${student.studentUid}`, dateTime: latestPayment?.createdAt.toISOString() ?? new Date().toISOString(), paymentType: latestPayment?.mode ?? 'ONLINE', amount: latestPayment ? Number(latestPayment.amount) : 0, status: latestPayment ? 'PAID' : 'PENDING', note: latestPayment ? 'Payment recorded in the central database.' : 'Invoice generated. Receipt will be finalized after payment confirmation.' },
-        reminders
-      }, message: 'Student portal data loaded from PostgreSQL'
+        fee: {
+          total: totalFee,
+          paid: totalPaid,
+          pending: totalFee - totalPaid,
+          currency: 'INR',
+          installments: feeAssignment.installments.map((inst) => ({
+            label: `Installment due ${new Date(inst.dueDate).toLocaleDateString()}`,
+            amount: Number(inst.amount),
+            dueDate: inst.dueDate.toISOString().split('T')[0],
+            status: 'PENDING',
+          })),
+        },
+        receipt: {
+          invoiceNumber: 'NSR-INV-001',
+          transactionNumber: 'NSR-TXN-001',
+          dateTime: new Date().toISOString(),
+          paymentType: 'ONLINE',
+          amount: totalPaid,
+          status: totalPaid > 0 ? 'SUCCESS' : 'PENDING',
+          note: 'Fees verified.',
+        },
+        reminders: [],
+      },
     });
-  } catch (error) { return next(error); }
+  } catch (error: any) {
+    console.error('Portal Error:', error);
+    return res.status(500).json({ success: false, error: { message: 'Unable to load student data' } });
+  }
 });
+
 app.get('/api/v1/students/:studentUid/payments', authenticateStudent(jwtAccessSecret), async (req: StudentRequest, res, next) => {
   if (!studentCanAccessRecord(req.student, req.params.studentUid)) return forbiddenStudent(res);
   const query = z.object({ page: z.coerce.number().int().positive().default(1), pageSize: z.coerce.number().int().min(1).max(50).default(20) }).safeParse(req.query);
@@ -233,90 +277,98 @@ app.post('/api/v1/auth/register', async (req, res) => {
   try {
     const { role, studentUid, email, name, mobile, password, adminSecretKey, collegeId, branchId, courseId } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
+    try {
+      const {
+        role, studentUid, name, mobile, email, password,
+        fatherName, motherName, dateOfBirth, village, pin,
+        collegeId, branchId, courseId, adminSecretKey
+      } = req.body;
 
-    // --- STUDENT REGISTRATION ---
-    if (role === 'STUDENT') {
-      const normalizedUid = studentUid.toLowerCase().startsWith('demo-')
-        ? studentUid.toLowerCase()
-        : studentUid.toUpperCase();
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-      const result = await prisma.$transaction(async (tx) => {
-        // Dynamically fetch valid existing foreign keys from your DB
-        const college = collegeId
-          ? await tx.college.findUnique({ where: { id: collegeId } })
-          : await tx.college.findFirst();
+      if (role === 'STUDENT') {
+        const normalizedUid = studentUid.toLowerCase().startsWith('demo-')
+          ? studentUid.toLowerCase()
+          : studentUid.toUpperCase();
 
-        const branch = branchId
-          ? await tx.branch.findUnique({ where: { id: branchId } })
-          : await tx.branch.findFirst();
+        const result = await prisma.$transaction(async (tx) => {
+          const college = collegeId ? await tx.college.findUnique({ where: { id: collegeId } }) : await tx.college.findFirst();
+          const branch = branchId ? await tx.branch.findUnique({ where: { id: branchId } }) : await tx.branch.findFirst();
+          const course = courseId ? await tx.course.findUnique({ where: { id: courseId } }) : await tx.course.findFirst();
 
-        const course = courseId
-          ? await tx.course.findUnique({ where: { id: courseId } })
-          : await tx.course.findFirst();
+          if (!college || !branch || !course) {
+            throw new Error('Database is missing required College, Branch, or Course records.');
+          }
 
-        if (!college || !branch || !course) {
-          throw new Error('Database is missing required College, Branch, or Course records. Please run your database seed script first.');
+          const student = await tx.student.create({
+            data: {
+              studentUid: normalizedUid,
+              name,
+              mobile: mobile || '',
+              email: email || null,
+              fatherName: fatherName || null,
+              motherName: motherName || null,
+              dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+              village: village || null,
+              pin: pin || null,
+              admissionYear: new Date().getFullYear(),
+              academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+              status: 'ON_HOLD', // Pending admin review & fee assignment
+              collegeId: college.id,
+              branchId: branch.id,
+              courseId: course.id,
+            },
+          });
+
+          const account = await tx.studentAccount.create({
+            data: {
+              studentId: student.id,
+              email: email || null,
+              passwordHash: hashedPassword,
+              mustChangePassword: false,
+            },
+          });
+
+          return { student, account };
+        });
+
+        return res.status(201).json({
+          success: true,
+          message: 'Registration successful! Your account is pending admin approval and fee assignment.',
+          studentUid: result.student.studentUid,
+        });
+      }
+      // --- COLLEGE ADMIN / SUPER ADMIN REGISTRATION ---
+      if (role === 'COLLEGE_ADMIN' || role === 'SUPER_ADMIN') {
+        if (adminSecretKey !== process.env.ADMIN_REGISTRATION_SECRET) {
+          return res.status(403).json({ message: 'Invalid admin secret key' });
         }
 
-        // Step A: Create the base Student record with valid relational IDs
-        const student = await tx.student.create({
+        const user = await prisma.user.create({
           data: {
-            studentUid: normalizedUid,
-            name,
-            mobile: mobile || '0000000000',
-            admissionYear: new Date().getFullYear(),
-            academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
-            collegeId: college.id,
-            branchId: branch.id,
-            courseId: course.id,
-          },
-        });
-
-        // Step B: Create StudentAccount linked to Student.id
-        const account = await tx.studentAccount.create({
-          data: {
-            studentId: student.id, // Foreign key referencing Student.id
-            email: email || null,
+            email,
             passwordHash: hashedPassword,
-            mustChangePassword: false,
-          },
-        });
-
-        return { student, account };
-      });
-
-      return res.status(201).json({
-        success: true,
-        message: 'Student registered successfully',
-        studentUid: result.student.studentUid,
-      });
-    }
-    // --- COLLEGE ADMIN / SUPER ADMIN REGISTRATION ---
-    if (role === 'COLLEGE_ADMIN' || role === 'SUPER_ADMIN') {
-      if (adminSecretKey !== process.env.ADMIN_REGISTRATION_SECRET) {
-        return res.status(403).json({ message: 'Invalid admin secret key' });
-      }
-
-      const user = await prisma.user.create({
-        data: {
-          email,
-          passwordHash: hashedPassword,
-          roles: {
-            create: {
-              role: role as RoleName,
+            roles: {
+              create: {
+                role: role as RoleName,
+              },
             },
           },
-        },
-        include: {
-          roles: true,
-        },
-      });
+          include: {
+            roles: true,
+          },
+        });
 
-      return res.status(201).json({
-        success: true,
-        message: 'Admin account created successfully',
-        userId: user.id,
-      });
+        return res.status(201).json({
+          success: true,
+          message: 'Admin account created successfully',
+          userId: user.id,
+        });
+      }
+
+    } catch (error: any) {
+      console.error('Registration Error:', error);
+      return res.status(500).json({ message: error.message || 'Registration failed' });
     }
 
     return res.status(400).json({ message: 'Invalid role specified' });

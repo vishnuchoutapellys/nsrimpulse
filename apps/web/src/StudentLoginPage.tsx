@@ -1,7 +1,8 @@
-import { ArrowLeft, ArrowRight, Eye, EyeOff, Home, LockKeyhole, Mail, Phone, Sparkles, UserRound as User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Home, LockKeyhole, Mail, Phone, Sparkles, UserRound as UserIcon, CalendarDays as Calendar1Icon } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import nsrLogo from '../../assets/nsrLogo.png';
 import { apiBase } from './api';
+import { } from 'lucide-react';
 
 type AuthStep = 'login' | 'change-password' | 'forgot' | 'verify' | 'reset';
 type AuthMode = 'signin' | 'register';
@@ -81,10 +82,17 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
       if (regRole === 'STUDENT') {
         const rawUid = String(data.get('studentUid') ?? '').trim();
         const normalizedUid = rawUid.toLowerCase().startsWith('demo-') ? rawUid.toLowerCase() : rawUid.toUpperCase();
-        if (!studentIdPattern.test(normalizedUid)) return setError('Enter a valid Student ID (e.g. demo-account-001).');
+
         bodyData.studentUid = normalizedUid;
         bodyData.mobile = String(data.get('mobile') ?? '').trim();
-      } else {
+        bodyData.email = String(data.get('email') ?? '').trim();
+        bodyData.fatherName = String(data.get('fatherName') ?? '').trim();
+        bodyData.motherName = String(data.get('motherName') ?? '').trim();
+        bodyData.dateOfBirth = String(data.get('dateOfBirth') ?? '');
+        bodyData.village = String(data.get('village') ?? '').trim();
+        bodyData.pin = String(data.get('pin') ?? '').trim();
+      }
+      else {
         bodyData.email = String(data.get('email') ?? '').trim();
         bodyData.adminSecretKey = String(data.get('adminSecretKey') ?? '');
       }
@@ -299,12 +307,18 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
           {/* Forms */}
           {mode === 'register' && (
             <form onSubmit={submitRegister} className="space-y-4">
-              <AuthField name="name" label="Full Name" placeholder="John Doe" icon={<User size={17} />} />
+              <AuthField name="name" label="Full Name" placeholder="Narayan Vyas" icon={<UserIcon size={17} />} />
 
               {regRole === 'STUDENT' ? (
                 <>
-                  <AuthField name="studentUid" label="College-issued Student ID" placeholder="demo-account-001" icon={<LockKeyhole size={17} />} />
+                  <AuthField name="studentUid" label="College-issued Student ID" placeholder="NSRTSHYD-003" icon={<LockKeyhole size={17} />} />
                   <AuthField name="mobile" label="Mobile Number" placeholder="9876543210" inputMode="tel" icon={<Phone size={17} />} />
+                  <AuthField name="email" label="Email Address" type="email" placeholder="student@nsrimpulse.com" icon={<Mail size={17} />} />
+                  <AuthField name="fatherName" label="Father's Name" placeholder="Shankar Lal Vyas" icon={<UserIcon size={17} />} />
+                  <AuthField name="motherName" label="Mother's Name" placeholder="Mother Name" icon={<UserIcon size={17} />} />
+                  <AuthField name="dateOfBirth" label="Date of Birth" type="date" icon={<Calendar1Icon size={17} />} />
+                  <AuthField name="village" label="Village / City" placeholder="Hyderabad" icon={<Home size={17} />} />
+                  <AuthField name="pin" label="PIN Code" placeholder="500001" inputMode="numeric" maxLength={6} icon={<LockKeyhole size={17} />} />
                 </>
               ) : (
                 <>
@@ -317,6 +331,7 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
               <SubmitButton busy={busy}>Register Account <ArrowRight size={17} /></SubmitButton>
             </form>
           )}
+
 
           {mode === 'signin' && step === 'login' && (
             <form onSubmit={submitLogin} className="space-y-5">
