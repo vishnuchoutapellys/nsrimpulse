@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUpRight, BookOpen, Building2, ChevronRight, GraduationCap, Menu, ShieldCheck, Sparkles, Star, Trophy, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Building2, ChevronRight, GraduationCap, Menu, ShieldCheck, Sparkles, Star, Trophy, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import nsrLogo from '../../assets/nsrLogo.png';
@@ -54,7 +54,7 @@ export function App() {
 function PublicLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
+    <div className="public-site min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       {/* Sticky Glassmorphism Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/80 border-b border-slate-800/80 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
@@ -102,7 +102,7 @@ function PublicLayout() {
       </main>
 
       {/* Premium Footer */}
-      <footer className="bg-slate-950 border-t border-slate-900 text-slate-400 py-12 px-4 sm:px-6 lg:px-8 mt-20">
+      <footer className="bg-slate-950 border-t border-slate-900 text-slate-400 py-8 sm:py-12 px-4 sm:px-6 lg:px-8 mt-12 sm:mt-16">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex flex-col items-center md:items-start gap-3">
             <Link to="/" className="flex items-center gap-3">
@@ -129,34 +129,78 @@ function PublicLayout() {
   );
 }
 
+const campusSlides = [
+  {
+    image: '/images/campus/campus-building.jpg',
+    alt: 'Campus building surrounded by greenery',
+    eyebrow: 'A place to grow',
+    title: 'Build a bright future.',
+    description: 'Discover a learning community that helps students move forward with confidence.'
+  },
+  {
+    image: '/images/campus/classroom.jpg',
+    alt: 'Bright classroom prepared for focused learning',
+    eyebrow: 'Learning together',
+    title: 'Make room to understand.',
+    description: 'Focused preparation and supportive teaching help make every lesson count.'
+  },
+  {
+    image: '/images/campus/library.jpg',
+    alt: 'Quiet library with study tables and bookshelves',
+    eyebrow: 'Your next chapter',
+    title: 'Find focus. Reach further.',
+    description: 'A calm place to learn, ask questions, and take the next step toward your goals.'
+  }
+];
+
 function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPageChange: (path: string) => void }) {
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [selectedCourseIndex, setSelectedCourseIndex] = useState(0);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+  const slide = campusSlides[activeSlide]!;
+  const selectedCourse = courseDetails[selectedCourseIndex]!;
+
+  useEffect(() => {
+    if (isCarouselPaused || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const timer = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % campusSlides.length);
+    }, 6000);
+
+    return () => window.clearInterval(timer);
+  }, [isCarouselPaused]);
+
+  const showSlide = (direction: number) => {
+    setActiveSlide((current) => (current + direction + campusSlides.length) % campusSlides.length);
+  };
+
   return (
-    <div className="space-y-24 pb-20 overflow-hidden">
+    <div className="home-page space-y-10 pb-10 overflow-hidden sm:space-y-14 sm:pb-14 lg:space-y-20 lg:pb-20">
       {/* Hero Section */}
-      <section className="relative pt-16 pb-20 lg:pt-28 lg:pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      <section className="relative pt-8 pb-8 sm:pt-12 sm:pb-12 lg:pt-28 lg:pb-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="lg:col-span-7 space-y-8 z-10">
+        <div className="lg:col-span-7 space-y-5 sm:space-y-7 lg:space-y-8 z-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-semibold tracking-wide uppercase">
             <Sparkles size={14} /> Admissions 2026-27 Open
           </div>
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-[1.1]">
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-[1.1]">
             Start your beautiful <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500 italic font-normal">and bright future.</span>
           </h1>
-          <p className="text-lg sm:text-xl text-slate-300 max-w-2xl leading-relaxed">
+          <p className="text-base sm:text-xl text-slate-300 max-w-2xl leading-relaxed">
             Focused preparation, inspiring mentors, and a learning community that helps every student move with purpose.
           </p>
-          <div className="flex flex-wrap items-center gap-4 pt-2">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 pt-1 sm:pt-2">
             <button
-              className="px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold shadow-xl shadow-amber-500/25 hover:from-amber-400 hover:to-amber-500 transition-all transform hover:-translate-y-0.5 flex items-center gap-2.5"
+              className="px-5 py-3 sm:px-8 sm:py-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold shadow-xl shadow-amber-500/25 hover:from-amber-400 hover:to-amber-500 transition-all transform hover:-translate-y-0.5 flex items-center gap-2.5"
               onClick={onRegister}
             >
               Join NSR Impulse <ArrowRight size={18} />
             </button>
             <button
               type="button"
-              className="px-6 py-4 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 font-medium hover:bg-slate-800 hover:text-amber-400 transition-all flex items-center gap-2"
+              className="px-4 py-3 sm:px-6 sm:py-4 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 font-medium hover:bg-slate-800 hover:text-amber-400 transition-all flex items-center gap-2"
               onClick={() => onPageChange('about')}
             >
               About our approach <ArrowUpRight size={17} />
@@ -164,17 +208,68 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
           </div>
         </div>
 
-        <div className="lg:col-span-5 relative z-10 flex justify-center">
-          <div className="relative w-full max-w-md aspect-square rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900/90 to-amber-950/30 border border-slate-800 p-8 shadow-2xl flex flex-col justify-between overflow-hidden group hover:border-amber-500/40 transition-all duration-500">
-            <div className="absolute -right-12 -top-12 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all"></div>
-            <div className="space-y-2">
-              <span className="text-amber-400 font-semibold tracking-wider text-xs uppercase">Admissions open</span>
-              <h2 className="text-3xl font-bold text-white leading-tight">Make room <br /><span className="text-amber-400">for ambition.</span></h2>
-            </div>
-            <div className="pt-8 border-t border-slate-800/80 flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-300 tracking-wider">JEE · NEET · EAMCET</span>
-              <div className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs uppercase tracking-widest shadow-lg">
-                NSR <br /><span className="text-[10px] font-normal lowercase">learn · lead</span>
+        <div className="lg:col-span-5 relative z-10">
+          <div
+            className="campus-carousel group relative aspect-[4/3] min-h-[260px] sm:min-h-[320px] w-full overflow-hidden rounded-3xl shadow-xl"
+            role="region"
+            aria-roledescription="carousel"
+            aria-label="Campus and learning highlights"
+            onMouseEnter={() => setIsCarouselPaused(true)}
+            onMouseLeave={() => setIsCarouselPaused(false)}
+            onFocus={() => setIsCarouselPaused(true)}
+            onBlur={(event) => {
+              if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+                setIsCarouselPaused(false);
+              }
+            }}
+          >
+            <img
+              key={slide.image}
+              className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+              src={slide.image}
+              alt={slide.alt}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/35 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 space-y-5 p-6 text-white sm:p-8">
+              <div aria-live={isCarouselPaused ? 'polite' : 'off'}>
+                <span className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">{slide.eyebrow}</span>
+                <h2 className="mt-2 text-2xl font-bold leading-tight sm:text-3xl">{slide.title}</h2>
+                <p className="mt-2 max-w-md text-sm leading-relaxed text-white/90 sm:text-base">{slide.description}</p>
+              </div>
+              <div className="flex items-center justify-between gap-4 border-t border-white/30 pt-4">
+                <Link to="/about" className="inline-flex items-center gap-2 text-sm font-semibold text-white transition-colors hover:text-amber-300">
+                  Discover NSR Impulse <ArrowUpRight size={16} />
+                </Link>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="rounded-full border border-white/50 p-2 text-white transition-colors hover:bg-white/20"
+                    onClick={() => showSlide(-1)}
+                    aria-label="Previous campus highlight"
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-full border border-white/50 p-2 text-white transition-colors hover:bg-white/20"
+                    onClick={() => showSlide(1)}
+                    aria-label="Next campus highlight"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex justify-center gap-2" aria-label="Choose a campus highlight">
+                {campusSlides.map((item, index) => (
+                  <button
+                    key={item.title}
+                    type="button"
+                    className={`h-2 rounded-full transition-all ${index === activeSlide ? 'w-7 bg-amber-400' : 'w-2 bg-white/70 hover:bg-white'}`}
+                    onClick={() => setActiveSlide(index)}
+                    aria-label={`Show slide ${index + 1}: ${item.title}`}
+                    aria-current={index === activeSlide ? 'true' : undefined}
+                  />
+                ))}
               </div>
             </div>
           </div>
@@ -197,7 +292,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       </section>
 
       {/* Intro Section */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center py-12">
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center py-4 sm:py-8 lg:py-12">
         <div className="space-y-6">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight">
             Learning with a <span className="text-amber-400 italic font-normal">longer view.</span>
@@ -214,7 +309,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       </section>
 
       {/* Facilities Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10 lg:space-y-12">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-900 pb-6">
           <div className="space-y-2">
             <span className="text-amber-400 font-semibold text-xs uppercase tracking-widest">Campus Infrastructure</span>
@@ -228,7 +323,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
             <article
               key={title}
               className={`rounded-2xl p-8 border transition-all duration-300 flex flex-col justify-between group ${index === 1
-                ? 'bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-950 border-amber-500/30 shadow-xl shadow-amber-500/5'
+                ? 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
                 : 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
                 }`}
             >
@@ -254,46 +349,94 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       </section>
 
       {/* Courses Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10 lg:space-y-12">
         <div className="space-y-2">
           <span className="text-amber-400 font-semibold text-xs uppercase tracking-widest">Academic Tracks</span>
           <h2 className="text-3xl sm:text-4xl font-bold text-white">Find your <span className="text-amber-400 italic font-normal">next challenge.</span></h2>
           <p className="text-slate-400">Structured pathways for students preparing to take a confident step forward.</p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          {referenceContent.courses.map((course, index) => (
+        <div className="flex gap-3 overflow-x-auto pb-2" role="tablist" aria-label="Select an academic course">
+          {courseDetails.map((course, index) => (
             <button
-              key={course}
-              className={`px-6 py-3 rounded-xl text-sm font-semibold transition-all ${index === 0
+              key={course.slug}
+              id={`course-tab-${course.slug}`}
+              role="tab"
+              aria-selected={index === selectedCourseIndex}
+              aria-controls="course-panel"
+              tabIndex={index === selectedCourseIndex ? 0 : -1}
+              onClick={() => setSelectedCourseIndex(index)}
+              onKeyDown={(event) => {
+                let nextIndex: number;
+                if (event.key === 'ArrowRight') nextIndex = (index + 1) % courseDetails.length;
+                else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + courseDetails.length) % courseDetails.length;
+                else if (event.key === 'Home') nextIndex = 0;
+                else if (event.key === 'End') nextIndex = courseDetails.length - 1;
+                else return;
+
+                event.preventDefault();
+                setSelectedCourseIndex(nextIndex);
+                document.getElementById(`course-tab-${courseDetails[nextIndex]!.slug}`)?.focus();
+              }}
+              className={`shrink-0 px-5 py-3 rounded-xl text-sm font-semibold transition-all ${index === selectedCourseIndex
                 ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20'
                 : 'bg-slate-900 border border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
                 }`}
               type="button"
             >
-              {course}
+              {course.title}
             </button>
           ))}
         </div>
 
-        <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 p-8 lg:p-12 shadow-2xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          <div className="lg:col-span-8 space-y-6">
-            <span className="text-xs font-mono font-bold text-amber-400 tracking-wider">01 / 04</span>
-            <h3 className="text-3xl lg:text-4xl font-bold text-white">Prepare with <span className="text-amber-400 italic font-normal">precision.</span></h3>
-            <p className="text-slate-300 text-lg leading-relaxed">Study plans, regular assessments, and teaching that stays close to the way you learn.</p>
-            <button
-              className="px-8 py-3.5 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20"
-              onClick={onRegister}
-            >
-              Enquire now <ArrowUpRight size={17} />
-            </button>
-          </div>
-          <div className="lg:col-span-4 flex flex-col items-center justify-center p-8 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-center space-y-3">
-            <div className="p-4 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <Trophy size={36} />
+        <div
+          className="rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 p-6 sm:p-8 lg:p-12 shadow-2xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center"
+          id="course-panel"
+          role="tabpanel"
+          aria-labelledby={`course-tab-${selectedCourse.slug}`}
+          tabIndex={0}
+        >
+          <div className="lg:col-span-8 space-y-5">
+            <span className="text-xs font-mono font-bold text-amber-400 tracking-wider">
+              {String(selectedCourseIndex + 1).padStart(2, '0')} / {String(courseDetails.length).padStart(2, '0')} · {selectedCourse.eyebrow}
+            </span>
+            <h3 className="text-3xl lg:text-4xl font-bold text-white">{selectedCourse.title} <span className="text-amber-400 italic font-normal">with a clear plan.</span></h3>
+            <p className="text-slate-300 text-lg leading-relaxed">{selectedCourse.description}</p>
+            <ul className="grid gap-2 text-sm text-slate-400 sm:grid-cols-2" aria-label={`${selectedCourse.title} course highlights`}>
+              {selectedCourse.highlights.map((highlight) => (
+                <li key={highlight} className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                  {highlight}
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap gap-3 pt-1">
+              <Link
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 font-semibold text-slate-700 transition-colors hover:border-amber-500 hover:text-amber-700"
+                to={`/courses/${selectedCourse.slug}`}
+              >
+                Course details <ArrowUpRight size={17} />
+              </Link>
+              <button
+                className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-3 font-bold text-slate-950 transition-colors hover:bg-amber-400"
+                onClick={onRegister}
+              >
+                Enquire now <ArrowRight size={17} />
+              </button>
             </div>
-            <div className="text-4xl font-extrabold text-white">100+</div>
-            <div className="text-sm font-medium text-slate-400">rank holders and rising</div>
+          </div>
+          <div className="lg:col-span-4 flex flex-col items-center justify-center rounded-2xl border border-slate-800/80 bg-slate-950/60 p-6 text-center space-y-4">
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-400">
+              <BookOpen size={32} />
+            </div>
+            <h4 className="font-bold text-white">Core subjects</h4>
+            <div className="flex flex-wrap justify-center gap-2">
+              {selectedCourse.subjects.map((subject) => (
+                <span key={subject} className="rounded-full border border-slate-700 bg-white/80 px-3 py-1.5 text-sm font-medium text-slate-700">
+                  {subject}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -323,7 +466,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       </section>
 
       {/* Branches Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10 lg:space-y-12">
         <div className="space-y-2">
           <span className="text-amber-400 font-semibold text-xs uppercase tracking-widest">Our Locations</span>
           <h2 className="text-3xl sm:text-4xl font-bold text-white">Close to <span className="text-amber-400 italic font-normal">your ambition.</span></h2>

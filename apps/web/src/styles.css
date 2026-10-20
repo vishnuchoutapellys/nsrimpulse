@@ -9,3 +9,342 @@
     --text-primary: #0f172a;
     --text-secondary: #475569;
 }
+
+.public-site {
+    background: #f8fafc;
+    color: #1e293b;
+}
+
+.public-site :is([class~="bg-slate-950"], [class*="bg-slate-950/"], [class~="bg-slate-900"], [class*="bg-slate-900/"], [class~="bg-slate-800"], [class*="bg-slate-800/"]) {
+    background-color: #fff !important;
+}
+
+.public-site :is([class*="from-slate-900"], [class*="via-indigo-950"], [class*="to-indigo-950"]) {
+    background-image: linear-gradient(135deg, #fff 0%, #eff6ff 100%) !important;
+}
+
+.public-site [class*="border-slate-800"],
+.public-site [class*="border-slate-900"],
+.public-site [class*="border-slate-700"] {
+    border-color: #e2e8f0 !important;
+}
+
+.public-site [class*="divide-slate-800"] > :not(:last-child) {
+    border-color: #e2e8f0 !important;
+}
+
+.public-site [class~="text-white"] {
+    color: #0f172a !important;
+}
+
+.public-site [class~="text-slate-100"],
+.public-site [class~="text-slate-200"] {
+    color: #334155 !important;
+}
+
+.public-site [class~="text-slate-300"] {
+    color: #475569 !important;
+}
+
+.public-site [class~="text-slate-400"],
+.public-site [class~="text-slate-500"] {
+    color: #64748b !important;
+}
+
+.public-site [class~="text-amber-400"] {
+    color: #b45309 !important;
+}
+
+.public-site [class~="text-amber-300"] {
+    color: #92400e !important;
+}
+
+.public-site .group:hover [class~="group-hover:text-amber-400"] {
+    color: #92400e !important;
+}
+
+.public-site .campus-carousel [class~="text-amber-400"] {
+    color: #fbbf24 !important;
+}
+
+.public-site .campus-carousel [class~="text-amber-300"] {
+    color: #fcd34d !important;
+}
+
+.public-site [class~="text-transparent"] {
+    color: #b45309 !important;
+    background-image: none !important;
+    -webkit-text-fill-color: #b45309 !important;
+}
+
+.public-site [class~="hover:text-white"]:hover {
+    color: #0f172a !important;
+}
+
+.public-site [class~="hover:text-amber-400"]:hover {
+    color: #92400e !important;
+}
+
+.public-site [class*="placeholder-slate-500"]::placeholder {
+    color: #64748b !important;
+}
+
+.public-site :is(p, li),
+.auth-page :is(p, li) {
+    font-size: 16px;
+    line-height: 1.65;
+}
+
+.public-site p[class~="text-xs"],
+.public-site li[class~="text-xs"],
+.auth-page p[class~="text-xs"],
+.auth-page li[class~="text-xs"] {
+    font-size: 12px;
+}
+
+.public-site p[class~="text-sm"],
+.public-site li[class~="text-sm"],
+.auth-page p[class~="text-sm"],
+.auth-page li[class~="text-sm"] {
+    font-size: 14px;
+}
+
+.public-site p[class~="text-base"],
+.public-site li[class~="text-base"],
+.auth-page p[class~="text-base"],
+.auth-page li[class~="text-base"] {
+    font-size: 16px;
+}
+
+.public-site p[class~="text-lg"],
+.public-site li[class~="text-lg"],
+.auth-page p[class~="text-lg"],
+.auth-page li[class~="text-lg"] {
+    font-size: 18px;
+}
+
+.public-site p[class~="text-xl"],
+.public-site li[class~="text-xl"],
+.auth-page p[class~="text-xl"],
+.auth-page li[class~="text-xl"] {
+    font-size: 20px;
+}
+
+.public-site header {
+    background-color: rgb(255 255 255 / 94%);
+    border-color: #e2e8f0;
+}
+
+.public-site footer {
+    background-color: #fff;
+    border-color: #e2e8f0;
+}
+
+.public-site .campus-carousel .text-white,
+.public-site article.relative .text-white {
+    color: #fff !important;
+}
+
+.campus-carousel {
+    isolation: isolate;
+    background-color: #1e293b;
+}
+
+.auth-page {
+    min-height: 100svh;
+    background:
+        radial-gradient(ellipse at 12% 12%, rgb(219 234 254 / 72%), transparent 34%),
+        linear-gradient(145deg, #f8fbff 0%, #f1f7ff 54%, #f8fafc 100%);
+    color: #1e293b;
+}
+
+.auth-page :is([class~="bg-slate-950"], [class*="bg-slate-950/"], [class~="bg-slate-900"], [class*="bg-slate-900/"], [class~="bg-slate-800"], [class*="bg-slate-800/"]) {
+    background-color: #fff !important;
+}
+
+.auth-page :is([class*="from-slate-900"], [class*="via-indigo-950"], [class*="to-slate-950"]) {
+    background-image: linear-gradient(145deg, #eff6ff 0%, #f8fafc 100%) !important;
+}
+
+.auth-page [class*="border-slate-800"],
+.auth-page [class*="border-slate-700"] {
+    border-color: #dbe5f0 !important;
+}
+
+.auth-page [class~="text-white"] {
+    color: #0f172a !important;
+}
+
+.auth-page [class~="text-slate-100"],
+.auth-page [class~="text-slate-200"],
+.auth-page [class~="text-slate-300"] {
+    color: #475569 !important;
+}
+
+.auth-page [class~="text-slate-400"],
+.auth-page [class~="text-slate-500"] {
+    color: #64748b !important;
+}
+
+.auth-page [class~="text-amber-400"],
+.auth-page [class~="text-amber-300"] {
+    color: #b45309 !important;
+}
+
+.auth-page [class~="hover:text-white"]:hover {
+    color: #0f172a !important;
+}
+
+.auth-page .auth-card {
+    background-color: #fff !important;
+    border-color: #dbe5f0 !important;
+    box-shadow: 0 24px 70px rgb(15 23 42 / 12%);
+}
+
+.auth-page .auth-branding {
+    background-image: linear-gradient(145deg, #eff6ff 0%, #f8fafc 100%) !important;
+}
+
+.auth-page .auth-quote {
+    border-color: #dbe5f0 !important;
+}
+
+.auth-page input {
+    min-height: 48px;
+    border-color: #cbd5e1 !important;
+    background-color: #fff !important;
+    color: #0f172a !important;
+    font-size: 16px;
+}
+
+.auth-page input::placeholder {
+    color: #94a3b8 !important;
+}
+
+.auth-page input:focus {
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
+}
+
+.auth-page button:focus-visible,
+.auth-page a:focus-visible {
+    outline: 3px solid rgb(37 99 235 / 55%);
+    outline-offset: 3px;
+}
+
+@media (min-width: 640px) {
+    .public-site p[class~="sm:text-base"],
+    .public-site li[class~="sm:text-base"],
+    .auth-page p[class~="sm:text-base"],
+    .auth-page li[class~="sm:text-base"] {
+        font-size: 16px;
+    }
+
+    .public-site p[class~="sm:text-lg"],
+    .public-site li[class~="sm:text-lg"],
+    .auth-page p[class~="sm:text-lg"],
+    .auth-page li[class~="sm:text-lg"] {
+        font-size: 18px;
+    }
+
+    .public-site p[class~="sm:text-xl"],
+    .public-site li[class~="sm:text-xl"],
+    .auth-page p[class~="sm:text-xl"],
+    .auth-page li[class~="sm:text-xl"] {
+        font-size: 20px;
+    }
+}
+
+@media (max-width: 639px) {
+    .home-page > section {
+        scroll-margin-top: 5rem;
+    }
+
+    .home-page article {
+        border-radius: 1rem;
+    }
+
+    .home-page .campus-carousel {
+        aspect-ratio: 1.15;
+        min-height: 250px;
+        border-radius: 1.25rem;
+    }
+
+    .auth-page {
+        align-items: flex-start;
+        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    }
+
+    .auth-page .auth-card {
+        border-radius: 1.25rem;
+    }
+
+    .auth-page .auth-branding {
+        padding: 16px 18px;
+    }
+
+    .auth-page .auth-branding > div:first-child {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .auth-page .auth-branding > div:first-child > :not([hidden]) ~ :not([hidden]) {
+        margin-top: 0;
+    }
+
+    .auth-page .auth-branding .space-y-3 {
+        padding-top: 0;
+    }
+
+    .auth-page .auth-branding h2 {
+        font-size: 1.2rem;
+        line-height: 1.35;
+    }
+
+    .auth-page .auth-branding img {
+        height: 34px;
+    }
+
+    .auth-page .auth-branding [class~="bg-white/95"] {
+        padding: 7px;
+        border-radius: 10px;
+        box-shadow: none;
+        width: fit-content;
+    }
+
+    .auth-page .auth-branding > div:first-child > div:first-child {
+        align-items: center;
+    }
+
+    .auth-page .auth-quote {
+        display: none;
+    }
+
+    .auth-page .auth-form-panel {
+        padding: 18px;
+        gap: 16px;
+    }
+
+    .auth-page .auth-switchers {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .auth-page .auth-switchers > div {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+
+    .auth-page .auth-form-panel form {
+        gap: 16px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .campus-carousel img {
+        transition: none;
+    }
+}

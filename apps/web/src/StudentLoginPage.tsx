@@ -169,15 +169,15 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
   const isLogin = mode === 'signin' && step === 'login';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-8 font-sans selection:bg-amber-500 selection:text-slate-950 relative overflow-hidden">
+    <div className="auth-page min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-3 sm:p-6 lg:p-8 font-sans selection:bg-amber-500 selection:text-slate-950 relative overflow-hidden">
       {/* Background Glows */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-      <main className="w-full max-w-5xl bg-slate-900/80 backdrop-blur-2xl border border-slate-800 rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 relative z-10">
+      <main className="auth-card w-full max-w-5xl bg-slate-900/80 backdrop-blur-2xl border border-slate-800 rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 relative z-10">
 
         {/* Left Branding Sidebar */}
-        <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 via-indigo-950/60 to-slate-950 p-8 lg:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800 relative">
+        <div className="auth-branding lg:col-span-5 bg-gradient-to-br from-slate-900 via-indigo-950/60 to-slate-950 p-8 lg:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800 relative">
           <div className="space-y-8">
             <div className="flex items-center justify-between">
               <div className="bg-white/95 p-3 rounded-2xl shadow-lg inline-block">
@@ -208,17 +208,17 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
             </div>
           </div>
 
-          <div className="mt-12 space-y-2 border-t border-slate-800/80 pt-6">
+          <div className="auth-quote mt-12 space-y-2 border-t border-slate-800/80 pt-6">
             <p className="text-slate-300 italic text-base">“Education is the <span className="text-amber-400 font-semibold italic">passport to the future.</span>”</p>
             <span className="text-xs text-slate-400 block font-medium">Stay connected to your next chapter.</span>
           </div>
         </div>
 
         {/* Right Authentication Panel */}
-        <section className="lg:col-span-7 p-8 lg:p-12 space-y-6 flex flex-col justify-center">
+        <section className="auth-form-panel lg:col-span-7 p-8 lg:p-12 space-y-6 flex flex-col justify-center">
 
           {/* Top Switcher: Sign In vs Register & Role Switcher */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div className="auth-switchers flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
             {/* Mode Switcher (Sign In / Register) */}
             <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-950 border border-slate-800/80">
               <button
