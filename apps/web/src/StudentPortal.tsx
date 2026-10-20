@@ -4,6 +4,8 @@ import { PaymentHistory } from './PaymentHistory';
 import { apiBase } from './api';
 
 type StudentRecord = {
+  approvalPending?: false;
+  status?: string;
   studentId: string;
   name: string;
   fatherName: string;
@@ -33,6 +35,20 @@ type StudentRecord = {
   };
   reminders: Array<{ id: string; title: string; message: string; dueDate: string; severity: string; read: boolean }>;
 };
+type PendingStudentRecord = {
+  approvalPending: true;
+  status: string;
+  studentId: string;
+  name: string;
+  fatherName: string;
+  mobile: string;
+  email: string;
+  village: string;
+  pin: string;
+  courseType: string;
+  location: string;
+};
+type StudentPortalRecord = StudentRecord | PendingStudentRecord;
 type PortalTab = 'overview' | 'profile' | 'fees' | 'receipt' | 'history' | 'reminders';
 type PaymentMode = 'UPI' | 'ONLINE' | 'CASH' | 'BANK_TRANSFER' | 'CHEQUE' | 'OTHER';
 type PaymentResult = { transactionNumber: string; receiptNumber: string; amount: number; mode: PaymentMode; paidAt: string; outstandingAmount: number };
@@ -47,27 +63,30 @@ function createPaymentRequestId(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-async function fetchStudentRecord(studentId: string, accessToken: string): Promise<StudentRecord> {
+async function fetchStudentRecord(studentId: string, accessToken: string): Promise<StudentPortalRecord> {
   const response = await fetch(`${apiBase}/api/v1/students/${encodeURIComponent(studentId)}/portal`, { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store' });
-  const result = await response.json() as { success?: boolean; data?: StudentRecord; error?: { message?: string } };
+  const result = await response.json() as { success?: boolean; data?: StudentPortalRecord; error?: { message?: string } };
   if (!response.ok || !result.success || !result.data) throw new Error(result.error?.message ?? 'Unable to load student data');
   return result.data;
 }
 
-function validateStudentRecord(record: StudentRecord): void {
-  if (!/^(?:NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/.test(record.studentId)) throw new Error('Invalid student ID');
-  if (!record.name.trim() || !record.fatherName.trim()) throw new Error('Student name and father name are required');
-  if (!/^[6-9]\d{9}$/.test(record.mobile)) throw new Error('Invalid mobile number');
-  if (!/^\S+@\S+\.\S+$/.test(record.email)) throw new Error('Invalid email address');
-  if (!/^\d{6}$/.test(record.pin)) throw new Error('Invalid PIN');
-  if (record.courseDurationYears !== 2 || record.courseType !== 'MPC') throw new Error('Invalid course configuration');
-  if (record.fee.total <= 0 || record.fee.paid < 0 || record.fee.paid > record.fee.total || record.fee.pending !== record.fee.total - record.fee.paid) throw new Error('Invalid fee totals');
-  if (record.fee.installments.reduce((total, installment) => total + installment.amount, 0) !== record.fee.total) throw new Error('Installments do not match total fee');
+function validateStudentRecord(record: StudentRecord): string | null {
+  if (typeof record.studentId !== 'string' || !/^(?:NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/.test(record.studentId)) return 'The student ID in your account is invalid.';
+  if (typeof record.name !== 'string' || !record.name.trim()) return 'Your student profile is missing a name.';
+  if (typeof record.mobile !== 'string' || !/^[6-9]\d{9}$/.test(record.mobile)) return 'The mobile number in your profile is invalid.';
+  if (typeof record.email === 'string' && record.email && !/^\S+@\S+\.\S+$/.test(record.email)) return 'The email address in your profile is invalid.';
+  if (typeof record.pin === 'string' && record.pin && !/^\d{6}$/.test(record.pin)) return 'The PIN code in your profile is invalid.';
+  if (!record.fee || !Array.isArray(record.fee.installments) || !record.receipt || !Array.isArray(record.reminders)) return 'Your account information is incomplete. Please contact your college administrator.';
+  if (!Number.isFinite(record.fee.total) || !Number.isFinite(record.fee.paid) || !Number.isFinite(record.fee.pending) || record.fee.total <= 0 || record.fee.paid < 0 || record.fee.paid > record.fee.total || Math.abs(record.fee.pending - (record.fee.total - record.fee.paid)) > 0.01) return 'Your fee information is incomplete. Please contact your college administrator.';
+  const installmentTotal = record.fee.installments.reduce((total, installment) => total + installment.amount, 0);
+  if (!Number.isFinite(installmentTotal) || Math.abs(installmentTotal - record.fee.total) > 0.01) return 'Your fee installments are incomplete. Please contact your college administrator.';
+  return null;
 }
 
 export function StudentPortal({ studentId, accessToken, onBack }: { studentId: string; accessToken: string; onBack: () => void }) {
-  const [record, setRecord] = useState<StudentRecord | null>(null);
+  const [record, setRecord] = useState<StudentPortalRecord | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [tab, setTab] = useState<PortalTab>('overview');
   const [showPayment, setShowPayment] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -77,14 +96,18 @@ export function StudentPortal({ studentId, accessToken, onBack }: { studentId: s
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentRequestId, setPaymentRequestId] = useState(createPaymentRequestId);
   useEffect(() => {
+    let cancelled = false;
+    setRecord(null);
+    setLoadError('');
     fetchStudentRecord(studentId, accessToken)
-      .then(setRecord)
-      .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : 'Unable to load student data'));
-  }, [studentId]);
+      .then((studentRecord) => { if (!cancelled) setRecord(studentRecord); })
+      .catch((error: unknown) => { if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Unable to load student data'); });
+    return () => { cancelled = true; };
+  }, [studentId, accessToken, loadAttempt]);
 
   async function submitPayment(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!record) return;
+    if (!record || record.approvalPending) return;
     const amount = Number(paymentAmount);
     setPaymentError('');
     setPaymentResult(null);
@@ -104,9 +127,26 @@ export function StudentPortal({ studentId, accessToken, onBack }: { studentId: s
       setPaymentError(error instanceof Error ? error.message : 'Payment could not be recorded.');
     } finally { setPaymentBusy(false); }
   }
-  if (loadError) return <main className="portal-state"><h1>Unable to load your account</h1><p>{loadError}</p><button className="primary-button" onClick={() => window.location.reload()}>Retry</button></main>;
-  if (!record) return <main className="portal-state"><div className="portal-loader"></div><p>Loading your student account...</p></main>;
-  validateStudentRecord(record);
+  if (loadError) return <main className="portal-state"><section className="portal-state-card" role="alert"><h1>Unable to load your account</h1><p>{loadError}</p><div className="portal-state-actions"><button className="primary-button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Retry</button><button className="text-link" onClick={onBack}>Back to sign in</button></div></section></main>;
+  if (!record) return <main className="portal-state"><section className="portal-state-card"><div className="portal-loader" aria-hidden="true"></div><p role="status">Loading your student account...</p></section></main>;
+  if (record.approvalPending) {
+    const isActive = record.status === 'ACTIVE';
+    return (
+      <main className="portal-state">
+        <section className="portal-state-card" aria-labelledby="account-status-title">
+          <span className={`portal-state-icon ${isActive ? 'active' : ''}`}><CheckCircle2 size={28} /></span>
+          <p className="portal-state-eyebrow">Student ID · {record.studentId}</p>
+          <h1 id="account-status-title">{isActive ? `Welcome, ${record.name}` : 'Your account is being reviewed'}</h1>
+          <p>{isActive
+            ? 'Your student account is active. Your college is setting up your fee plan; your portal details will appear once that is complete.'
+            : 'Your registration is received and is awaiting college review and fee setup. You can sign in again after your college completes these steps.'}</p>
+          <button className="primary-button" onClick={onBack}>Back to sign in</button>
+        </section>
+      </main>
+    );
+  }
+  const recordError = validateStudentRecord(record);
+  if (recordError) return <main className="portal-state"><section className="portal-state-card" role="alert"><h1>Student account needs attention</h1><p>{recordError}</p><div className="portal-state-actions"><button className="primary-button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Retry</button><button className="text-link" onClick={onBack}>Back to sign in</button></div></section></main>;
   studentRecord = record;
   const unreadReminders = studentRecord.reminders.filter((reminder) => !reminder.read).length;
   const tabs = [

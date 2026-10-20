@@ -150,6 +150,105 @@
     background-color: #1e293b;
 }
 
+.portal-state {
+    display: grid;
+    min-height: 100svh;
+    place-items: center;
+    padding: 24px;
+    background: linear-gradient(145deg, #f8fbff 0%, #eff6ff 55%, #f8fafc 100%);
+    color: #0f172a;
+}
+
+.portal-state-card {
+    display: grid;
+    width: min(100%, 560px);
+    justify-items: center;
+    gap: 16px;
+    padding: clamp(24px, 6vw, 40px);
+    border: 1px solid #dbe5f0;
+    border-radius: 24px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgb(15 23 42 / 12%);
+    text-align: center;
+}
+
+.portal-state-card h1 {
+    margin: 0;
+    color: #0f172a;
+    font-size: clamp(1.5rem, 5vw, 2rem);
+    line-height: 1.2;
+}
+
+.portal-state-card p {
+    margin: 0;
+    color: #475569;
+    font-size: 1rem;
+    line-height: 1.65;
+}
+
+.portal-state-eyebrow {
+    color: #64748b !important;
+    font-size: 0.875rem !important;
+    font-weight: 600;
+}
+
+.portal-state-icon {
+    display: grid;
+    width: 56px;
+    height: 56px;
+    place-items: center;
+    border-radius: 50%;
+    background: #fff7ed;
+    color: #b45309;
+}
+
+.portal-state-icon.active {
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.portal-state-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+}
+
+.portal-state-card .primary-button,
+.portal-state-card .text-link {
+    min-height: 44px;
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.portal-state-card .primary-button {
+    background: #f59e0b;
+    color: #0f172a;
+}
+
+.portal-state-card .text-link {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+}
+
+.portal-loader {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #dbe5f0;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: portal-loading 0.8s linear infinite;
+}
+
+@keyframes portal-loading {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .auth-page {
     min-height: 100svh;
     background:
