@@ -77,101 +77,48 @@ app.post('/api/v1/students/validate', (req, res) => {
   if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid student details', details: parsed.error.issues } });
   return res.status(202).json({ success: true, data: { validated: true }, message: 'Student details are valid' });
 });
-app.get('/api/v1/students/:studentId/portal', authenticateStudent(jwtAccessSecret), async (req: Request<{ studentId: string }> & { student?: StudentClaims }, res) => {
+app.get('/api/v1/students/:studentUid/portal', async (req: Request<{ studentUid: string }>, res: Response) => {
+  const { studentUid } = req.params;
+  const studentClaim = (req as any).student;
+
   try {
-    const { studentId } = req.params;
-    if (!studentCanAccessRecord(req.student, studentId)) return forbiddenStudent(res);
-    const normalizedUid = studentId.toLowerCase().startsWith('demo-') ? studentId.toLowerCase() : studentId.toUpperCase();
+    if (!studentCanAccessRecord(studentClaim, studentUid)) return forbiddenStudent(res);
+    const normalizedUid = studentUid.toLowerCase().startsWith('demo-') ? studentUid.toLowerCase() : studentUid;
 
     const student = await prisma.student.findUnique({
       where: { studentUid: normalizedUid },
       include: {
-        college: { include: { location: true } },
-        branch: true,
-        course: true,
         feeAssignments: {
           include: {
-            installments: true,
-            feeStructure: true,
-          },
+            installments: {
+              include: {
+                allocations: {
+                  include: { payment: true }
+                }
+              }
+            }
+          }
         },
-        payments: { include: { receipt: true } },
-      },
+        payments: true
+      }
     });
 
     if (!student) {
-      return res.status(404).json({ success: false, error: { message: 'Student account not found' } });
+      return res.status(404).json({ success: false, message: 'Student record not found.' });
     }
 
-    // Check if fee assignment exists
-    const feeAssignment = student.feeAssignments.find((assignment) => assignment.isCurrent);
-    if (!feeAssignment || student.status === 'ON_HOLD') {
-      return res.status(200).json({
-        success: true,
-        data: {
-          approvalPending: true,
-          studentId: student.studentUid,
-          name: student.name,
-          fatherName: student.fatherName ?? 'Not Provided',
-          mobile: student.mobile,
-          email: student.email ?? 'Not Provided',
-          village: student.village ?? 'Not Provided',
-          pin: student.pin ?? '000000',
-          courseType: student.course?.name ?? 'MPC',
-          location: student.college?.name ?? 'Hyderabad',
-          status: student.status,
-        },
+    // Ensure student account is active before returning portal data
+    if (student.status !== 'ACTIVE') {
+      return res.status(403).json({
+        success: false,
+        error: { message: 'Your account is currently pending admin approval and activation.' }
       });
     }
 
-    // Full student record response when fees are assigned
-    const totalFee = Number(feeAssignment.originalAmount);
-    const totalPaid = student.payments
-      .filter((p) => p.status === 'SUCCESS')
-      .reduce((sum, p) => sum + Number(p.amount), 0);
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        approvalPending: false,
-        studentId: student.studentUid,
-        name: student.name,
-        fatherName: student.fatherName ?? '',
-        age: student.age ?? 18,
-        courseType: student.course?.name ?? 'MPC',
-        courseDurationYears: 2,
-        location: student.college?.name ?? 'Hyderabad',
-        mobile: student.mobile,
-        email: student.email ?? '',
-        village: student.village ?? '',
-        pin: student.pin ?? '',
-        fee: {
-          total: totalFee,
-          paid: totalPaid,
-          pending: totalFee - totalPaid,
-          currency: 'INR',
-          installments: feeAssignment.installments.map((inst) => ({
-            label: `Installment due ${new Date(inst.dueDate).toLocaleDateString()}`,
-            amount: Number(inst.amount),
-            dueDate: inst.dueDate.toISOString().split('T')[0],
-            status: 'PENDING',
-          })),
-        },
-        receipt: {
-          invoiceNumber: 'NSR-INV-001',
-          transactionNumber: 'NSR-TXN-001',
-          dateTime: new Date().toISOString(),
-          paymentType: 'ONLINE',
-          amount: totalPaid,
-          status: totalPaid > 0 ? 'SUCCESS' : 'PENDING',
-          note: 'Fees verified.',
-        },
-        reminders: [],
-      },
-    });
-  } catch (error: any) {
-    console.error('Portal Error:', error);
-    return res.status(500).json({ success: false, error: { message: 'Unable to load student data' } });
+    return res.json({ success: true, data: student });
+  } catch (error) {
+    console.error('Error fetching student portal:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
