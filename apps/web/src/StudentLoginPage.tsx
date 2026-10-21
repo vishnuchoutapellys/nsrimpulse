@@ -259,9 +259,11 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
                   if (mode === 'signin') {
                     onAdminLogin();
                   } else {
-                    setRegRole('COLLEGE_ADMIN');
+                    setError('College Admin accounts are provisioned by a Super Admin.');
                   }
                 }}
+                disabled={mode === 'register'}
+                title={mode === 'register' ? 'College Admin accounts are provisioned by a Super Admin' : undefined}
               >
                 College Admin
               </button>

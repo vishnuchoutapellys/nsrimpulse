@@ -209,6 +209,7 @@ model FeeAssignment {
   studentId      String
   feeStructureId String
   originalAmount Decimal           @db.Decimal(12, 2)
+  isCurrent      Boolean           @default(true)
   student        Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
   feeStructure   FeeStructure      @relation(fields: [feeStructureId], references: [id])
   installments   FeeInstallment[]

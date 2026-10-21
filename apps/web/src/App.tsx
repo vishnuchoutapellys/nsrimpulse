@@ -6,6 +6,7 @@ import { CollegeAdminPortal } from './CollegeAdminPortal';
 import { referenceContent } from './referenceContent';
 import { StudentPortal } from './StudentPortal';
 import { StudentLoginPage } from './StudentLoginPage';
+import { SuperAdminPortal } from './SuperAdminPortal';
 
 const navItems = [
   { path: '/about', label: 'About Us' },
@@ -46,6 +47,7 @@ export function App() {
       <Route path="register" element={<Navigate to="/login" replace />} />
       <Route path="student" element={studentId && studentAccessToken ? <StudentPortal studentId={studentId} accessToken={studentAccessToken} onBack={() => { setStudentId(''); setStudentAccessToken(''); navigate('/'); }} /> : <Navigate to="/login" replace />} />
       <Route path="admin" element={<CollegeAdminPortal onBack={() => navigate('/')} onStudentLogin={() => navigate('/login')} />} />
+      <Route path="super-admin" element={<SuperAdminPortal />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -305,6 +305,9 @@ function AdminLogin({
           <p className="text-xs text-slate-400 pt-2 border-t border-slate-800/60">
             Demo ID: <strong className="text-amber-400 font-mono">NSRADMIN-001</strong>
           </p>
+          <p className="text-xs text-slate-500 text-center">
+            Super Admin? <a className="font-semibold text-amber-700 hover:underline" href="/super-admin">Sign in here</a>
+          </p>
         </section>
       </main>
     </div>
@@ -1050,6 +1053,14 @@ function StudentDetails({
           </strong>
         </div>
       </section>
+      <FeePlanAssignment
+        studentUid={detail.student.studentUid}
+        status={detail.student.status}
+        academicYear={detail.student.academicYear}
+        totalFee={detail.fees.totalFee}
+        token={token}
+        onAssigned={onPaymentRecorded}
+      />
       {detail.fees.pending > 0 && (
         <OfflinePaymentCard
           detail={detail}
@@ -1645,3 +1656,4 @@ function formatDate(value: string) {
     new Date(value),
   );
 }
+import { FeePlanAssignment } from './FeePlanAssignment';

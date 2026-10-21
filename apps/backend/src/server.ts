@@ -77,9 +77,10 @@ app.post('/api/v1/students/validate', (req, res) => {
   if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid student details', details: parsed.error.issues } });
   return res.status(202).json({ success: true, data: { validated: true }, message: 'Student details are valid' });
 });
-app.get('/api/v1/students/:studentId/portal', async (req, res) => {
+app.get('/api/v1/students/:studentId/portal', authenticateStudent(jwtAccessSecret), async (req: Request<{ studentId: string }> & { student?: StudentClaims }, res) => {
   try {
     const { studentId } = req.params;
+    if (!studentCanAccessRecord(req.student, studentId)) return forbiddenStudent(res);
     const normalizedUid = studentId.toLowerCase().startsWith('demo-') ? studentId.toLowerCase() : studentId.toUpperCase();
 
     const student = await prisma.student.findUnique({
@@ -103,7 +104,7 @@ app.get('/api/v1/students/:studentId/portal', async (req, res) => {
     }
 
     // Check if fee assignment exists
-    const feeAssignment = student.feeAssignments[0];
+    const feeAssignment = student.feeAssignments.find((assignment) => assignment.isCurrent);
     if (!feeAssignment || student.status === 'ON_HOLD') {
       return res.status(200).json({
         success: true,
@@ -213,7 +214,7 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
     const result = await prisma.$transaction(async (transaction) => {
       const existingPayment = await transaction.payment.findUnique({ where: { gatewayOrderId: idempotencyReference }, include: { receipt: true, student: { include: { payments: { where: { status: PaymentStatus.SUCCESS } }, feeAssignments: true } } } });
       if (existingPayment) {
-        const total = Number(existingPayment.student.feeAssignments[0]?.originalAmount ?? 0);
+        const total = Number(existingPayment.student.feeAssignments.find((feeAssignment) => feeAssignment.isCurrent)?.originalAmount ?? 0);
         const paid = existingPayment.student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
         return { paymentId: existingPayment.id, transactionNumber: existingPayment.reference ?? '', receiptNumber: existingPayment.receipt?.receiptNumber ?? '', amount: Number(existingPayment.amount), mode: existingPayment.mode, paidAt: existingPayment.createdAt.toISOString(), outstandingAmount: Math.max(total - paid, 0) };
       }
@@ -225,7 +226,7 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
         }
       });
       if (!student) throw new PaymentRequestError('STUDENT_NOT_FOUND', 'Student ID was not found', 404);
-      const assignment = student.feeAssignments[0];
+      const assignment = student.feeAssignments.find((feeAssignment) => feeAssignment.isCurrent);
       if (!assignment) throw new PaymentRequestError('FEE_ASSIGNMENT_NOT_FOUND', 'No fee assignment exists for this student', 409);
       const total = Number(assignment.originalAmount);
       const paid = student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
@@ -276,6 +277,9 @@ app.use('/api/v1/admin', createAdminRouter(prisma, notifications));
 app.post('/api/v1/auth/register', async (req, res) => {
   try {
     const { role, studentUid, email, name, mobile, password, adminSecretKey, collegeId, branchId, courseId } = req.body;
+    if (role !== 'STUDENT') {
+      return res.status(403).json({ success: false, error: { code: 'PRIVILEGED_REGISTRATION_DISABLED', message: 'Administrator accounts must be provisioned by a Super Admin.' } });
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     try {
       const {
@@ -338,34 +342,6 @@ app.post('/api/v1/auth/register', async (req, res) => {
           studentUid: result.student.studentUid,
         });
       }
-      // --- COLLEGE ADMIN / SUPER ADMIN REGISTRATION ---
-      if (role === 'COLLEGE_ADMIN' || role === 'SUPER_ADMIN') {
-        if (adminSecretKey !== process.env.ADMIN_REGISTRATION_SECRET) {
-          return res.status(403).json({ message: 'Invalid admin secret key' });
-        }
-
-        const user = await prisma.user.create({
-          data: {
-            email,
-            passwordHash: hashedPassword,
-            roles: {
-              create: {
-                role: role as RoleName,
-              },
-            },
-          },
-          include: {
-            roles: true,
-          },
-        });
-
-        return res.status(201).json({
-          success: true,
-          message: 'Admin account created successfully',
-          userId: user.id,
-        });
-      }
-
     } catch (error: any) {
       console.error('Registration Error:', error);
       return res.status(500).json({ message: error.message || 'Registration failed' });

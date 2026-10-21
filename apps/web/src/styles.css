@@ -234,6 +234,123 @@
     color: #334155;
 }
 
+.fee-plan-assignment {
+    display: grid;
+    gap: 16px;
+}
+
+.fee-plan-assignment-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.fee-plan-assignment-heading h2 {
+    margin: 0;
+    color: #0f172a;
+}
+
+.fee-plan-assignment-heading p,
+.fee-plan-assignment-note,
+.fee-plan-assignment-error,
+.fee-plan-assignment-success {
+    margin: 6px 0 0;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.fee-plan-assignment button:disabled {
+    cursor: not-allowed;
+    opacity: .55;
+}
+
+.fee-plan-form,
+.fee-plan-installments {
+    display: grid;
+    gap: 14px;
+}
+
+.fee-plan-form-grid,
+.fee-plan-installment-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+    gap: 12px;
+}
+
+.fee-plan-form label {
+    display: grid;
+    gap: 6px;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.fee-plan-form input {
+    width: 100%;
+    min-height: 44px;
+    padding: 9px 11px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    color: #0f172a;
+    font: inherit;
+    font-size: 16px;
+}
+
+.fee-plan-installment-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #334155;
+    font-size: 14px;
+}
+
+.fee-plan-installment-row {
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.fee-plan-remove,
+.fee-plan-add {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.fee-plan-remove {
+    grid-column: 2;
+    justify-self: end;
+    color: #b91c1c;
+}
+
+.fee-plan-add {
+    justify-self: start;
+    color: #1d4ed8;
+}
+
+.fee-plan-assignment-error {
+    color: #b91c1c;
+}
+
+.fee-plan-assignment-success {
+    color: #047857;
+}
+
 .portal-loader {
     width: 36px;
     height: 36px;
@@ -255,6 +372,220 @@
         radial-gradient(ellipse at 12% 12%, rgb(219 234 254 / 72%), transparent 34%),
         linear-gradient(145deg, #f8fbff 0%, #f1f7ff 54%, #f8fafc 100%);
     color: #1e293b;
+}
+
+.super-admin-page {
+    display: grid;
+    min-height: 100svh;
+    place-items: center;
+    padding: clamp(16px, 4vw, 40px);
+    background:
+        radial-gradient(ellipse at 12% 12%, rgb(219 234 254 / 72%), transparent 34%),
+        linear-gradient(145deg, #f8fbff 0%, #f1f7ff 54%, #f8fafc 100%);
+    color: #0f172a;
+}
+
+.super-admin-card {
+    width: min(100%, 760px);
+    overflow: hidden;
+    border: 1px solid #dbe5f0;
+    border-radius: 24px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgb(15 23 42 / 12%);
+}
+
+.super-admin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.super-admin-header img {
+    width: auto;
+    height: 42px;
+    object-fit: contain;
+}
+
+.super-admin-logout,
+.super-admin-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.super-admin-form,
+.super-admin-workspace {
+    display: grid;
+    gap: 22px;
+    padding: clamp(22px, 5vw, 40px);
+}
+
+.super-admin-heading {
+    display: grid;
+    justify-items: start;
+    gap: 10px;
+}
+
+.super-admin-heading h1 {
+    margin: 0;
+    color: #0f172a;
+    font-size: clamp(1.6rem, 4vw, 2rem);
+    line-height: 1.2;
+}
+
+.super-admin-heading p {
+    margin: 0;
+    color: #475569;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.super-admin-heading .super-admin-eyebrow {
+    color: #92400e;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.super-admin-icon {
+    display: grid;
+    width: 52px;
+    height: 52px;
+    place-items: center;
+    border-radius: 16px;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.super-admin-form label:not(.super-admin-radio) {
+    display: grid;
+    gap: 8px;
+    color: #334155;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.super-admin-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.super-admin-form input:not([type="radio"]),
+.super-admin-form select {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #fff;
+    color: #0f172a;
+    font: inherit;
+    font-size: 16px;
+}
+
+.super-admin-form input:focus,
+.super-admin-form select:focus {
+    border-color: #2563eb;
+    outline: 3px solid rgb(37 99 235 / 12%);
+}
+
+.super-admin-form small {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+.super-admin-form fieldset {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid #dbe5f0;
+    border-radius: 14px;
+}
+
+.super-admin-form legend {
+    padding: 0 6px;
+    color: #334155;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.super-admin-form .super-admin-radio {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #475569;
+    font-size: 14px;
+}
+
+.super-admin-radio input {
+    width: 18px;
+    height: 18px;
+    accent-color: #2563eb;
+}
+
+.super-admin-submit {
+    display: inline-flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 12px;
+    background: #f59e0b;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.super-admin-submit:disabled {
+    cursor: not-allowed;
+    opacity: .6;
+}
+
+.super-admin-error,
+.super-admin-success {
+    margin: 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.super-admin-error {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.super-admin-success {
+    border: 1px solid #a7f3d0;
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.super-admin-security-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.super-admin-back {
+    justify-content: center;
 }
 
 .auth-page :is([class~="bg-slate-950"], [class*="bg-slate-950/"], [class~="bg-slate-900"], [class*="bg-slate-900/"], [class~="bg-slate-800"], [class*="bg-slate-800/"]) {
@@ -372,6 +703,35 @@
     .auth-page {
         align-items: flex-start;
         padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    }
+
+    .super-admin-page {
+        padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    }
+
+    .super-admin-card {
+        border-radius: 18px;
+    }
+
+    .super-admin-header {
+        padding: 14px 18px;
+    }
+
+    .super-admin-header img {
+        height: 34px;
+    }
+
+    .super-admin-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .fee-plan-form-grid,
+    .fee-plan-installment-row {
+        grid-template-columns: 1fr;
+    }
+
+    .fee-plan-remove {
+        grid-column: auto;
     }
 
     .auth-page .auth-card {

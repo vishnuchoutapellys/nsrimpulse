@@ -8,9 +8,35 @@ import type { NotificationService } from './notifications.js';
 import { studentIdPattern } from './studentAuth.js';
 
 type AdminClaims = { userId: string; adminId: string; role: 'COLLEGE_ADMIN' };
+type SuperAdminClaims = { userId: string; adminId: string; role: 'SUPER_ADMIN' };
 type AdminRequest = Request & { admin?: AdminClaims };
+type SuperAdminRequest = Request & { superAdmin?: SuperAdminClaims };
 
 const loginSchema = z.object({ adminId: z.string().trim().min(8).max(40), password: z.string().min(8).max(128) });
+const superAdminLoginSchema = loginSchema;
+const provisionAdminSchema = z.object({
+  adminId: z.string().trim().min(8).max(40).regex(/^[A-Za-z0-9-]+$/),
+  email: z.string().trim().email().max(254),
+  password: z.string().min(12).max(128).regex(/[A-Z]/).regex(/[a-z]/).regex(/\d/).regex(/[^A-Za-z0-9]/),
+  collegeId: z.string().min(1),
+  scopeType: z.enum(['COLLEGE', 'BRANCH']),
+  branchId: z.string().min(1).optional()
+}).superRefine((data, context) => {
+  if (data.scopeType === 'BRANCH' && !data.branchId) context.addIssue({ code: z.ZodIssueCode.custom, path: ['branchId'], message: 'Select a branch for branch-specific access' });
+});
+const feePlanSchema = z.object({
+  academicYear: z.string().regex(/^\d{4}-\d{4}$/),
+  totalFee: z.number().finite().positive().multipleOf(0.01),
+  installments: z.array(z.object({
+    amount: z.number().finite().positive().multipleOf(0.01),
+    dueDate: z.string().datetime()
+  })).min(1).max(12)
+}).superRefine((data, context) => {
+  const installmentTotal = data.installments.reduce((sum, installment) => sum + installment.amount, 0);
+  if (Math.abs(installmentTotal - data.totalFee) > 0.001) context.addIssue({ code: z.ZodIssueCode.custom, path: ['installments'], message: 'Installment total must equal total fee' });
+  const [startYear, endYear] = data.academicYear.split('-').map(Number);
+  if (endYear! <= startYear!) context.addIssue({ code: z.ZodIssueCode.custom, path: ['academicYear'], message: 'Academic year range is invalid' });
+});
 const optionalText = z.preprocess((value) => value === '' ? undefined : value, z.string().trim().max(120).optional());
 const optionalDate = z.preprocess((value) => value === '' ? undefined : value, z.string().date().optional());
 const createStudentSchema = z.object({
@@ -70,6 +96,73 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
   const jwtSecret = process.env.JWT_ACCESS_SECRET;
   if (!jwtSecret) throw new Error('JWT_ACCESS_SECRET is required');
 
+  router.post('/super-admin/auth/login', async (req, res, next) => {
+    const parsed = superAdminLoginSchema.safeParse(req.body);
+    if (!parsed.success) return validationError(res, parsed.error.issues);
+    try {
+      const user = await prisma.user.findUnique({ where: { adminId: parsed.data.adminId }, include: { roles: true } });
+      const isSuperAdmin = user?.roles.some((role) => role.role === 'SUPER_ADMIN') ?? false;
+      const passwordMatches = user ? await bcrypt.compare(parsed.data.password, user.passwordHash) : false;
+      if (!user || !user.adminId || !user.isActive || !isSuperAdmin || !passwordMatches) return res.status(401).json({ success: false, error: { code: 'INVALID_CREDENTIALS', message: 'Admin ID or password is incorrect' } });
+      const token = jwt.sign({ userId: user.id, adminId: user.adminId, role: 'SUPER_ADMIN' } satisfies SuperAdminClaims, jwtSecret, { expiresIn: '8h' });
+      await prisma.auditLog.create({ data: { userId: user.id, action: 'SUPER_ADMIN_LOGIN', entity: 'User', entityId: user.id, ipAddress: req.ip } });
+      return res.json({ success: true, data: { accessToken: token, adminId: user.adminId, expiresIn: 28800 }, message: 'Super Admin login successful' });
+    } catch (error) { return next(error); }
+  });
+
+  router.get('/super-admin/context', authenticateSuperAdmin(prisma, jwtSecret), async (_req, res, next) => {
+    try {
+      const colleges = await prisma.college.findMany({ include: { branches: { orderBy: { name: 'asc' } } }, orderBy: { name: 'asc' } });
+      return res.json({ success: true, data: { colleges: colleges.map((college) => ({ id: college.id, name: college.name, branches: college.branches.map((branch) => ({ id: branch.id, name: branch.name })) })) }, message: 'Super Admin context loaded' });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/super-admin/admins', authenticateSuperAdmin(prisma, jwtSecret), async (req: SuperAdminRequest, res, next) => {
+    const parsed = provisionAdminSchema.safeParse(req.body);
+    if (!parsed.success) return validationError(res, parsed.error.issues);
+    try {
+      const college = await prisma.college.findUnique({ where: { id: parsed.data.collegeId } });
+      if (!college) return res.status(400).json({ success: false, error: { code: 'INVALID_COLLEGE', message: 'Select a valid college' } });
+      let branchId: string | null = null;
+      if (parsed.data.scopeType === 'BRANCH') {
+        const branch = await prisma.branch.findUnique({ where: { id: parsed.data.branchId } });
+        if (!branch || branch.collegeId !== college.id) return res.status(400).json({ success: false, error: { code: 'INVALID_BRANCH', message: 'Select a branch belonging to the selected college' } });
+        branchId = branch.id;
+      }
+
+      const email = parsed.data.email.toLowerCase();
+      const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+      const created = await prisma.$transaction(async (transaction) => {
+        const user = await transaction.user.create({
+          data: {
+            adminId: parsed.data.adminId.toUpperCase(),
+            email,
+            passwordHash,
+            isActive: true,
+            roles: { create: { role: 'COLLEGE_ADMIN' } },
+            adminScopes: { create: { collegeId: college.id, branchId } }
+          }
+        });
+        await transaction.auditLog.create({
+          data: {
+            userId: req.superAdmin!.userId,
+            action: 'COLLEGE_ADMIN_PROVISIONED',
+            entity: 'User',
+            entityId: user.id,
+            ipAddress: req.ip,
+            newData: { adminId: user.adminId, email: user.email, collegeId: college.id, branchId }
+          }
+        });
+        return user;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+      return res.status(201).json({ success: true, data: { adminId: created.adminId, email: created.email, college: college.name, scope: parsed.data.scopeType === 'COLLEGE' ? 'All branches' : 'Selected branch' }, message: 'College Admin account created' });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ success: false, error: { code: 'ADMIN_ALREADY_EXISTS', message: 'That Admin ID or email is already in use' } });
+      return next(error);
+    }
+  });
+
   router.post('/auth/login', async (req, res, next) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) return validationError(res, parsed.error.issues);
@@ -100,29 +193,178 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
       });
     } catch (error) { return next(error); }
   });
-
   router.get('/students/:studentUid', async (req: AdminRequest, res, next) => {
     const params = z.object({ studentUid: z.string().trim().min(1) }).safeParse(req.params);
     if (!params.success) return validationError(res, params.error.issues);
     try {
       const admin = await loadAdmin(prisma, req.admin!.userId);
       if (!admin) return forbidden(res);
-      const student = await prisma.student.findUnique({ where: { studentUid: params.data.studentUid.toUpperCase() }, include: { college: { include: { location: { include: { state: true } } } }, branch: true, course: true, feeAssignments: { include: { installments: { include: { allocations: { include: { payment: true } } }, orderBy: { dueDate: 'asc' } }, discounts: { include: { discount: true } } } }, payments: { where: { status: PaymentStatus.SUCCESS }, include: { receipt: true }, orderBy: { createdAt: 'desc' } }, statusHistory: { orderBy: { createdAt: 'desc' } } } });
+
+      const rawInput = params.data.studentUid;
+      const normalizedStudentUid = rawInput.toLowerCase().startsWith('demo-')
+        ? rawInput.toLowerCase()
+        : rawInput.toUpperCase();
+
+      const student = await prisma.student.findUnique({
+        where: { studentUid: normalizedStudentUid },
+        include: {
+          college: { include: { location: { include: { state: true } } } },
+          branch: true,
+          course: true,
+          feeAssignments: {
+            include: {
+              installments: {
+                include: {
+                  allocations: { include: { payment: true } }
+                },
+                orderBy: { dueDate: 'asc' }
+              },
+              discounts: { include: { discount: true } }
+            }
+          },
+          payments: {
+            where: { status: PaymentStatus.SUCCESS },
+            include: { receipt: true },
+            orderBy: { createdAt: 'desc' }
+          },
+          statusHistory: { orderBy: { createdAt: 'desc' } }
+        }
+      });
+
       if (!student) return res.status(404).json({ success: false, error: { code: 'STUDENT_NOT_FOUND', message: 'Student ID was not found' } });
       if (!isStudentInScope(admin.adminScopes, student.collegeId, student.branchId)) return forbidden(res);
-      const assignment = student.feeAssignments[0];
+
+      // ✅ RESTORED: Find the active fee assignment using isCurrent
+      const assignment = student.feeAssignments.find((feeAssignment) => feeAssignment.isCurrent);
+
       const totalFee = Number(assignment?.originalAmount ?? 0);
       const paid = student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+
       return res.json({
         success: true, data: {
-          student: { studentUid: student.studentUid, name: student.name, fatherName: student.fatherName, motherName: student.motherName, dateOfBirth: student.dateOfBirth?.toISOString().slice(0, 10) ?? null, nationality: student.nationality, religion: student.religion, casteCommunity: student.casteCommunity, mediumOfInstruction: student.mediumOfInstruction, firstLanguage: student.firstLanguage, secondLanguage: student.secondLanguage, thirdLanguage: student.thirdLanguage, gender: student.gender, age: student.age, mobile: student.mobile, email: student.email, address: student.address, village: student.village, pin: student.pin, admissionYear: student.admissionYear, academicYear: student.academicYear, status: student.status, createdAt: student.createdAt.toISOString() },
+          student: {
+            studentUid: student.studentUid, name: student.name, fatherName: student.fatherName, motherName: student.motherName,
+            dateOfBirth: student.dateOfBirth?.toISOString().slice(0, 10) ?? null, nationality: student.nationality, religion: student.religion,
+            casteCommunity: student.casteCommunity, mediumOfInstruction: student.mediumOfInstruction, firstLanguage: student.firstLanguage,
+            secondLanguage: student.secondLanguage, thirdLanguage: student.thirdLanguage, gender: student.gender, age: student.age,
+            mobile: student.mobile, email: student.email, address: student.address, village: student.village, pin: student.pin,
+            admissionYear: student.admissionYear, academicYear: student.academicYear, status: student.status, createdAt: student.createdAt.toISOString()
+          },
           organization: { state: student.college.location.state.name, location: student.college.location.name, college: student.college.name, branch: student.branch.name, course: student.course.name },
-          fees: { totalFee, paid, pending: Math.max(totalFee - paid, 0), installments: assignment?.installments.map((installment) => ({ id: installment.id, amount: Number(installment.amount), paid: installment.allocations.filter((allocation) => allocation.payment.status === PaymentStatus.SUCCESS).reduce((sum, allocation) => sum + Number(allocation.amount), 0), dueDate: installment.dueDate.toISOString() })) ?? [], discounts: assignment?.discounts.map((studentDiscount) => ({ name: studentDiscount.discount.name, amount: Number(studentDiscount.amount), approvedAt: studentDiscount.approvedAt.toISOString() })) ?? [] },
+          fees: {
+            totalFee, paid, pending: Math.max(totalFee - paid, 0),
+            installments: assignment?.installments.map((installment) => ({
+              id: installment.id, amount: Number(installment.amount),
+              paid: installment.allocations.filter((allocation) => allocation.payment.status === PaymentStatus.SUCCESS).reduce((sum, allocation) => sum + Number(allocation.amount), 0),
+              dueDate: installment.dueDate.toISOString()
+            })) ?? [],
+            discounts: assignment?.discounts.map((studentDiscount) => ({ name: studentDiscount.discount.name, amount: Number(studentDiscount.amount), approvedAt: studentDiscount.approvedAt.toISOString() })) ?? []
+          },
           payments: student.payments.map((payment) => ({ amount: Number(payment.amount), mode: payment.mode, reference: payment.reference, receiptNumber: payment.receipt?.receiptNumber, paidAt: payment.createdAt.toISOString() })),
           statusHistory: student.statusHistory
         }, message: 'Student details loaded'
       });
     } catch (error) { return next(error); }
+  });
+
+  router.post('/students/:studentUid/fee-plan', async (req: AdminRequest, res, next) => {
+    const params = z.object({ studentUid: z.string().trim().regex(studentIdPattern) }).safeParse(req.params);
+    const parsed = feePlanSchema.safeParse(req.body);
+    if (!params.success) return validationError(res, params.error.issues);
+    if (!parsed.success) return validationError(res, parsed.error.issues);
+    try {
+      const admin = await loadAdmin(prisma, req.admin!.userId);
+      if (!admin) return forbidden(res);
+      const student = await prisma.student.findUnique({
+        where: { studentUid: params.data.studentUid.toUpperCase() },
+        include: { feeAssignments: { where: { isCurrent: true } }, course: true }
+      });
+      if (!student) return res.status(404).json({ success: false, error: { code: 'STUDENT_NOT_FOUND', message: 'Student ID was not found' } });
+      if (!isStudentInScope(admin.adminScopes, student.collegeId, student.branchId)) return forbidden(res);
+      if (student.status !== StudentStatus.ACTIVE) return res.status(409).json({ success: false, error: { code: 'STUDENT_NOT_ACTIVE', message: 'A fee plan can only be assigned to an active student' } });
+      if (Number(parsed.data.academicYear.slice(0, 4)) !== student.admissionYear) return validationError(res, [{ code: z.ZodIssueCode.custom, path: ['academicYear'], message: 'Academic year must start with the student admission year' }]);
+
+      const result = await prisma.$transaction(async (transaction) => {
+        const currentAssignments = await transaction.feeAssignment.findMany({
+          where: { studentId: student.id, isCurrent: true }
+        });
+        const successfulPayment = await transaction.payment.findFirst({
+          where: { studentId: student.id, status: PaymentStatus.SUCCESS },
+          select: { id: true }
+        });
+
+        // Only block if an active fee plan already exists AND successful payments were made
+        if (currentAssignments.length > 0 && successfulPayment) {
+          throw new FeePlanConflictError('A fee plan cannot be changed after a successful payment has been recorded.');
+        }
+
+        if (currentAssignments.length > 1) {
+          throw new FeePlanConflictError('This student has multiple current fee plans. Resolve the duplicate assignments before continuing.');
+        }
+
+        // ✅ RESTORED: Mark existing current assignment as false instead of deleting
+        if (currentAssignments[0]) {
+          await transaction.feeAssignment.update({
+            where: { id: currentAssignments[0].id },
+            data: { isCurrent: false }
+          });
+        }
+
+        const feeStructure = await transaction.feeStructure.upsert({
+          where: { courseId_academicYear: { courseId: student.courseId, academicYear: parsed.data.academicYear } },
+          update: {},
+          create: { courseId: student.courseId, academicYear: parsed.data.academicYear, totalAmount: parsed.data.totalFee }
+        });
+
+        // ✅ RESTORED: Create new assignment with isCurrent: true
+        const assignment = await transaction.feeAssignment.create({
+          data: {
+            studentId: student.id,
+            feeStructureId: feeStructure.id,
+            originalAmount: parsed.data.totalFee,
+            isCurrent: true
+          }
+        });
+
+        await transaction.feeInstallment.createMany({
+          data: parsed.data.installments.map((installment) => ({
+            feeAssignmentId: assignment.id,
+            amount: installment.amount,
+            dueDate: new Date(installment.dueDate)
+          }))
+        });
+
+        await transaction.auditLog.create({
+          data: {
+            userId: admin.id,
+            action: 'STUDENT_FEE_PLAN_ASSIGNED',
+            entity: 'Student',
+            entityId: student.id,
+            ipAddress: req.ip,
+            newData: {
+              studentUid: student.studentUid,
+              feeAssignmentId: assignment.id,
+              academicYear: parsed.data.academicYear,
+              totalFee: parsed.data.totalFee,
+              installmentCount: parsed.data.installments.length
+            }
+          }
+        });
+
+        return {
+          studentUid: student.studentUid,
+          feeAssignmentId: assignment.id,
+          totalFee: parsed.data.totalFee,
+          installmentCount: parsed.data.installments.length
+        };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+      return res.status(201).json({ success: true, data: result, message: 'Fee plan assigned to student' });
+    } catch (error) {
+      if (error instanceof FeePlanConflictError) return res.status(409).json({ success: false, error: { code: 'FEE_PLAN_CONFLICT', message: error.message } });
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ success: false, error: { code: 'CURRENT_FEE_PLAN_CONFLICT', message: 'A current fee plan already exists. Reload the student record and try again.' } });
+      return next(error);
+    }
   });
 
   router.post('/students/:studentUid/certificates/issue', async (req: AdminRequest, res, next) => {
@@ -139,7 +381,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
       });
       if (!student) return res.status(404).json({ success: false, error: { code: 'STUDENT_NOT_FOUND', message: 'Student ID was not found' } });
       if (!isStudentInScope(admin.adminScopes, student.collegeId, student.branchId)) return forbidden(res);
-      const totalFee = Number(student.feeAssignments[0]?.originalAmount ?? 0);
+      const totalFee = Number(student.feeAssignments.find((feeAssignment) => feeAssignment.isCurrent)?.originalAmount ?? 0);
       const paidAmount = student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
       const outstandingAmount = Math.max(totalFee - paidAmount, 0);
       const audit = await prisma.auditLog.create({
@@ -210,7 +452,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
         const student = await transaction.student.findUnique({ where: { studentUid: params.data.studentUid.toUpperCase() }, include: { payments: { where: { status: PaymentStatus.SUCCESS } }, feeAssignments: { include: { installments: { include: { allocations: { include: { payment: true } } }, orderBy: { dueDate: 'asc' } } } } } });
         if (!student) throw new AdminPaymentError('STUDENT_NOT_FOUND', 'Student ID was not found', 404);
         if (!isStudentInScope(admin.adminScopes, student.collegeId, student.branchId)) throw new AdminPaymentError('FORBIDDEN', 'You do not have access to this student', 403);
-        const assignment = student.feeAssignments[0];
+        const assignment = student.feeAssignments.find((feeAssignment) => feeAssignment.isCurrent);
         if (!assignment) throw new AdminPaymentError('FEE_ASSIGNMENT_NOT_FOUND', 'No fee assignment exists for this student', 409);
         const totalFee = Number(assignment.originalAmount);
         const paid = student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
@@ -240,6 +482,32 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
   });
 
   return router;
+}
+
+function authenticateSuperAdmin(prisma: PrismaClient, secret: string) {
+  return async (req: SuperAdminRequest, res: Response, next: NextFunction) => {
+    const token = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!token) return res.status(401).json({ success: false, error: { code: 'AUTHENTICATION_REQUIRED', message: 'Super Admin login is required' } });
+
+    let decoded: string | jwt.JwtPayload;
+    try {
+      decoded = jwt.verify(token, secret);
+    } catch {
+      return res.status(401).json({ success: false, error: { code: 'INVALID_TOKEN', message: 'Super Admin session is invalid or expired' } });
+    }
+    const parsed = z.object({ userId: z.string(), adminId: z.string(), role: z.literal('SUPER_ADMIN') }).safeParse(decoded);
+    if (!parsed.success) return forbidden(res);
+
+    try {
+      const user = await prisma.user.findFirst({
+        where: { id: parsed.data.userId, adminId: parsed.data.adminId, isActive: true, roles: { some: { role: 'SUPER_ADMIN' } } },
+        select: { id: true }
+      });
+      if (!user) return forbidden(res);
+      req.superAdmin = parsed.data;
+      return next();
+    } catch (error) { return next(error); }
+  };
 }
 
 function authenticateAdmin(secret: string) {
@@ -275,7 +543,9 @@ class AdminPaymentError extends Error {
   constructor(public readonly code: string, message: string, public readonly status: number) { super(message); }
 }
 
-class AdminCredentialDeliveryError extends Error {}
+class AdminCredentialDeliveryError extends Error { }
+
+class FeePlanConflictError extends Error { }
 
 async function generateStudentUid(transaction: Prisma.TransactionClient, locationName: string) {
   const locationCode = locationName.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3).padEnd(3, 'X');
