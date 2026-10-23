@@ -6,16 +6,7 @@ import './styles.css';
 
 if ('serviceWorker' in navigator) {
 	if (import.meta.env.PROD) {
-		const hadController = Boolean(navigator.serviceWorker.controller);
-		let refreshing = false;
-		if (hadController) {
-			navigator.serviceWorker.addEventListener('controllerchange', () => {
-				if (refreshing) return;
-				refreshing = true;
-				window.location.reload();
-			});
-		}
-		void navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((registration) => registration.update());
+		void navigator.serviceWorker.register('/sw.js');
 	} else {
 		void Promise.all([
 			navigator.serviceWorker.getRegistrations().then((registrations) => Promise.all(registrations.map((registration) => registration.unregister()))),
