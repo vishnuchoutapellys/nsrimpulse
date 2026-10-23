@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Building2, ChevronRight, GraduationCap, Menu, ShieldCheck, Sparkles, Star, Trophy, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Building2, ChevronRight, GraduationCap, Menu, Phone, ShieldCheck, Sparkles, Star, Trophy, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import nsrLogo from '../../assets/nsrLogo.png';
@@ -170,6 +170,10 @@ function PublicLayout() {
                 alt="NSR Impulse Educational Institutions"
               />
             </Link>
+            <div className="site-footer-developer">
+              <span>Developed By: <strong>VR Coders</strong></span>
+              <a href="tel:+919014249898"><Phone size={12} aria-hidden="true" />&nbsp; +91 90142 49898</a>
+            </div>
             <p className="site-footer-tagline text-sm text-slate-400">One connected community for ambitious learners.</p>
           </div>
           <div className="flex flex-col items-center md:items-end gap-2 text-xs text-slate-500">
@@ -350,12 +354,12 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       </section>
 
       {/* Intro Section */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center py-4 sm:py-8 lg:py-12">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-left py-4 sm:py-8 lg:py-12">
         <div className="space-y-6">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
             Learning with a <span className="text-amber-400 italic font-normal">longer view.</span>
           </h2>
-          <p className="text-lg sm:text-xl text-slate-300 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-slate-400">
             NSR Impulse brings together rigorous academic preparation and the human support students need to keep going. Across our campuses, we build habits that last beyond an exam hall.
           </p>
           <div>
@@ -502,8 +506,8 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       <section className="home-results max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="home-results-panel rounded-3xl bg-slate-900/60 border border-slate-800 p-8 lg:p-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-5 space-y-3">
-            <p className="text-xs font-bold text-amber-400 tracking-widest uppercase">Results that matter</p>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">Small wins. &nbsp;<span className="text-amber-400 italic font-normal">Big momentum.</span></h2>
+            <span className="text-amber-400 font-semibold text-xs uppercase tracking-widest">Results that matter</span>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">Small wins <span className="text-amber-400 italic font-normal">Big momentum</span></h2>
           </div>
           <div className="home-results-stats lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div className="home-result-stat p-6 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
@@ -624,20 +628,20 @@ function AboutPage({ onRegister }: { onRegister: () => void }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <article className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
-          <div className="text-amber-400"><ShieldCheck size={24} /></div>
-          <h3 className="text-xl font-bold text-white">Vision</h3>
-          <p className="text-sm text-slate-400">To help students become confident, capable and future-ready.</p>
+        <article className="about-value-card p-8 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
+          <div className="about-value-icon text-amber-400"><ShieldCheck size={24} /></div>
+          <h3 className="about-value-title text-xl font-bold text-white">Vision</h3>
+          <p className="about-value-description text-sm text-slate-400">To help students become confident, capable and future-ready.</p>
         </article>
-        <article className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
-          <div className="text-amber-400"><GraduationCap size={24} /></div>
-          <h3 className="text-xl font-bold text-white">Approach</h3>
-          <p className="text-sm text-slate-400">Academic rigor grounded in practical coaching and structured routines.</p>
+        <article className="about-value-card p-8 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
+          <div className="about-value-icon text-amber-400"><GraduationCap size={24} /></div>
+          <h3 className="about-value-title text-xl font-bold text-white">Approach</h3>
+          <p className="about-value-description text-sm text-slate-400">Academic rigor grounded in practical coaching and structured routines.</p>
         </article>
-        <article className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
-          <div className="text-amber-400"><BookOpen size={24} /></div>
-          <h3 className="text-xl font-bold text-white">Values</h3>
-          <p className="text-sm text-slate-400">Consistency, clarity, support, and a culture of disciplined effort.</p>
+        <article className="about-value-card p-8 rounded-2xl bg-slate-900/40 border border-slate-800 space-y-3">
+          <div className="about-value-icon text-amber-400"><BookOpen size={24} /></div>
+          <h3 className="about-value-title text-xl font-bold text-white">Values</h3>
+          <p className="about-value-description text-sm text-slate-400">Consistency, clarity, support, and a culture of disciplined effort.</p>
         </article>
       </div>
     </div>

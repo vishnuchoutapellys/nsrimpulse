@@ -314,6 +314,43 @@
     margin: 0 !important;
 }
 
+.about-value-card {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+    row-gap: 1rem;
+}
+
+.about-value-icon {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    align-self: center;
+    margin: 0 !important;
+    border: 1px solid #fed7aa;
+    border-radius: 12px;
+    background: #fff7ed;
+}
+
+.about-value-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.about-value-title {
+    align-self: center;
+    margin: 0 !important;
+    font-size: 1.125rem !important;
+    line-height: 1.3 !important;
+}
+
+.about-value-description {
+    grid-column: 1 / -1;
+    margin: 0 !important;
+}
+
 .home-stats-grid {
     align-items: stretch;
 }
@@ -403,6 +440,10 @@
     margin: 0;
     font-size: 12px !important;
     line-height: 1.5;
+}
+
+.public-site footer .site-footer-developer {
+    display: none;
 }
 
 .public-site .campus-carousel .text-white,
@@ -1165,9 +1206,9 @@
     }
 
     .public-site footer > div > div:first-child {
-        flex-direction: column;
-        align-items: flex-start !important;
-        gap: 0.5rem;
+        flex-direction: row;
+        align-items: center !important;
+        gap: 0.625rem;
     }
 
     .public-site footer > div > div,
@@ -1183,6 +1224,29 @@
     .public-site footer .app-logo {
         width: 160px !important;
         height: 47px !important;
+    }
+
+    .public-site footer .site-footer-developer {
+        display: grid;
+        min-width: 0;
+        gap: 0.15rem;
+        color: #64748b;
+        font-size: clamp(9px, 2.5vw, 11px);
+        line-height: 1.35;
+        white-space: nowrap;
+    }
+
+    .public-site footer .site-footer-developer strong {
+        color: #334155;
+        font-weight: 700;
+    }
+
+    .public-site footer .site-footer-developer a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        color: #b45309;
+        font-weight: 600;
     }
 
     .public-site footer .site-footer-copyright {
