@@ -241,6 +241,18 @@
     white-space: nowrap;
 }
 
+.admissions-sparkle {
+    flex: 0 0 auto;
+    transform-origin: center;
+    animation: admissions-sparkle-spin 2.4s linear infinite;
+}
+
+@keyframes admissions-sparkle-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 @keyframes admissions-scroll-right {
     from {
         transform: translateX(calc(-50% - 2rem));
@@ -1515,6 +1527,11 @@
 
     .admissions-marquee-badge:first-child {
         position: static;
+        animation: none;
+        transform: none;
+    }
+
+    .admissions-sparkle {
         animation: none;
         transform: none;
     }

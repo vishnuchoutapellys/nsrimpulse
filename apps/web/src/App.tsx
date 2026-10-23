@@ -246,10 +246,10 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
           <div className="admissions-marquee" aria-label="Admissions 2026-27 Open">
             <div className="admissions-marquee-track">
               <div className="admissions-marquee-badge">
-                <Sparkles size={14} /> Admissions 2026-27 Open
+                <Sparkles className="admissions-sparkle" size={14} /> Admissions Open For 2026-27
               </div>
               <div className="admissions-marquee-badge" aria-hidden="true">
-                <Sparkles size={14} /> Admissions 2026-27 Open
+                <Sparkles className="admissions-sparkle" size={14} /> Admissions Open For 2026-27
               </div>
             </div>
           </div>
