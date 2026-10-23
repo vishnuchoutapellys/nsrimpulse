@@ -197,13 +197,98 @@
 }
 
 .home-page > section:first-child {
-    padding-top: clamp(3rem, 7vw, 5.5rem) !important;
+    padding-top: clamp(1rem, 7vw, 5.5rem) !important;
     padding-bottom: clamp(2.5rem, 5vw, 4rem) !important;
 }
 
 .home-page > section:nth-child(3) {
     padding-top: clamp(1rem, 3vw, 2rem) !important;
     padding-bottom: clamp(1rem, 3vw, 2rem) !important;
+}
+
+.admissions-marquee {
+    width: min(100%, 280px);
+    min-height: 36px;
+    overflow: hidden;
+    mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+
+.admissions-marquee-track {
+    display: flex;
+    width: max-content;
+    align-items: center;
+    gap: 4rem;
+    animation: admissions-scroll-right 9s linear infinite;
+    will-change: transform;
+}
+
+.admissions-marquee-badge {
+    display: inline-flex;
+    min-height: 36px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid rgb(245 158 11 / 30%);
+    border-radius: 999px;
+    background: rgb(245 158 11 / 15%);
+    color: #b45309;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+@keyframes admissions-scroll-right {
+    from {
+        transform: translateX(calc(-50% - 2rem));
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+@media (min-width: 768px) {
+    .admissions-marquee {
+        width: 100%;
+        mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
+    }
+
+    .admissions-marquee-track {
+        position: relative;
+        display: block;
+        width: 100%;
+        height: 36px;
+        animation: none;
+        transform: none;
+    }
+
+    .admissions-marquee-badge:first-child {
+        position: absolute;
+        top: 0;
+        left: 0;
+        animation: admissions-scroll-desktop 11s linear infinite;
+        will-change: left, transform;
+    }
+
+    .admissions-marquee-badge[aria-hidden="true"] {
+        display: none;
+    }
+}
+
+@keyframes admissions-scroll-desktop {
+    from {
+        left: 0;
+        transform: translateX(-100%);
+    }
+
+    to {
+        left: 100%;
+        transform: translateX(0);
+    }
 }
 
 .home-feature-card,
@@ -1423,6 +1508,21 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .admissions-marquee-track {
+        animation: none;
+        transform: none;
+    }
+
+    .admissions-marquee-badge:first-child {
+        position: static;
+        animation: none;
+        transform: none;
+    }
+
+    .admissions-marquee-badge[aria-hidden="true"] {
+        display: none;
+    }
+
     .touch-wave {
         display: none;
         animation: none;

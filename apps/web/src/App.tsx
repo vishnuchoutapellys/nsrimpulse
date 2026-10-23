@@ -243,12 +243,19 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="lg:col-span-7 space-y-5 sm:space-y-7 lg:space-y-8 z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-semibold tracking-wide uppercase">
-            <Sparkles size={14} /> Admissions 2026-27 Open
+          <div className="admissions-marquee" aria-label="Admissions 2026-27 Open">
+            <div className="admissions-marquee-track">
+              <div className="admissions-marquee-badge">
+                <Sparkles size={14} /> Admissions 2026-27 Open
+              </div>
+              <div className="admissions-marquee-badge" aria-hidden="true">
+                <Sparkles size={14} /> Admissions 2026-27 Open
+              </div>
+            </div>
           </div>
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-[1.1]">
             Start your beautiful <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500 italic font-normal">and bright future.</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-200 to-amber-500 italic font-normal">and bright future</span>
           </h1>
           <p className="text-base sm:text-xl text-slate-300 max-w-2xl leading-relaxed">
             Focused preparation, inspiring mentors, and a learning community that helps every student move with purpose.
@@ -305,7 +312,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="rounded-full border border-white/50 p-2 text-white transition-colors hover:bg-white/20"
+                    className="campus-carousel-control inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/50 p-0 text-white transition-colors hover:bg-white/20"
                     onClick={() => showSlide(-1)}
                     aria-label="Previous campus highlight"
                   >
@@ -313,11 +320,11 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
                   </button>
                   <button
                     type="button"
-                    className="rounded-full border border-white/50 p-2 text-white transition-colors hover:bg-white/20"
+                    className="campus-carousel-control inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/50 p-0 text-white transition-colors hover:bg-white/20"
                     onClick={() => showSlide(1)}
                     aria-label="Next campus highlight"
                   >
-                    <ChevronRight size={18} />
+                    <ArrowRight size={18} />
                   </button>
                 </div>
               </div>
@@ -357,7 +364,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-left py-4 sm:py-8 lg:py-12">
         <div className="space-y-6">
           <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
-            Learning with a <span className="text-amber-400 italic font-normal">longer view.</span>
+            Learning with a <span className="text-amber-400 italic font-normal">longer view</span>
           </h2>
           <p className="text-slate-400">
             NSR Impulse brings together rigorous academic preparation and the human support students need to keep going. Across our campuses, we build habits that last beyond an exam hall.
@@ -375,7 +382,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-900 pb-6">
           <div className="space-y-2">
             <span className="text-amber-400 font-semibold text-xs uppercase tracking-widest">Campus Infrastructure</span>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white">More than <span className="text-amber-400 italic font-normal">a classroom.</span></h2>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white">More than <span className="text-amber-400 italic font-normal">a classroom</span></h2>
             <p className="text-slate-400">Every detail has a job: make learning clearer, calmer, and more consistent.</p>
           </div>
         </div>
@@ -413,7 +420,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10 lg:space-y-12">
         <div className="space-y-2">
           <span className="text-amber-400 font-semibold text-xs uppercase tracking-widest">Academic Tracks</span>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white">Find your <span className="text-amber-400 italic font-normal">next challenge.</span></h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white">Find your <span className="text-amber-400 italic font-normal">next challenge</span></h2>
           <p className="text-slate-400">Structured pathways for students preparing to take a confident step forward.</p>
         </div>
 
@@ -530,7 +537,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       <section className="home-branches max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10 lg:space-y-12">
         <div className="space-y-2">
           <span className="text-amber-400 font-semibold text-xs uppercase tracking-widest">Our Locations</span>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white">Close to <span className="text-amber-400 italic font-normal">your ambition.</span></h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white">Close to <span className="text-amber-400 italic font-normal">your ambition</span></h2>
           <p className="text-slate-400">Find a campus, find your people, and give your goals a place to grow.</p>
         </div>
 
@@ -556,7 +563,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-5 space-y-4">
             <h2 className="text-4xl sm:text-5xl font-bold text-white leading-tight">
-              “The right <span className="text-amber-400 italic font-normal">place to begin.”</span>
+              “The right <span className="text-amber-400 italic font-normal">place to begin”</span>
             </h2>
             <p className="text-slate-400 text-lg">From the first lesson to the final result, the best progress feels shared.</p>
           </div>
@@ -703,7 +710,7 @@ function CourseDetailPage({ onRegister }: { onRegister: () => void }) {
         </div>
         <div className="lg:col-span-7 space-y-6">
           <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">{course.eyebrow}</span>
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-white">{course.title} <br /><span className="text-amber-400 italic font-normal">with a clear plan.</span></h1>
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-white">{course.title} <br /><span className="text-amber-400 italic font-normal">with a clear plan</span></h1>
           <p className="text-slate-300 text-lg">{course.description}</p>
           <button className="px-8 py-3.5 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-all flex items-center gap-2 shadow-lg shadow-amber-500/20" onClick={onRegister}>
             Enquire about this course <ArrowRight size={18} />
