@@ -38,11 +38,11 @@ type SuperAdminContext = {
 };
 
 export function SuperAdminPortal({
-  onBack,
-  onStudentLogin,
+  onBack = () => { },
+  onStudentLogin = () => { },
 }: {
-  onBack: () => void;
-  onStudentLogin: () => void;
+  onBack?: () => void;
+  onStudentLogin?: () => void;
 }) {
   const [token, setToken] = useState("");
   return token ? (

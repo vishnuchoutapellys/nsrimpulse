@@ -193,13 +193,13 @@ async function fetchStudentRecord(
 }
 
 export function StudentPortal({
-  studentId,
-  accessToken,
-  onBack,
+  studentId = "NSRPRA-0002",
+  accessToken = "mock-token",
+  onBack = () => { },
 }: {
-  studentId: string;
-  accessToken: string;
-  onBack: () => void;
+  studentId?: string;
+  accessToken?: string;
+  onBack?: () => void;
 }) {
   const [record, setRecord] = useState<StudentPortalRecord | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -331,8 +331,8 @@ export function StudentPortal({
                 key={key}
                 onClick={() => setTab(key as PortalTab)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold transition ${tab === key
-                    ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
-                    : "text-slate-600 hover:bg-slate-50"
+                  ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                  : "text-slate-600 hover:bg-slate-50"
                   }`}
               >
                 {icon}
@@ -467,8 +467,8 @@ export function StudentPortal({
                         </strong>
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${inst.status === "PAID"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-amber-100 text-amber-700"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-amber-100 text-amber-700"
                             }`}
                         >
                           {inst.status}
@@ -545,8 +545,8 @@ export function StudentPortal({
                       </strong>
                       <span
                         className={`px-3 py-1 rounded-full font-bold ${inst.status === "PAID"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-amber-100 text-amber-700"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-amber-100 text-amber-700"
                           }`}
                       >
                         {inst.status}
