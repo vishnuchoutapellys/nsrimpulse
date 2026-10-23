@@ -497,14 +497,16 @@ function authenticateSuperAdmin(prisma: PrismaClient, secret: string) {
     }
     const parsed = z.object({ userId: z.string(), adminId: z.string(), role: z.literal('SUPER_ADMIN') }).safeParse(decoded);
     if (!parsed.success) return forbidden(res);
+    const { userId, adminId, role } = parsed.data;
+    if (!userId || !adminId || role !== 'SUPER_ADMIN') return forbidden(res);
 
     try {
       const user = await prisma.user.findFirst({
-        where: { id: parsed.data.userId, adminId: parsed.data.adminId, isActive: true, roles: { some: { role: 'SUPER_ADMIN' } } },
+        where: { id: userId, adminId, isActive: true, roles: { some: { role: 'SUPER_ADMIN' } } },
         select: { id: true }
       });
       if (!user) return forbidden(res);
-      req.superAdmin = parsed.data;
+      req.superAdmin = { userId, adminId, role };
       return next();
     } catch (error) { return next(error); }
   };
