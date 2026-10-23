@@ -83,26 +83,21 @@ function PublicLayout() {
   useEffect(() => {
     if (!mobileOpen) return;
     const root = document.documentElement;
-    const scrollPosition = window.scrollY;
     const previousOverflow = document.body.style.overflow;
     const previousTouchAction = document.body.style.touchAction;
-    const previousRootOverflow = root.style.overflow;
     const previousOverscrollBehavior = root.style.overscrollBehavior;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setMobileOpen(false);
     };
-    root.style.overflow = 'hidden';
     root.style.overscrollBehavior = 'none';
     document.body.style.overflow = 'hidden';
     document.body.style.touchAction = 'none';
     document.addEventListener('keydown', closeOnEscape);
     return () => {
-      root.style.overflow = previousRootOverflow;
       root.style.overscrollBehavior = previousOverscrollBehavior;
       document.body.style.overflow = previousOverflow;
       document.body.style.touchAction = previousTouchAction;
       document.removeEventListener('keydown', closeOnEscape);
-      window.scrollTo(0, scrollPosition);
     };
   }, [mobileOpen]);
 
