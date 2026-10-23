@@ -239,8 +239,79 @@
     transform: translateY(-2px);
 }
 
+.home-feature-card > div:first-child {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center;
+    column-gap: 0.75rem;
+    row-gap: 1rem;
+}
+
 .home-feature-card > div:first-child > div:first-child {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    margin: 0 !important;
     justify-content: flex-start;
+}
+
+.home-feature-card > div:first-child > div:last-child {
+    display: contents;
+}
+
+.home-feature-card > div:first-child > div:last-child > h3 {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+    margin: 0;
+    font-size: 1.125rem !important;
+    line-height: 1.3 !important;
+}
+
+.home-feature-card > div:first-child > div:last-child > p {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0;
+}
+
+.home-subject-card {
+    display: grid !important;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center !important;
+    justify-content: stretch !important;
+    column-gap: 0.75rem;
+    row-gap: 1rem;
+    text-align: left !important;
+}
+
+.home-subject-icon {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    align-self: center;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 12px !important;
+}
+
+.home-subject-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.home-subject-title {
+    align-self: center;
+    margin: 0;
+    font-size: 1.125rem !important;
+    line-height: 1.3 !important;
+}
+
+.home-subject-list {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: flex-start !important;
+    margin: 0 !important;
 }
 
 .home-stats-grid {
@@ -982,6 +1053,51 @@
         height: 56px !important;
     }
 
+    .public-site h1 {
+        font-size: 2rem !important;
+        line-height: 1.18 !important;
+    }
+
+    .public-site h2 {
+        font-size: 1.65rem !important;
+        line-height: 1.22 !important;
+    }
+
+    .public-site h3 {
+        font-size: 1.25rem !important;
+        line-height: 1.35 !important;
+    }
+
+    .public-site h4 {
+        font-size: 1rem !important;
+        line-height: 1.4 !important;
+    }
+
+    .public-site .campus-carousel h2 {
+        font-size: 1.5rem !important;
+        line-height: 1.25 !important;
+    }
+
+    .auth-page h1,
+    .super-admin-heading h1 {
+        font-size: 1.5rem !important;
+        line-height: 1.25 !important;
+    }
+
+    .super-admin-page h2,
+    .student-portal .portal-heading h3,
+    .admin-portal .portal-heading h3 {
+        font-size: 1.35rem !important;
+        line-height: 1.3 !important;
+    }
+
+    .super-admin-page h3,
+    .student-portal .card-heading h2,
+    .admin-portal .card-heading h2 {
+        font-size: 1.125rem !important;
+        line-height: 1.35 !important;
+    }
+
     .home-results-panel {
         gap: 1.25rem !important;
         padding: 1.5rem 1rem !important;
@@ -1057,6 +1173,28 @@
     .public-site footer > div > div,
     .public-site footer .site-footer-links {
         width: 100%;
+    }
+
+    .public-site footer .site-footer-tagline,
+    .public-site footer .site-footer-links {
+        display: none;
+    }
+
+    .public-site footer .app-logo {
+        width: 160px !important;
+        height: 47px !important;
+    }
+
+    .public-site footer .site-footer-copyright {
+        width: auto;
+        max-width: 100%;
+        white-space: nowrap;
+        font-size: clamp(9px, 2.6vw, 11px) !important;
+        line-height: 1.4;
+    }
+
+    .public-site footer > div {
+        gap: 0.5rem !important;
     }
 
     .public-site footer img {
@@ -1187,7 +1325,45 @@
     }
 }
 
+.touch-wave {
+    --touch-wave-size: 64px;
+    position: fixed;
+    z-index: 9999;
+    width: var(--touch-wave-size);
+    height: var(--touch-wave-size);
+    margin: calc(var(--touch-wave-size) / -2) 0 0 calc(var(--touch-wave-size) / -2);
+    border: 1px solid rgb(180 83 9 / 32%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgb(245 158 11 / 24%) 0 30%, rgb(245 158 11 / 12%) 48%, transparent 72%);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 35%) inset;
+    pointer-events: none;
+    transform: scale(0.18);
+    transform-origin: center;
+    animation: touch-wave-expand 540ms cubic-bezier(0.2, 0.75, 0.25, 1) forwards;
+}
+
+@keyframes touch-wave-expand {
+    0% {
+        opacity: 0.8;
+        transform: scale(0.18);
+    }
+
+    65% {
+        opacity: 0.3;
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(2.35);
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
+    .touch-wave {
+        display: none;
+        animation: none;
+    }
+
     .mobile-menu-backdrop,
     .public-navigation,
     .public-navigation > a {

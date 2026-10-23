@@ -25,6 +25,30 @@ export function App() {
 
   useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
 
+  useEffect(() => {
+    const interactiveSelector = 'button, a, input, select, textarea, [role="button"], [role="tab"]';
+    const handleTouchWave = (event: PointerEvent) => {
+      if (window.innerWidth >= 768 || event.pointerType === 'mouse' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const target = event.target instanceof Element ? event.target : null;
+      const interactive = target?.closest<HTMLElement>(interactiveSelector);
+      if (!interactive || interactive.hasAttribute('disabled') || interactive.getAttribute('aria-disabled') === 'true') return;
+      if ((interactive instanceof HTMLInputElement || interactive instanceof HTMLTextAreaElement) && interactive.readOnly) return;
+
+      const bounds = interactive.getBoundingClientRect();
+      const waveSize = Math.min(Math.max(Math.max(bounds.width, bounds.height) * 0.65, 48), 96);
+      const wave = document.createElement('span');
+      wave.className = 'touch-wave';
+      wave.style.left = `${event.clientX}px`;
+      wave.style.top = `${event.clientY}px`;
+      wave.style.setProperty('--touch-wave-size', `${waveSize}px`);
+      document.body.appendChild(wave);
+      wave.addEventListener('animationend', () => wave.remove(), { once: true });
+    };
+
+    document.addEventListener('pointerdown', handleTouchWave, { capture: true, passive: true });
+    return () => document.removeEventListener('pointerdown', handleTouchWave, true);
+  }, []);
+
   const authenticateStudent = (id: string, accessToken: string) => {
     setStudentId(id);
     setStudentAccessToken(accessToken);
@@ -463,12 +487,12 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
               </button>
             </div>
           </div>
-          <div className="lg:col-span-4 flex flex-col items-center justify-center rounded-2xl border border-slate-800/80 bg-slate-950/60 p-6 text-center space-y-4">
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-400">
+          <div className="home-subject-card lg:col-span-4 flex flex-col items-center justify-center rounded-2xl border border-slate-800/80 bg-slate-950/60 p-6 text-center space-y-4">
+            <div className="home-subject-icon rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-amber-400">
               <BookOpen size={32} />
             </div>
-            <h4 className="font-bold text-white">Core subjects</h4>
-            <div className="flex flex-wrap justify-center gap-2">
+            <h4 className="home-subject-title font-bold text-white">Core subjects</h4>
+            <div className="home-subject-list flex flex-wrap justify-center gap-2">
               {selectedCourse.subjects.map((subject) => (
                 <span key={subject} className="rounded-full border border-slate-700 bg-white/80 px-3 py-1.5 text-sm font-medium text-slate-700">
                   {subject}
@@ -484,7 +508,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
         <div className="home-results-panel rounded-3xl bg-slate-900/60 border border-slate-800 p-8 lg:p-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-5 space-y-3">
             <p className="text-xs font-bold text-amber-400 tracking-widest uppercase">Results that matter</p>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">Small wins. <br /><span className="text-amber-400 italic font-normal">Big momentum.</span></h2>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">Small wins. &nbsp;<span className="text-amber-400 italic font-normal">Big momentum.</span></h2>
           </div>
           <div className="home-results-stats lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div className="home-result-stat p-6 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
