@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import helmet from 'helmet';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
 import { PaymentMode, PaymentStatus, Prisma, PrismaClient, RoleName } from '@prisma/client';
 import bcrypt from 'bcryptjs';
@@ -357,6 +358,40 @@ app.post('/api/v1/auth/register', async (req, res) => {
       success: false,
       error: { code: 'REGISTRATION_FAILED', message: error.message || 'Registration failed' }
     });
+  }
+});
+
+app.post('/api/v1/super-admin/auth/login', async (req, res) => {
+  try {
+    const { adminId, password } = req.body;
+
+    // Find super admin user
+    const user = await prisma.user.findFirst({
+      where: {
+        adminId: adminId,
+        roles: { some: { role: 'SUPER_ADMIN' } }
+      }
+    });
+
+    if (!user || !user.isActive) {
+      return res.status(401).json({ success: false, error: { message: 'Invalid Super Admin credentials' } });
+    }
+
+    const passwordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordValid) {
+      return res.status(401).json({ success: false, error: { message: 'Invalid Super Admin credentials' } });
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, adminId: user.adminId, role: 'SUPER_ADMIN' },
+      process.env.JWT_SECRET || 'super-secret-key',
+      { expiresIn: '7d' }
+    );
+
+    return res.json({ success: true, data: { token, adminId: user.adminId } });
+  } catch (error: any) {
+    console.error('Super Admin Login Error:', error);
+    return res.status(500).json({ success: false, error: { message: error.message } });
   }
 });
 app.post('/api/v1/auth/login', async (req, res) => {
