@@ -55,29 +55,66 @@ export function App() {
 
 function PublicLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const root = document.documentElement;
+    const scrollPosition = window.scrollY;
+    const previousOverflow = document.body.style.overflow;
+    const previousTouchAction = document.body.style.touchAction;
+    const previousRootOverflow = root.style.overflow;
+    const previousOverscrollBehavior = root.style.overscrollBehavior;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileOpen(false);
+    };
+    root.style.overflow = 'hidden';
+    root.style.overscrollBehavior = 'none';
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      root.style.overflow = previousRootOverflow;
+      root.style.overscrollBehavior = previousOverscrollBehavior;
+      document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
+      document.removeEventListener('keydown', closeOnEscape);
+      window.scrollTo(0, scrollPosition);
+    };
+  }, [mobileOpen]);
+
   return (
     <div className="public-site min-h-screen flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
       {/* Sticky Glassmorphism Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/80 border-b border-slate-800/80 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          <Link className="flex items-center gap-3 group focus:outline-none" to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="NSR Impulse Knowledge Park home">
+          <Link className="flex items-center gap-3 group focus:outline-none" to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="NSR Impulse Educational Institutions home">
             <img
-              className="h-12 w-auto object-contain bg-white p-1.5 rounded-xl border border-slate-800"
+              className="app-logo"
               src={nsrLogo}
               alt="NSR Impulse Educational Institutions"
             />
           </Link>
 
           <button
-            className="md:hidden p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-amber-400 focus:outline-none"
+            className="mobile-menu-toggle md:hidden p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-amber-400 focus:outline-none"
             onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label="Toggle menu"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileOpen}
+            aria-controls="public-navigation"
           >
             {mobileOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
 
-          <nav className={`absolute md:static top-20 left-0 w-full md:w-auto bg-slate-950/95 md:bg-transparent border-b md:border-none border-slate-800 p-6 md:p-0 flex flex-col md:flex-row items-center gap-6 lg:gap-8 shadow-2xl md:shadow-none transition-all duration-300 ${mobileOpen ? 'flex' : 'hidden md:flex'}`}>
+          <button
+            className={`mobile-menu-backdrop ${mobileOpen ? 'is-open' : ''}`}
+            type="button"
+            aria-label="Close menu"
+            aria-hidden="true"
+            tabIndex={-1}
+            onClick={() => setMobileOpen(false)}
+          />
+
+          <nav id="public-navigation" className={`public-navigation ${mobileOpen ? 'is-open' : ''}`}>
             {navItems.map((item) => (
               <NavLink
                 key={item.path}
@@ -109,21 +146,21 @@ function PublicLayout() {
           <div className="flex flex-col items-center md:items-start gap-3">
             <Link to="/" className="flex items-center gap-3">
               <img
-                className="h-12 w-auto object-contain bg-white p-1.5 rounded-xl border border-slate-800"
+                className="app-logo"
                 src={nsrLogo}
                 alt="NSR Impulse Educational Institutions"
               />
             </Link>
-            <p className="text-sm text-slate-400">One connected community for ambitious learners.</p>
+            <p className="site-footer-tagline text-sm text-slate-400">One connected community for ambitious learners.</p>
           </div>
           <div className="flex flex-col items-center md:items-end gap-2 text-xs text-slate-500">
-            <div className="flex gap-6">
+            <div className="site-footer-links flex gap-6">
               <Link to="/about" className="hover:text-amber-400 transition-colors">About</Link>
               <Link to="/courses" className="hover:text-amber-400 transition-colors">Courses</Link>
               <Link to="/branches" className="hover:text-amber-400 transition-colors">Branches</Link>
               <Link to="/contact" className="hover:text-amber-400 transition-colors">Contact</Link>
             </div>
-            <p>© 2026 NSR Impulse Knowledge Park. All rights reserved.</p>
+            <p className="site-footer-copyright">© 2026 NSR Impulse Educational Institutions. All rights reserved.</p>
           </div>
         </div>
       </footer>
@@ -280,14 +317,14 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
 
       {/* Stats Marquee Banner */}
       {/* Stats Marquee Banner with Animated Counter */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 p-8 lg:p-12 shadow-2xl grid grid-cols-2 md:grid-cols-4 gap-8 text-center divide-y md:divide-y-0 md:divide-x divide-slate-800/80">
-          {referenceContent.stats.map(([value, label], idx) => (
-            <div key={label} className={`space-y-1 ${idx > 0 ? 'pt-6 md:pt-0' : ''}`}>
-              <div className="text-4xl lg:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-200">
+      <section className="home-stats max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="home-stats-grid rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 p-8 lg:p-12 shadow-2xl grid grid-cols-2 md:grid-cols-4 gap-8 text-center divide-y md:divide-y-0 md:divide-x divide-slate-800/80">
+          {referenceContent.stats.map(([value, label]) => (
+            <div key={label} className="home-stat-item space-y-1">
+              <div className="home-stat-value text-4xl lg:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-200">
                 <AnimatedCounter value={value} />
               </div>
-              <div className="text-sm font-medium text-slate-400 uppercase tracking-wider">{label}</div>
+              <div className="home-stat-label text-sm font-medium text-slate-400 uppercase tracking-wider">{label}</div>
             </div>
           ))}
         </div>
@@ -311,7 +348,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       </section>
 
       {/* Facilities Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10 lg:space-y-12">
+      <section className="home-facilities max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10 lg:space-y-12">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-900 pb-6">
           <div className="space-y-2">
             <span className="text-amber-400 font-semibold text-xs uppercase tracking-widest">Campus Infrastructure</span>
@@ -324,14 +361,13 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
           {referenceContent.facilities.map(([title, description], index) => (
             <article
               key={title}
-              className={`rounded-2xl p-8 border transition-all duration-300 flex flex-col justify-between group ${index === 1
+              className={`home-feature-card rounded-2xl p-8 border transition-all duration-300 flex flex-col justify-between group ${index === 1
                 ? 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
                 : 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
                 }`}
             >
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-amber-400">0{index + 1}</span>
                   <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 group-hover:scale-110 transition-transform">
                     {index === 0 ? <ShieldCheck size={22} /> : index === 1 ? <GraduationCap size={22} /> : index === 2 ? <BookOpen size={22} /> : <Building2 size={22} />}
                   </div>
@@ -444,22 +480,22 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       </section>
 
       {/* Results Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="rounded-3xl bg-slate-900/60 border border-slate-800 p-8 lg:p-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+      <section className="home-results max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="home-results-panel rounded-3xl bg-slate-900/60 border border-slate-800 p-8 lg:p-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-5 space-y-3">
             <p className="text-xs font-bold text-amber-400 tracking-widest uppercase">Results that matter</p>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">Small wins. <br /><span className="text-amber-400 italic font-normal">Big momentum.</span></h2>
           </div>
-          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
+          <div className="home-results-stats lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="home-result-stat p-6 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
               <div className="text-3xl font-bold text-amber-400">98%</div>
               <div className="text-xs text-slate-400">regular assessment participation</div>
             </div>
-            <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
+            <div className="home-result-stat p-6 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
               <div className="text-3xl font-bold text-amber-400">100+</div>
               <div className="text-xs text-slate-400">rank holders supported</div>
             </div>
-            <div className="p-6 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
+            <div className="home-result-stat p-6 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
               <div className="text-3xl font-bold text-amber-400">5</div>
               <div className="text-xs text-slate-400">campus communities</div>
             </div>
@@ -468,7 +504,7 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
       </section>
 
       {/* Branches Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10 lg:space-y-12">
+      <section className="home-branches max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 sm:space-y-10 lg:space-y-12">
         <div className="space-y-2">
           <span className="text-amber-400 font-semibold text-xs uppercase tracking-widest">Our Locations</span>
           <h2 className="text-3xl sm:text-4xl font-bold text-white">Close to <span className="text-amber-400 italic font-normal">your ambition.</span></h2>
@@ -477,11 +513,10 @@ function HomePage({ onRegister, onPageChange }: { onRegister: () => void; onPage
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {referenceContent.branches.map((branch, index) => (
-            <article key={branch} className="rounded-2xl bg-slate-900/50 border border-slate-800 p-6 flex flex-col justify-between hover:border-amber-500/40 transition-all group">
+            <article key={branch} className="home-branch-card rounded-2xl bg-slate-900/50 border border-slate-800 p-6 flex flex-col justify-between hover:border-amber-500/40 transition-all group">
               <div className="space-y-4">
-                <span className="text-xs font-mono font-bold text-amber-400">0{index + 1}</span>
                 <h3 className="text-xl font-bold text-white group-hover:text-amber-400 transition-colors">{branch}</h3>
-                <p className="text-sm text-slate-400">NSR Impulse Knowledge Park</p>
+                <p className="text-sm text-slate-400">NSR Impulse Educational Institutions</p>
               </div>
               <div className="pt-6 mt-6 border-t border-slate-800/80">
                 <button type="button" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400 hover:text-amber-300">
@@ -704,7 +739,7 @@ function BranchesPage({ onRegister }: { onRegister: () => void }) {
             </div>
             <div className="p-6 space-y-4">
               <h3 className="text-xl font-bold text-white group-hover:text-amber-400 transition-colors">{branch}</h3>
-              <p className="text-sm text-slate-400">NSR Impulse Knowledge Park campus with mentoring support, digital resources, and student-first guidance.</p>
+              <p className="text-sm text-slate-400">NSR Impulse Educational Institutions campus with mentoring support, digital resources, and student-first guidance.</p>
               <ul className="space-y-2 text-xs text-slate-300 pt-2 border-t border-slate-800">
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Career counselling</li>
                 <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Faculty support</li>

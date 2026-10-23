@@ -13,6 +13,7 @@
 .public-site {
     background: #f8fafc;
     color: #1e293b;
+    overflow-x: clip;
 }
 
 .public-site :is([class~="bg-slate-950"], [class*="bg-slate-950/"], [class~="bg-slate-900"], [class*="bg-slate-900/"], [class~="bg-slate-800"], [class*="bg-slate-800/"]) {
@@ -135,9 +136,202 @@
     border-color: #e2e8f0;
 }
 
+.app-logo,
+.brand-mark {
+    display: block;
+    width: 220px !important;
+    height: 64px !important;
+    max-width: none !important;
+    max-height: none !important;
+    flex: 0 0 auto;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    object-fit: contain !important;
+    object-position: left center !important;
+}
+
+.brand-mark {
+    background-position: left center !important;
+    background-size: contain !important;
+    background-repeat: no-repeat !important;
+}
+
+.app-logo-frame {
+    display: inline-flex !important;
+    width: fit-content;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.public-site header img {
+    width: clamp(180px, 16vw, 220px);
+    height: auto;
+    max-height: 60px;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+.mobile-menu-backdrop {
+    display: none;
+}
+
+.public-navigation {
+    display: flex;
+    align-items: center;
+    gap: clamp(1.5rem, 2.5vw, 2rem);
+}
+
+.home-page {
+    padding-bottom: clamp(2.5rem, 5vw, 4rem) !important;
+}
+
+.home-page > :not([hidden]) ~ :not([hidden]) {
+    margin: clamp(2rem, 3.5vw, 3rem) 0 0 !important;
+}
+
+.home-page > section:first-child {
+    padding-top: clamp(3rem, 7vw, 5.5rem) !important;
+    padding-bottom: clamp(2.5rem, 5vw, 4rem) !important;
+}
+
+.home-page > section:nth-child(3) {
+    padding-top: clamp(1rem, 3vw, 2rem) !important;
+    padding-bottom: clamp(1rem, 3vw, 2rem) !important;
+}
+
+.home-feature-card,
+.home-branch-card {
+    border-color: #dbe5ee !important;
+    background: #f8fbff !important;
+    box-shadow: 0 12px 30px rgb(15 23 42 / 5%);
+}
+
+.home-feature-card:nth-child(2),
+.home-branch-card:nth-child(2) {
+    border-color: #e5e2d8 !important;
+    background: #fffdf7 !important;
+}
+
+.home-feature-card:nth-child(3),
+.home-branch-card:nth-child(3) {
+    border-color: #d9e9e2 !important;
+    background: #f7fcf9 !important;
+}
+
+.home-feature-card:nth-child(4),
+.home-branch-card:nth-child(4) {
+    border-color: #e7dfeb !important;
+    background: #fcf9fd !important;
+}
+
+.home-feature-card:hover,
+.home-branch-card:hover {
+    border-color: #c7d5e3 !important;
+    background: #fff !important;
+    box-shadow: 0 16px 36px rgb(15 23 42 / 8%);
+    transform: translateY(-2px);
+}
+
+.home-feature-card > div:first-child > div:first-child {
+    justify-content: flex-start;
+}
+
+.home-stats-grid {
+    align-items: stretch;
+}
+
+.home-stat-item {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.home-stat-value {
+    display: flex;
+    min-height: 1.15em;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.home-stat-label {
+    line-height: 1.35;
+}
+
 .public-site footer {
-    background-color: #fff;
-    border-color: #e2e8f0;
+    width: min(calc(100% - 2rem), 80rem);
+    margin: 0 auto 1rem !important;
+    padding: 1rem 1.25rem !important;
+    border: 1px solid #dbe5f0 !important;
+    border-radius: 8px;
+    background: transparent !important;
+}
+
+.public-site footer > div {
+    max-width: none;
+    margin: 0;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: clamp(1.5rem, 4vw, 3.5rem) !important;
+}
+
+.public-site footer > div > div {
+    align-items: flex-start !important;
+    text-align: left;
+}
+
+.public-site footer > div > div:first-child {
+    flex-direction: row;
+    align-items: center !important;
+    gap: 1rem;
+}
+
+.public-site footer > div > div:last-child {
+    gap: 0.25rem;
+}
+
+.public-site footer img {
+    width: clamp(190px, 17vw, 225px);
+    height: auto;
+    max-height: 65px;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+}
+
+.public-site footer nav,
+.public-site footer [class~="flex"][class~="gap-6"] {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.public-site footer .site-footer-tagline {
+    margin: 0;
+    font-size: 13px !important;
+    line-height: 1.5;
+}
+
+.public-site footer .site-footer-links {
+    gap: 1.25rem !important;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.public-site footer .site-footer-copyright {
+    margin: 0;
+    font-size: 12px !important;
+    line-height: 1.5;
 }
 
 .public-site .campus-carousel .text-white,
@@ -685,7 +879,191 @@
     }
 }
 
+@media (max-width: 767px) {
+    .mobile-menu-toggle {
+        position: relative;
+        z-index: 62;
+    }
+
+    .mobile-menu-backdrop {
+        position: absolute;
+        z-index: 58;
+        top: 100%;
+        right: 0;
+        left: 0;
+        width: 100vw;
+        height: calc(100dvh - 5rem);
+        display: block;
+        border: 0;
+        background: rgb(15 23 42 / 28%) !important;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 280ms ease, visibility 0s linear 460ms;
+    }
+
+    .mobile-menu-backdrop.is-open {
+        opacity: 1;
+        visibility: visible;
+        transition-delay: 0s;
+    }
+
+    .public-navigation {
+        position: absolute;
+        z-index: 60;
+        top: 100%;
+        right: 0;
+        width: min(82vw, 320px);
+        height: auto;
+        max-height: calc(100dvh - 5rem);
+        padding: 1.5rem 1.25rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+        overflow-y: auto;
+        border-bottom: 1px solid #e2e8f0;
+        border-left: 1px solid #e2e8f0;
+        border-bottom-left-radius: 12px;
+        background: rgb(255 255 255 / 98%);
+        box-shadow: -20px 0 50px rgb(15 23 42 / 14%);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateX(100%);
+        transition:
+            transform 460ms cubic-bezier(0.22, 1, 0.36, 1),
+            opacity 240ms ease,
+            visibility 0s linear 460ms;
+    }
+
+    .public-navigation.is-open {
+        opacity: 1;
+        visibility: visible;
+        transform: translateX(0);
+        transition-delay: 0s;
+    }
+
+    .public-navigation > a {
+        width: 100%;
+        justify-content: flex-start;
+        padding: 0.8rem 0.75rem;
+        border-radius: 8px;
+        opacity: 0;
+        transform: translateX(18px);
+        transition:
+            color 180ms ease,
+            background-color 180ms ease,
+            opacity 180ms ease,
+            transform 220ms ease;
+    }
+
+    .public-navigation.is-open > a {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    .public-navigation.is-open > a:nth-child(1) { transition-delay: 70ms; }
+    .public-navigation.is-open > a:nth-child(2) { transition-delay: 95ms; }
+    .public-navigation.is-open > a:nth-child(3) { transition-delay: 120ms; }
+    .public-navigation.is-open > a:nth-child(4) { transition-delay: 145ms; }
+    .public-navigation.is-open > a:nth-child(5) { transition-delay: 170ms; }
+    .public-navigation.is-open > a:nth-child(6) { transition-delay: 195ms; }
+    .public-navigation.is-open > a:nth-child(7) { transition-delay: 220ms; }
+
+    .public-navigation > a:last-child {
+        width: auto;
+        margin-top: 0.75rem;
+        padding-inline: 1.25rem;
+    }
+}
+
 @media (max-width: 639px) {
+    .app-logo,
+    .brand-mark {
+        width: 190px !important;
+        height: 56px !important;
+    }
+
+    .home-results-panel {
+        gap: 1.25rem !important;
+        padding: 1.5rem 1rem !important;
+        border-radius: 1.25rem !important;
+    }
+
+    .home-stats-grid {
+        gap: 0 !important;
+        padding: 1.25rem !important;
+    }
+
+    .home-stat-item {
+        min-height: 96px;
+        padding: 0.875rem 0.4rem !important;
+    }
+
+    .home-stat-value {
+        font-size: clamp(1.75rem, 9vw, 2.25rem) !important;
+    }
+
+    .home-stat-label {
+        font-size: 0.7rem !important;
+        letter-spacing: 0.04em !important;
+    }
+
+    .home-results-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 0.5rem !important;
+    }
+
+    .home-result-stat {
+        display: flex;
+        min-height: 104px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        padding: 0.75rem 0.35rem !important;
+        border-radius: 0.875rem !important;
+    }
+
+    .home-result-stat > div:first-child {
+        font-size: clamp(1.35rem, 7vw, 1.75rem) !important;
+        line-height: 1;
+    }
+
+    .home-result-stat > div:last-child {
+        font-size: 0.65rem !important;
+        line-height: 1.35;
+    }
+
+    .home-feature-card,
+    .home-branch-card {
+        padding: 1.25rem !important;
+    }
+
+    .public-site footer {
+        width: calc(100% - 1rem);
+        padding: 0.875rem !important;
+    }
+
+    .public-site footer > div {
+        align-items: flex-start !important;
+        gap: 0.875rem !important;
+    }
+
+    .public-site footer > div > div:first-child {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 0.5rem;
+    }
+
+    .public-site footer > div > div,
+    .public-site footer .site-footer-links {
+        width: 100%;
+    }
+
+    .public-site footer img {
+        width: 190px;
+        max-height: 55px;
+    }
+
     .home-page > section {
         scroll-margin-top: 5rem;
     }
@@ -802,7 +1180,20 @@
     }
 }
 
+@media (min-width: 768px) {
+    .public-navigation > a {
+        opacity: 1;
+        transform: none;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
+    .mobile-menu-backdrop,
+    .public-navigation,
+    .public-navigation > a {
+        transition-duration: 1ms !important;
+    }
+
     .campus-carousel img {
         transition: none;
     }

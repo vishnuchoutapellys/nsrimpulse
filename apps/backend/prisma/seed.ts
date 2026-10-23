@@ -10,7 +10,7 @@ const adminId = 'NSRADMIN-001';
 async function main() {
   const state = await prisma.state.upsert({ where: { name: 'Telangana' }, update: {}, create: { name: 'Telangana' } });
   const location = await prisma.location.upsert({ where: { stateId_name: { stateId: state.id, name: 'Pragathi Nagar' } }, update: {}, create: { name: 'Pragathi Nagar', stateId: state.id } });
-  const college = await prisma.college.findFirst({ where: { name: 'NSR Impulse Knowledge Park', locationId: location.id } }) ?? await prisma.college.create({ data: { name: 'NSR Impulse Knowledge Park', locationId: location.id } });
+  const college = await prisma.college.findFirst({ where: { name: 'NSR Impulse Educational Institutions', locationId: location.id } }) ?? await prisma.college.create({ data: { name: 'NSR Impulse Educational Institutions', locationId: location.id } });
   const branch = await prisma.branch.upsert({ where: { collegeId_name: { collegeId: college.id, name: 'Pragathi Nagar Campus' } }, update: {}, create: { name: 'Pragathi Nagar Campus', collegeId: college.id } });
   const adminPasswordHash = await bcrypt.hash('NSRADMIN@2026', 12);
   const existingAdmin = await prisma.user.findFirst({ where: { OR: [{ adminId }, { adminId: 'NSRTSADMMIN-001' }, { email: 'admin.pragathinagar@nsrimpulse.com' }] } });

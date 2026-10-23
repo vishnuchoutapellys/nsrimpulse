@@ -177,9 +177,9 @@ function AdminLogin({
         <section className="auth-branding lg:col-span-5 bg-gradient-to-br from-slate-900 via-indigo-950/60 to-slate-950 p-8 lg:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800 relative">
           <div className="space-y-8">
             <div className="flex items-center justify-between">
-              <div className="bg-white/95 p-3 rounded-2xl shadow-lg inline-block">
+              <div className="app-logo-frame bg-white/95 p-3 rounded-2xl shadow-lg inline-block">
                 <img
-                  className="h-10 w-auto object-contain"
+                  className="app-logo"
                   src={nsrLogo}
                   alt="NSR Impulse Educational Institutions"
                 />
@@ -359,7 +359,7 @@ function AdminWorkspace({
           aria-label="NSR Impulse home"
         >
           <img
-            className="brand-wordmark"
+            className="app-logo brand-wordmark"
             src={nsrLogo}
             alt="NSR Impulse Educational Institutions"
           />
@@ -1584,7 +1584,7 @@ async function downloadAdminReceipt(
   const document = new jsPDF();
   document.setFont("helvetica", "bold");
   document.setFontSize(20);
-  document.text("NSR IMPULSE KNOWLEDGE PARK", 20, 24);
+  document.text("NSR Impulse Educational Institutions", 20, 24);
   document.setTextColor(211, 91, 70);
   document.setFontSize(11);
   document.text("OFFICIAL PAYMENT RECEIPT", 20, 34);

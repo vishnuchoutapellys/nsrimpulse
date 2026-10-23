@@ -92,7 +92,7 @@ export function SuperAdminPortal() {
     <main className="super-admin-page">
       <section className="super-admin-card">
         <header className="super-admin-header">
-          <img src={nsrLogo} alt="NSR Impulse Educational Institutions" />
+          <img className="app-logo" src={nsrLogo} alt="NSR Impulse Educational Institutions" />
           {token && <button type="button" className="super-admin-logout" onClick={() => { setToken(''); setContext(null); setMessage(''); setError(''); }}><LogOut size={16} /> Sign out</button>}
         </header>
         {!token ? (

@@ -66,7 +66,7 @@ const studentPaymentSchema = z.object({
 app.get('/health', (_req, res) => res.json({ success: true, data: { service: 'backend', status: 'ok' } }));
 app.get('/api/v1/public/overview', (_req, res) => res.json({
   success: true, data: {
-    organization: 'NSR Impulse Knowledge Park',
+    organization: 'NSR Impulse Educational Institutions',
     navigation: ['Home', 'About Us', 'Courses', 'Branches', 'Results', 'Gallery', 'Contact'],
     message: 'Education pathways designed around confident careers.'
   }

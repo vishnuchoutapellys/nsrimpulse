@@ -1,4 +1,4 @@
-# NSR Impulse Knowledge Park
+# NSR Impulse Educational Institutions
 
 A multi-tenant education management PWA foundation for students, college administrators, and super administrators. The workspace is organized as a TypeScript monorepo with a React/Vite PWA, Express API, Prisma/PostgreSQL model, and shared contracts.
 

@@ -180,8 +180,8 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
         <div className="auth-branding lg:col-span-5 bg-gradient-to-br from-slate-900 via-indigo-950/60 to-slate-950 p-8 lg:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800 relative">
           <div className="space-y-8">
             <div className="flex items-center justify-between">
-              <div className="bg-white/95 p-3 rounded-2xl shadow-lg inline-block">
-                <img className="h-10 w-auto object-contain" src={nsrLogo} alt="NSR Impulse Educational Institutions" />
+              <div className="app-logo-frame bg-white/95 p-3 rounded-2xl shadow-lg inline-block">
+                <img className="app-logo" src={nsrLogo} alt="NSR Impulse Educational Institutions" />
               </div>
               <button
                 className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-amber-400 transition-colors border border-slate-700/80"

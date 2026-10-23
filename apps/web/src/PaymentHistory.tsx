@@ -45,7 +45,7 @@ export function PaymentHistory({ studentId, accessToken }: { studentId: string; 
 function addReceiptPage(document: JsPdfDocument, student: PaymentHistoryResponse['student'], payment: PaymentHistoryItem, page: number, totalPages: number) {
   document.setFont('helvetica', 'bold');
   document.setFontSize(20);
-  document.text('NSR IMPULSE KNOWLEDGE PARK', 20, 24);
+  document.text('NSR Impulse Educational Institutions', 20, 24);
   document.setFontSize(11);
   document.setTextColor(211, 91, 70);
   document.text('OFFICIAL PAYMENT RECEIPT', 20, 34);
