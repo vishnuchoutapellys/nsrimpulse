@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Home, LockKeyhole, Mail, Phone, Sparkles, UserRound as UserIcon, CalendarDays as Calendar1Icon } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useState, useEffect } from 'react';
 import nsrLogo from '../../assets/nsrLogo.png';
 import { apiBase } from './api';
 import { } from 'lucide-react';
@@ -11,7 +11,11 @@ type RoleType = 'STUDENT' | 'COLLEGE_ADMIN';
 type ApiResult = { success?: boolean; data?: Record<string, unknown>; message?: string; error?: { message?: string } };
 const studentIdPattern = /^(?:demo-account-\d+|NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/i;
 
+
 export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { onBack: () => void; onAdminLogin: () => void; onAuthenticated: (studentId: string, accessToken: string) => void }) {
+  const [collegesData, setCollegesData] = useState<any[]>([]);
+  const [coursesData, setCoursesData] = useState<any[]>([]);
+  const [selectedCollegeId, setSelectedCollegeId] = useState('');
   const [mode, setMode] = useState<AuthMode>('signin');
   const [step, setStep] = useState<AuthStep>('login');
   const [studentId, setStudentId] = useState('');
@@ -26,6 +30,27 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
 
   // Registration specific state
   const [regRole, setRegRole] = useState<RoleType>('STUDENT');
+  useEffect(() => {
+    // Explicitly point to the backend server URL on port 5000
+    fetch('http://localhost:4000/api/v1/public/metadata')
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
+      .then((json) => {
+        console.log('Fetched metadata:', json);
+        if (json.success) {
+          setCollegesData(json.data.colleges || []);
+          setCoursesData(json.data.courses || []);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load metadata dropdowns:', err);
+      });
+  }, []);
+  // Filter branches based on selected college
+  const selectedCollege = collegesData.find((c) => c.id === selectedCollegeId);
+  const availableBranches = selectedCollege ? selectedCollege.branches : [];
 
   function moveTo(nextStep: AuthStep) { setStep(nextStep); setError(''); setMessage(''); setShowPassword(false); }
   function switchMode(newMode: AuthMode) { setMode(newMode); setError(''); setMessage(''); setStep('login'); }
@@ -40,7 +65,6 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
     if (!response.ok || !result.success) throw new Error(result.error?.message ?? result.message ?? 'Unable to complete the request.');
     return result;
   }
-
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setMessage('');
     const data = new FormData(event.currentTarget);
@@ -49,29 +73,44 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
       ? rawInput.toLowerCase()
       : rawInput.toUpperCase();
     const password = String(data.get('password') ?? '');
+
     if (!studentIdPattern.test(normalizedStudentId)) return setError('Enter the Student ID issued by your college (e.g., NSRHYD-001 or demo-account-001).');
     if (password.length < 6) return setError('Enter your password.');
+
     setBusy(true);
     try {
       const result = await request('login', { studentId: normalizedStudentId, password });
       const responseData = result.data ?? {};
       setStudentId(normalizedStudentId);
+
       if (responseData.requiresPasswordChange === true && typeof responseData.changeToken === 'string') {
         setTemporaryPassword(password);
         setChangeToken(responseData.changeToken);
         moveTo('change-password');
-      } else if (typeof responseData.accessToken === 'string') {
+      }
+      else if (typeof responseData.accessToken === 'string') {
+        // 1. Save directly to browser Local Storage first
+        localStorage.setItem('studentUid', normalizedStudentId);
+        localStorage.setItem('accessToken', responseData.accessToken);
+
+        // 2. Then invoke authentication callback
         onAuthenticated(normalizedStudentId, responseData.accessToken);
       }
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to sign in.'); }
-    finally { setBusy(false); }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to sign in.');
+    } finally {
+      setBusy(false);
+    }
   }
-
   async function submitRegister(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setError(''); setMessage('');
+    event.preventDefault();
+    setError('');
+    setMessage('');
+
     const data = new FormData(event.currentTarget);
     const name = String(data.get('name') ?? '').trim();
     const password = String(data.get('password') ?? '');
+
     const validation = validateNewPassword(password, password); // check basic strength
     if (validation) return setError(validation);
 
@@ -80,10 +119,11 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
       let bodyData: Record<string, string> = { role: regRole, name, password };
 
       if (regRole === 'STUDENT') {
-        const rawUid = String(data.get('studentUid') ?? '').trim();
-        const normalizedUid = rawUid.toLowerCase().startsWith('demo-') ? rawUid.toLowerCase() : rawUid.toUpperCase();
+        // NOTE: studentUid extraction removed because backend auto-generates it!
+        bodyData.collegeId = String(data.get('collegeId') ?? '').trim();
+        bodyData.branchId = String(data.get('branchId') ?? '').trim();
+        bodyData.courseId = String(data.get('courseId') ?? '').trim();
 
-        bodyData.studentUid = normalizedUid;
         bodyData.mobile = String(data.get('mobile') ?? '').trim();
         bodyData.email = String(data.get('email') ?? '').trim();
         bodyData.fatherName = String(data.get('fatherName') ?? '').trim();
@@ -98,12 +138,20 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
       }
 
       const result = await request('register', bodyData);
-      setMessage(result.message ?? 'Registration successful! You can now sign in.');
-      setMode('signin');
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to register account.'); }
-    finally { setBusy(false); }
-  }
 
+      // Display auto-generated studentUid in success message if provided
+      const successMsg = result.data?.studentUid
+        ? `Registration successful! Your Student ID is ${result.data.studentUid}. You can now sign in.`
+        : (result.message ?? 'Registration successful! You can now sign in.');
+
+      setMessage(successMsg);
+      setMode('signin');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to register account.');
+    } finally {
+      setBusy(false);
+    }
+  }
   async function submitPasswordChange(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
     const data = new FormData(event.currentTarget);
@@ -119,7 +167,6 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to change password.'); }
     finally { setBusy(false); }
   }
-
   async function submitForgot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setMessage('');
     const rawForgotInput = String(new FormData(event.currentTarget).get('studentId') ?? '').trim();
@@ -137,7 +184,6 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to request password reset.'); }
     finally { setBusy(false); }
   }
-
   async function submitOtp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
     const data = new FormData(event.currentTarget);
@@ -165,7 +211,6 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to reset password.'); }
     finally { setBusy(false); }
   }
-
   const isLogin = mode === 'signin' && step === 'login';
 
   return (
@@ -313,7 +358,60 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
 
               {regRole === 'STUDENT' ? (
                 <>
-                  <AuthField name="studentUid" label="College-issued Student ID" placeholder="NSRTSHYD-003" icon={<LockKeyhole size={17} />} />
+                  {/* 1. COLLEGE SELECT */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-600">Select College</label>
+                    <select
+                      name="collegeId"
+                      required
+                      value={selectedCollegeId}
+                      onChange={(e) => setSelectedCollegeId(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-md text-sm bg-white"
+                    >
+                      <option value="">-- Choose College --</option>
+                      {collegesData.map((college) => (
+                        <option key={college.id} value={college.id}>
+                          {college.name} ({college.location})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 2. BRANCH SELECT */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-600">Select Branch</label>
+                    <select
+                      name="branchId"
+                      required
+                      className="w-full px-3 py-2 border rounded-md text-sm bg-white"
+                    >
+                      <option value="">-- Choose Branch --</option>
+                      {collegesData
+                        .find((c) => c.id === selectedCollegeId)
+                        ?.branches?.map((branch: any) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* 3. COURSE SELECT */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-gray-600">Select Course Program</label>
+                    <select
+                      name="courseId"
+                      required
+                      className="w-full px-3 py-2 border rounded-md text-sm bg-white"
+                    >
+                      <option value="">-- Choose Course --</option>
+                      {coursesData.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <AuthField name="mobile" label="Mobile Number" placeholder="9876543210" inputMode="tel" icon={<Phone size={17} />} />
                   <AuthField name="email" label="Email Address" type="email" placeholder="student@nsrimpulse.com" icon={<Mail size={17} />} />
                   <AuthField name="fatherName" label="Father's Name" placeholder="Shankar Lal Vyas" icon={<UserIcon size={17} />} />
@@ -333,7 +431,6 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
               <SubmitButton busy={busy}>Register Account <ArrowRight size={17} /></SubmitButton>
             </form>
           )}
-
 
           {mode === 'signin' && step === 'login' && (
             <form onSubmit={submitLogin} className="space-y-5">
@@ -392,8 +489,8 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
           )}
 
         </section>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 }
 

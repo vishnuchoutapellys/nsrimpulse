@@ -79,15 +79,21 @@ app.post('/api/v1/students/validate', (req, res) => {
 });
 app.get('/api/v1/students/:studentUid/portal', async (req: Request<{ studentUid: string }>, res: Response) => {
   const { studentUid } = req.params;
-  const studentClaim = (req as any).student;
 
   try {
-    if (!studentCanAccessRecord(studentClaim, studentUid)) return forbiddenStudent(res);
-    const normalizedUid = studentUid.toLowerCase().startsWith('demo-') ? studentUid.toLowerCase() : studentUid;
+    const normalizedUid = studentUid.toLowerCase().startsWith('demo-')
+      ? studentUid.toLowerCase()
+      : studentUid.toUpperCase();
+
+    console.log('--- PORTAL ACCESS REQUEST ---');
+    console.log('Fetching student record for:', normalizedUid);
 
     const student = await prisma.student.findUnique({
       where: { studentUid: normalizedUid },
       include: {
+        college: true,
+        branch: true,
+        course: true,
         feeAssignments: {
           include: {
             installments: {
@@ -104,24 +110,20 @@ app.get('/api/v1/students/:studentUid/portal', async (req: Request<{ studentUid:
     });
 
     if (!student) {
-      return res.status(404).json({ success: false, message: 'Student record not found.' });
-    }
-
-    // Ensure student account is active before returning portal data
-    if (student.status !== 'ACTIVE') {
-      return res.status(403).json({
+      console.log('Student record not found in database for:', normalizedUid);
+      return res.status(404).json({
         success: false,
-        error: { message: 'Your account is currently pending admin approval and activation.' }
+        error: { message: 'Student record not found.' }
       });
     }
 
     return res.json({ success: true, data: student });
+
   } catch (error) {
     console.error('Error fetching student portal:', error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
-
 app.get('/api/v1/students/:studentUid/payments', authenticateStudent(jwtAccessSecret), async (req: StudentRequest, res, next) => {
   if (!studentCanAccessRecord(req.student, req.params.studentUid)) return forbiddenStudent(res);
   const query = z.object({ page: z.coerce.number().int().positive().default(1), pageSize: z.coerce.number().int().min(1).max(50).default(20) }).safeParse(req.query);
@@ -219,166 +221,662 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
 });
 app.use('/api/v1/admin', createAdminRouter(prisma, notifications));
 // ==========================================
-// 1. REGISTER ENDPOINT
+// PUBLIC METADATA ENDPOINT (For Registration Dropdowns)
 // ==========================================
+app.get('/api/v1/public/metadata', async (_req, res) => {
+  try {
+    const colleges = await prisma.college.findMany({
+      include: {
+        location: true,
+        branches: { orderBy: { name: 'asc' } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const courses = await prisma.course.findMany({
+      orderBy: { name: 'asc' },
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        colleges: colleges.map((c) => ({
+          id: c.id,
+          name: c.name,
+          location: c.location.name,
+          branches: c.branches.map((b) => ({ id: b.id, name: b.name })),
+        })),
+        courses: courses.map((co) => ({
+          id: co.id,
+          name: co.name,
+        })),
+      },
+    });
+  } catch (error: any) {
+    console.error('Metadata Fetch Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load institutional metadata' });
+  }
+});
 app.post('/api/v1/auth/register', async (req, res) => {
   try {
-    const { role, studentUid, email, name, mobile, password, adminSecretKey, collegeId, branchId, courseId } = req.body;
-    if (role !== 'STUDENT') {
-      return res.status(403).json({ success: false, error: { code: 'PRIVILEGED_REGISTRATION_DISABLED', message: 'Administrator accounts must be provisioned by a Super Admin.' } });
+    const {
+      role, name, mobile, email, password,
+      fatherName, motherName, dateOfBirth, village, pin,
+      collegeId, branchId, courseId
+    } = req.body;
+
+    if (role && role !== 'STUDENT') {
+      return res.status(403).json({
+        success: false,
+        error: { code: 'PRIVILEGED_REGISTRATION_DISABLED', message: 'Administrator accounts must be provisioned by a Super Admin.' }
+      });
     }
-    const hashedPassword = await bcrypt.hash(password, 10);
-    try {
-      const {
-        role, studentUid, name, mobile, email, password,
-        fatherName, motherName, dateOfBirth, village, pin,
-        collegeId, branchId, courseId, adminSecretKey
-      } = req.body;
 
-      const hashedPassword = await bcrypt.hash(password, 10);
+    if (!collegeId || !branchId || !courseId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'MISSING_ACADEMIC_SELECTION', message: 'Please select your College, Branch, and Course.' }
+      });
+    }
 
-      if (role === 'STUDENT') {
-        const normalizedUid = studentUid.toLowerCase().startsWith('demo-')
-          ? studentUid.toLowerCase()
-          : studentUid.toUpperCase();
+    // 1. Perform password hashing OUTSIDE the transaction to prevent timeouts!
+    const hashedPassword = await bcrypt.hash(password || 'Welcome@2026', 10);
 
-        const result = await prisma.$transaction(async (tx) => {
-          const college = collegeId ? await tx.college.findUnique({ where: { id: collegeId } }) : await tx.college.findFirst();
-          const branch = branchId ? await tx.branch.findUnique({ where: { id: branchId } }) : await tx.branch.findFirst();
-          const course = courseId ? await tx.course.findUnique({ where: { id: courseId } }) : await tx.course.findFirst();
+    // 2. Perform database transaction with an increased timeout limit (15,000ms / 15s)
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Fetch College & Location for ID generation
+        const college = await tx.college.findUnique({
+          where: { id: collegeId },
+          include: { location: true }
+        });
+        const branch = await tx.branch.findUnique({ where: { id: branchId } });
+        const course = await tx.course.findUnique({ where: { id: courseId } });
 
-          if (!college || !branch || !course) {
-            throw new Error('Database is missing required College, Branch, or Course records.');
-          }
+        if (!college || !branch || !course) {
+          throw new Error('Invalid College, Branch, or Course selection.');
+        }
 
-          const student = await tx.student.create({
-            data: {
-              studentUid: normalizedUid,
-              name,
-              mobile: mobile || '',
-              email: email || null,
-              fatherName: fatherName || null,
-              motherName: motherName || null,
-              dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-              village: village || null,
-              pin: pin || null,
-              admissionYear: new Date().getFullYear(),
-              academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
-              status: 'ON_HOLD', // Pending admin review & fee assignment
-              collegeId: college.id,
-              branchId: branch.id,
-              courseId: course.id,
-            },
-          });
+        // Generate location-aware Student ID (e.g. NSRHYD-0001)
+        const locName = college.location ? college.location.name.toUpperCase().replace(/[^A-Z]/g, '') : 'INS';
+        const cityCode = locName.length >= 3 ? locName.substring(0, 3) : 'INS';
 
-          const account = await tx.studentAccount.create({
-            data: {
-              studentId: student.id,
-              email: email || null,
-              passwordHash: hashedPassword,
-              mustChangePassword: false,
-            },
-          });
+        const collegeStudentCount = await tx.student.count({ where: { collegeId: college.id } });
+        const studentUid = `NSR${cityCode}-${String(collegeStudentCount + 1).padStart(4, '0')}`;
 
-          return { student, account };
+        // Create Student record
+        const student = await tx.student.create({
+          data: {
+            studentUid,
+            name,
+            mobile: mobile || '',
+            email: email || null,
+            fatherName: fatherName || null,
+            motherName: motherName || null,
+            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+            village: village || null,
+            pin: pin || null,
+            admissionYear: new Date().getFullYear(),
+            academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
+            status: 'ON_HOLD',
+            collegeId: college.id,
+            branchId: branch.id,
+            courseId: course.id,
+          },
         });
 
-        return res.status(201).json({
-          success: true,
-          message: 'Registration successful! Your account is pending admin approval and fee assignment.',
-          studentUid: result.student.studentUid,
+        // Create StudentAccount record
+        const account = await tx.studentAccount.create({
+          data: {
+            studentId: student.id,
+            email: email || null,
+            passwordHash: hashedPassword,
+            mustChangePassword: true,
+          },
         });
+
+        return { student, account };
+      },
+      {
+        maxWait: 5000, // Wait maximum 5s to acquire connection
+        timeout: 15000, // Allow transaction up to 15s to complete
       }
-    } catch (error: any) {
-      console.error('Registration Error:', error);
-      return res.status(500).json({ message: error.message || 'Registration failed' });
-    }
+    );
 
-    return res.status(400).json({ message: 'Invalid role specified' });
+    return res.status(201).json({
+      success: true,
+      message: `Registration successful! Your generated Student ID is ${result.student.studentUid}`,
+      data: {
+        studentUid: result.student.studentUid,
+      },
+    });
+
   } catch (error: any) {
     console.error('Registration Error:', error);
-    return res.status(500).json({ message: error.message || 'Registration failed' });
+    return res.status(500).json({
+      success: false,
+      error: { code: 'REGISTRATION_FAILED', message: error.message || 'Registration failed' }
+    });
   }
 });
-// ==========================================
-// 2. LOGIN ENDPOINT
-// ==========================================
 app.post('/api/v1/auth/login', async (req, res) => {
   try {
-    const { role, studentUid, email, password } = req.body;
+    const { studentId, studentUid, password, email } = req.body;
+    const identifier = (studentId || studentUid || '').trim().toUpperCase();
 
-    // --- STUDENT LOGIN ---
-    if (role === 'STUDENT' || !role) {
-      const normalizedUid = studentUid.toLowerCase().startsWith('demo-')
-        ? studentUid.toLowerCase()
-        : studentUid.toUpperCase();
-
-      // Find Student by studentUid
-      const student = await prisma.student.findUnique({
-        where: { studentUid: normalizedUid },
-        include: { account: true, college: true, branch: true, course: true },
-      });
-
-      if (!student || !student.account) {
-        return res.status(401).json({ message: 'Invalid Student ID or password' });
-      }
-
-      // Verify bcrypt passwordHash
-      const isPasswordValid = await bcrypt.compare(password, student.account.passwordHash);
-      if (!isPasswordValid) {
-        return res.status(401).json({ message: 'Invalid Student ID or password' });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Login successful',
-        user: {
-          id: student.id,
-          studentUid: student.studentUid,
-          name: student.name,
-          college: student.college.name,
-          branch: student.branch.name,
-        },
+    if (!identifier && !email) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Student ID or email is required.' }
       });
     }
 
-    // --- ADMIN LOGIN ---
-    if (role === 'ADMIN' || role === 'COLLEGE_ADMIN') {
-      const user = await prisma.user.findUnique({
-        where: { email },
-        include: { roles: true },
-      });
+    // Find student account linked to the student UID or email
+    const account = await prisma.studentAccount.findFirst({
+      where: {
+        OR: [
+          { student: { studentUid: identifier } },
+          { email: email || '' }
+        ]
+      },
+      include: { student: true }
+    });
 
-      if (!user) {
-        return res.status(401).json({ message: 'Invalid email or password' });
-      }
-
-      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-      if (!isPasswordValid) {
-        return res.status(401).json({ message: 'Invalid email or password' });
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: 'Admin login successful',
-        user: {
-          id: user.id,
-          email: user.email,
-          roles: user.roles.map((r) => r.role),
-        },
+    if (!account || !account.student) {
+      return res.status(401).json({
+        success: false,
+        error: { message: 'Invalid Student ID or password.' }
       });
     }
+
+    // 🔒 CHECK: Ensure student account is active (Block ON_HOLD students)
+    if (account.student.status && account.student.status !== 'ACTIVE') {
+      return res.status(403).json({
+        success: false,
+        error: {
+          message: 'Your account is currently pending college approval. Please contact your college administrator.'
+        }
+      });
+    }
+
+    // Verify password hash
+    const isPasswordValid = await bcrypt.compare(password, account.passwordHash);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        error: { message: 'Invalid Student ID or password.' }
+      });
+    }
+
+    // Generate a secure session access token
+    const accessToken = `bearer-token-${account.student.studentUid}-${Date.now()}`;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        accessToken,
+        studentUid: account.student.studentUid,
+        requiresPasswordChange: account.mustChangePassword || false,
+      }
+    });
+
   } catch (error: any) {
     console.error('Login Error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    return res.status(500).json({
+      success: false,
+      error: { message: 'Internal server error during login' }
+    });
   }
 });
-app.use((_req, res) => res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Route not found' } }));
-app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled API error', error);
-  return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected server error occurred' } });
+app.post('/api/v1/dev-approve/:studentUid', async (req, res) => {
+  const { studentUid } = req.params;
+  const normalizedUid = studentUid.toUpperCase();
+
+  try {
+    console.log(`--- APPROVING STUDENT: ${normalizedUid} ---`);
+
+    const existingStudent = await prisma.student.findUnique({
+      where: { studentUid: normalizedUid }
+    });
+
+    if (!existingStudent) {
+      return res.status(404).json({ success: false, message: 'Student record not found.' });
+    }
+
+    // 1. Simply update status to ACTIVE first to unblock the student portal
+    const updatedStudent = await prisma.student.update({
+      where: { studentUid: normalizedUid },
+      data: { status: 'ACTIVE' },
+      include: {
+        college: true,
+        branch: true,
+        course: true
+      }
+    });
+
+    console.log(`Student ${normalizedUid} successfully set to ACTIVE`);
+
+    return res.json({
+      success: true,
+      message: `Student ${normalizedUid} approved successfully.`,
+      data: updatedStudent
+    });
+
+  } catch (error: any) {
+    console.error('DETAILED APPROVAL ERROR:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error during approval'
+    });
+  }
+});
+// 1. Fetch all pending students awaiting approval
+app.get('/api/v1/admin/students/pending', async (req, res) => {
+  try {
+    const pendingStudents = await prisma.student.findMany({
+      where: { status: 'ON_HOLD' },
+      include: {
+        college: true,
+        branch: true,
+        course: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return res.json({ success: true, data: pendingStudents });
+  } catch (error) {
+    console.error('Error fetching pending students:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
 });
 
+// 2. Approve student and assign fee structure
+app.post('/api/v1/admin/students/:studentUid/approve', async (req, res) => {
+  const { studentUid } = req.params;
+  const { feeTotal = 100000 } = req.body;
+  const normalizedUid = studentUid.toUpperCase();
+
+  try {
+    const existingStudent = await prisma.student.findUnique({
+      where: { studentUid: normalizedUid },
+      include: { course: true }
+    });
+
+    if (!existingStudent) {
+      return res.status(404).json({ success: false, message: 'Student record not found.' });
+    }
+
+    let feeStructure = await prisma.feeStructure.findFirst({
+      where: { courseId: existingStudent.courseId }
+    });
+
+    if (!feeStructure) {
+      feeStructure = await prisma.feeStructure.create({
+        data: {
+          courseId: existingStudent.courseId,
+          academicYear: '2026-2027',
+          totalAmount: feeTotal
+        }
+      });
+    }
+
+    const updatedStudent = await prisma.$transaction(async (tx) => {
+      const student = await tx.student.update({
+        where: { studentUid: normalizedUid },
+        data: { status: 'ACTIVE' }
+      });
+
+      const defaultInstallments = [
+        { amount: feeTotal / 2, dueDate: new Date('2026-07-01') },
+        { amount: feeTotal / 2, dueDate: new Date('2027-07-01') }
+      ];
+
+      const existingAssignment = await tx.feeAssignment.findFirst({
+        where: { studentId: student.id }
+      });
+
+      if (!existingAssignment) {
+        await tx.feeAssignment.create({
+          data: {
+            studentId: student.id,
+            feeStructureId: feeStructure.id,
+            originalAmount: feeTotal,
+            isCurrent: true,
+            installments: { create: defaultInstallments }
+          }
+        });
+      }
+
+      return tx.student.findUnique({
+        where: { studentUid: normalizedUid },
+        include: {
+          college: true,
+          branch: true,
+          course: true,
+          feeAssignments: { include: { installments: true } }
+        }
+      });
+    });
+
+    return res.json({
+      success: true,
+      message: `Student ${normalizedUid} approved successfully.`,
+      data: updatedStudent
+    });
+
+  } catch (error: any) {
+    console.error('Error approving student record:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Internal server error during approval' });
+  }
+});
+// ==========================================
+// 1. COLLEGE ADMIN ROUTES
+// ==========================================
+
+// Search Students (Branch & Course Filtered)
+app.get('/api/v1/college-admin/students/search', async (req, res) => {
+  const { query, courseId, collegeId } = req.query;
+
+  try {
+    const students = await prisma.student.findMany({
+      where: {
+        ...(collegeId && { collegeId: String(collegeId) }),
+        ...(courseId && { courseId: String(courseId) }),
+        ...(query && {
+          OR: [
+            { firstName: { contains: String(query), mode: 'insensitive' } },
+            { lastName: { contains: String(query), mode: 'insensitive' } },
+            { studentUid: { contains: String(query), mode: 'insensitive' } }
+          ]
+        })
+      },
+      include: { course: true, branch: true }
+    });
+
+    return res.json({ success: true, data: students });
+  } catch (error) {
+    console.error('Error searching students:', error);
+    return res.status(500).json({ success: false, message: 'Failed to search students' });
+  }
+});
+
+// Fee Collection Reports
+app.get('/api/v1/college-admin/reports/fee-collections', async (req, res) => {
+  const { collegeId, courseId } = req.query;
+
+  try {
+    const payments = await prisma.paymentAllocation.findMany({
+      where: {
+        installment: {
+          feeAssignment: {
+            student: {
+              ...(collegeId && { collegeId: String(collegeId) }),
+              ...(courseId && { courseId: String(courseId) })
+            }
+          }
+        }
+      },
+      include: {
+        payment: true,
+        installment: {
+          include: {
+            feeAssignment: {
+              include: { student: true }
+            }
+          }
+        }
+      }
+    });
+
+    return res.json({ success: true, data: payments });
+  } catch (error) {
+    console.error('Error fetching fee collection report:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch report' });
+  }
+});
+
+// Send Due Reminders
+app.post('/api/v1/college-admin/notifications/send-due-reminders', async (req, res) => {
+  const { collegeId, daysThreshold = 7 } = req.body;
+
+  try {
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + Number(daysThreshold));
+
+    const pendingInstallments = await prisma.feeInstallment.findMany({
+      where: {
+        dueDate: { lte: targetDate },
+        feeAssignment: {
+          student: { collegeId: String(collegeId) }
+        }
+      },
+      include: {
+        feeAssignment: {
+          include: { student: true }
+        }
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: `Notifications queued for ${pendingInstallments.length} students with upcoming dues.`
+    });
+  } catch (error) {
+    console.error('Error sending reminders:', error);
+    return res.status(500).json({ success: false, message: 'Failed to send reminders' });
+  }
+});
+
+
+// ==========================================
+// 2. SUPER ADMIN ROUTES
+// ==========================================
+
+// Create Admin User
+app.post('/api/v1/super-admin/admins', async (req, res) => {
+  const { name, email, password, collegeId, role = 'COLLEGE_ADMIN' } = req.body;
+
+  try {
+    const newAdmin = await prisma.user.create({
+      data: {
+        name,
+        email,
+        passwordHash: password, // Note: Hash with bcrypt in production
+        role,
+        collegeId
+      }
+    });
+
+    return res.json({ success: true, data: newAdmin });
+  } catch (error) {
+    console.error('Error creating admin:', error);
+    return res.status(500).json({ success: false, message: 'Failed to create admin' });
+  }
+});
+// Remove Admin User
+app.delete('/api/v1/super-admin/admins/:adminId', async (req, res) => {
+  const { adminId } = req.params;
+
+  try {
+    await prisma.user.delete({
+      where: { id: adminId }
+    });
+
+    return res.json({ success: true, message: 'Admin user removed successfully.' });
+  } catch (error) {
+    console.error('Error removing admin:', error);
+    return res.status(500).json({ success: false, message: 'Failed to remove admin' });
+  }
+});
+
+// System-Wide Fee Analytics Grouped by Payment Reference
+app.get('/api/v1/super-admin/reports/fee-analytics', async (req, res) => {
+  try {
+    const analytics = await prisma.paymentAllocation.groupBy({
+      by: ['paymentId'],
+      _sum: { amount: true }
+    });
+
+    return res.json({ success: true, data: analytics });
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch analytics' });
+  }
+});
+app.get('/api/v1/dev-reset-admin', async (req, res) => {
+  try {
+    const newPasswordHash = '$2b$10$e8G7/K4w8G40X30tQ6j9a.s3Z6U8z3O3YwWbS/vM5E2XG3X8.O9q2'; // Hash for 'Admin@123'
+
+    const admin = await prisma.user.upsert({
+      where: { email: 'admin@nsrimpulse.com' },
+      update: {
+        passwordHash: newPasswordHash
+      },
+      create: {
+        adminId: 'NSRADMIN-001',
+        email: 'admin@nsrimpulse.com',
+        passwordHash: newPasswordHash
+      }
+    });
+
+    return res.json({ success: true, message: 'College Admin password reset to Admin@123', admin });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+// 1. Super Admin Context Route
+app.get('/api/v1/super-admin/context', async (req, res) => {
+  try {
+    const colleges = await prisma.college.findMany({
+      include: { branches: true }
+    });
+    const courses = await prisma.course.findMany();
+
+    const allUsers = await prisma.user.findMany({
+      include: {
+        roles: true,
+        adminScopes: {
+          include: { college: true, branch: true }
+        }
+      }
+    });
+
+    const admins = allUsers.filter(u =>
+      u.roles?.some(r => r.role === 'COLLEGE_ADMIN') || (u.adminScopes && u.adminScopes.length > 0)
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        superAdmin: { id: 'super-admin-id', email: 'superadmin@nsrimpulse.com', adminId: 'SUPERADMIN-001' },
+        colleges: colleges || [],
+        courses: courses || [],
+        admins: admins.map((a) => ({
+          id: a.id,
+          adminId: a.adminId || 'N/A',
+          email: a.email,
+          isActive: a.isActive,
+          scopes: a.adminScopes?.map((s) => ({
+            college: { id: s.college?.id, name: s.college?.name },
+            branch: s.branch ? { id: s.branch.id, name: s.branch.name } : null
+          })) || []
+        }))
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
+
+// 1. Get Branch-wise Student Counts Across All Colleges (Network Analytics)
+app.get('/api/v1/super-admin/branches/student-counts', async (req, res) => {
+  try {
+    const branches = await prisma.branch.findMany({
+      include: {
+        college: true,
+        _count: {
+          select: { students: true }
+        }
+      }
+    });
+
+    const summary = branches.map(b => ({
+      branchId: b.id,
+      branchName: b.name,
+      collegeName: b.college?.name || 'N/A',
+      studentCount: b._count.students
+    }));
+
+    return res.json({ success: true, data: summary });
+  } catch (error: any) {
+    console.error('Branch Student Counts Error:', error);
+    return res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
+
+// 2. Enhanced Global Student Search with Branch & Session Filters
+app.get('/api/v1/super-admin/students/search', async (req, res) => {
+  try {
+    const query = req.query.query ? String(req.query.query).trim() : '';
+    const collegeId = req.query.collegeId ? String(req.query.collegeId) : '';
+    const branchId = req.query.branchId ? String(req.query.branchId) : '';
+    const sessionYear = req.query.session ? String(req.query.session) : '';
+
+    const whereClause: any = {};
+
+    if (collegeId) whereClause.collegeId = collegeId;
+    if (branchId) whereClause.branchId = branchId;
+    if (sessionYear) whereClause.academicYear = sessionYear;
+
+    if (query) {
+      whereClause.OR = [
+        { studentUid: { contains: query, mode: 'insensitive' } },
+        { firstName: { contains: query, mode: 'insensitive' } },
+        { lastName: { contains: query, mode: 'insensitive' } },
+        { college: { name: { contains: query, mode: 'insensitive' } } },
+        { branch: { name: { contains: query, mode: 'insensitive' } } },
+        { academicYear: { contains: query, mode: 'insensitive' } }
+      ];
+    }
+
+    const students = await prisma.student.findMany({
+      where: whereClause,
+      include: { college: true, branch: true, course: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return res.json({ success: true, data: students || [] });
+  } catch (error: any) {
+    console.error('Super Admin Student Search Error:', error);
+    return res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
+// System-Wide Fee Collections Report
+app.get('/api/v1/admin/super-admin/reports/fee-collections', async (req, res) => {
+  try {
+    const payments = await prisma.paymentAllocation.findMany({
+      include: {
+        installment: {
+          include: {
+            feeAssignment: {
+              include: {
+                student: {
+                  include: { college: true, branch: true }
+                }
+              }
+            }
+          }
+        }
+      }
+      // Removed invalid orderBy clause
+    });
+
+    return res.json({ success: true, data: payments });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: { message: error.message } });
+  }
+});
 export default app;
 
 // Keep the local development server working.

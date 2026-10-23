@@ -1,7 +1,9 @@
 import {
   ArrowUpRight,
+  Bell,
   BookOpen,
   CheckCircle2,
+  Download,
   Eye,
   EyeOff,
   FileText,
@@ -15,9 +17,16 @@ import {
 import { FormEvent, useEffect, useState } from "react";
 import nsrLogo from "../../assets/nsrLogo.png";
 import { apiBase } from "./api";
+import { FeePlanAssignment } from "./FeePlanAssignment";
 import { getIstGreeting } from "./timeGreeting";
 
-type AdminView = "dashboard" | "search" | "create" | "certificates";
+type AdminView =
+  | "dashboard"
+  | "search"
+  | "approvals"
+  | "create"
+  | "certificates"
+  | "reports";
 type CertificateType = "TRANSFER" | "BONAFIDE_CONDUCT";
 type AdminContext = {
   admin: { adminId: string; email: string };
@@ -167,13 +176,10 @@ function AdminLogin({
   }
   return (
     <div className="auth-page min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-3 sm:p-6 lg:p-8 font-sans selection:bg-amber-500 selection:text-slate-950 relative overflow-hidden">
-      {/* Ambient Glows */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
       <main className="auth-card w-full max-w-5xl bg-slate-900/80 backdrop-blur-2xl border border-slate-800 rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 relative z-10">
-
-        {/* Left Branding Sidebar */}
         <section className="auth-branding lg:col-span-5 bg-gradient-to-br from-slate-900 via-indigo-950/60 to-slate-950 p-8 lg:p-12 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800 relative">
           <div className="space-y-8">
             <div className="flex items-center justify-between">
@@ -200,23 +206,28 @@ function AdminLogin({
                 <ShieldCheck size={13} /> Admin Portal
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
-                Institutional <span className="text-amber-400 italic font-normal">management portal.</span>
+                Institutional{" "}
+                <span className="text-amber-400 italic font-normal">
+                  management portal.
+                </span>
               </h2>
             </div>
           </div>
 
           <div className="auth-quote mt-12 space-y-2 border-t border-slate-800/80 pt-6">
             <p className="text-slate-300 italic text-base">
-              “One campus, <span className="text-amber-400 font-semibold italic">clear control.”</span>
+              “One campus,{" "}
+              <span className="text-amber-400 font-semibold italic">
+                clear control.”
+              </span>
             </p>
-            <span className="text-xs text-slate-400 block font-medium">Accurate records and traceable student services.</span>
+            <span className="text-xs text-slate-400 block font-medium">
+              Accurate records and traceable student services.
+            </span>
           </div>
         </section>
 
-        {/* Right Admin Form Panel */}
         <section className="auth-form-panel lg:col-span-7 p-8 lg:p-12 space-y-8 flex flex-col justify-center">
-
-          {/* Role Switcher */}
           <div
             className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-950 border border-slate-800/80 max-w-xs"
             role="group"
@@ -240,7 +251,8 @@ function AdminLogin({
 
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-white tracking-tight">
-              College <span className="text-amber-400 italic font-normal">Admin.</span>
+              College{" "}
+              <span className="text-amber-400 italic font-normal">Admin.</span>
             </h1>
             <p className="text-sm text-slate-400 leading-relaxed">
               Use the account issued by your organization.
@@ -249,7 +261,9 @@ function AdminLogin({
 
           <form onSubmit={submit} className="space-y-5">
             <label className="block space-y-2">
-              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Admin ID</span>
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Admin ID
+              </span>
               <div className="relative flex items-center">
                 <span className="absolute left-4 text-slate-500">
                   <UserRound size={17} />
@@ -265,7 +279,9 @@ function AdminLogin({
             </label>
 
             <label className="block space-y-2">
-              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Password</span>
+              <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                Password
+              </span>
               <div className="relative flex items-center">
                 <span className="absolute left-4 text-slate-500">
                   <LockKeyhole size={17} />
@@ -289,7 +305,10 @@ function AdminLogin({
             </label>
 
             {error && (
-              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium" role="alert">
+              <div
+                className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium"
+                role="alert"
+              >
                 {error}
               </div>
             )}
@@ -306,7 +325,13 @@ function AdminLogin({
             Demo ID: <strong className="text-amber-400 font-mono">NSRADMIN-001</strong>
           </p>
           <p className="text-xs text-slate-500 text-center">
-            Super Admin? <a className="font-semibold text-amber-700 hover:underline" href="/super-admin">Sign in here</a>
+            Super Admin?{" "}
+            <a
+              className="font-semibold text-amber-700 hover:underline"
+              href="/super-admin"
+            >
+              Sign in here
+            </a>
           </p>
         </section>
       </main>
@@ -385,16 +410,28 @@ function AdminWorkspace({
               <BookOpen size={17} /> Overview
             </button>
             <button
+              className={view === "approvals" ? "active" : ""}
+              onClick={() => setView("approvals")}
+            >
+              <CheckCircle2 size={17} /> Pending Approvals
+            </button>
+            <button
               className={view === "search" ? "active" : ""}
               onClick={() => setView("search")}
             >
-              <UserRound size={17} /> Search student
+              <UserRound size={17} /> Search Student
+            </button>
+            <button
+              className={view === "reports" ? "active" : ""}
+              onClick={() => setView("reports")}
+            >
+              <FileText size={17} /> Fee Reports
             </button>
             <button
               className={view === "create" ? "active" : ""}
               onClick={() => setView("create")}
             >
-              <IndianRupee size={17} /> New admission
+              <IndianRupee size={17} /> New Admission
             </button>
             <button
               className={view === "certificates" ? "active" : ""}
@@ -408,7 +445,15 @@ function AdminWorkspace({
           {view === "dashboard" && (
             <AdminOverview context={context} onNavigate={setView} />
           )}
-          {view === "search" && <StudentSearch token={token} />}
+          {view === "approvals" && (
+            <PendingApprovals token={token} context={context} />
+          )}
+          {view === "search" && (
+            <StudentSearch token={token} context={context} />
+          )}
+          {view === "reports" && (
+            <FeeReports token={token} context={context} />
+          )}
           {view === "create" && (
             <CreateStudent
               token={token}
@@ -483,41 +528,208 @@ function AdminOverview({
         </div>
       </div>
       <div className="admin-action-grid">
-        <button onClick={() => onNavigate("create")}>
+        <button onClick={() => onNavigate("approvals")}>
           <span>01</span>
-          <UserRound size={24} />
-          <h2>Create student</h2>
+          <CheckCircle2 size={24} />
+          <h2>Pending Approvals</h2>
+          <p>Review new student registrations and activate their accounts.</p>
+          <b>
+            Review Queue <ArrowUpRight size={15} />
+          </b>
+        </button>
+        <button onClick={() => onNavigate("reports")}>
+          <span>02</span>
+          <FileText size={24} />
+          <h2>Fee Reports</h2>
           <p>
-            Create the student master record, fee assignment, and installment
-            plan in one flow.
+            Filter daily, weekly, monthly fee collection reports and export to
+            CSV.
           </p>
           <b>
-            Start admission <ArrowUpRight size={15} />
+            View Reports <ArrowUpRight size={15} />
           </b>
         </button>
         <button onClick={() => onNavigate("search")}>
-          <span>02</span>
+          <span>03</span>
           <BookOpen size={24} />
-          <h2>Find student</h2>
+          <h2>Find Student</h2>
           <p>
-            Search by immutable Student ID to review academic and financial
-            details.
+            Search students by Name, Course, or Student ID within your branch.
           </p>
           <b>
-            Search records <ArrowUpRight size={15} />
+            Search Records <ArrowUpRight size={15} />
+          </b>
+        </button>
+        <button onClick={() => onNavigate("create")}>
+          <span>04</span>
+          <UserRound size={24} />
+          <h2>Create Student</h2>
+          <p>
+            Create student master record, fee assignment, and installments.
+          </p>
+          <b>
+            Start Admission <ArrowUpRight size={15} />
           </b>
         </button>
       </div>
-      {/* <section className="portal-card admin-scope-card"><div className="admin-section-title"><div><p className="eyebrow">AUTHORIZED SCOPE</p><h2>Your access</h2></div><CheckCircle2 size={21} /></div>{context.scopes.map((scope) => <div key={`${scope.college.id}-${scope.branch?.id}`}><CheckCircle2 size={17} /><span><strong>{scope.college.name}</strong><small>{scope.branch?.name ?? 'All branches'}</small></span></div>)}</section> */}
     </div>
   );
 }
 
-function StudentSearch({ token }: { token: string }) {
+function PendingApprovals({
+  token,
+  context,
+}: {
+  token: string;
+  context: AdminContext;
+}) {
+  const [pendingList, setPendingList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [processingUid, setProcessingUid] = useState<string | null>(null);
+
+  const collegeId = context.scopes[0]?.college.id;
+
+  const loadPendingStudents = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${apiBase}/api/v1/college-admin/students/search?collegeId=${collegeId}`,
+      );
+      const json = await res.json();
+      if (json.success) {
+        setPendingList(json.data.filter((s: any) => s.status === "ON_HOLD"));
+      }
+    } catch (err) {
+      console.error("Error loading pending students", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPendingStudents();
+  }, [collegeId]);
+
+  const handleApprove = async (studentUid: string) => {
+    setProcessingUid(studentUid);
+    try {
+      const res = await fetch(
+        `${apiBase}/api/v1/admin/students/${studentUid}/approve`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ feeTotal: 100000 }),
+        },
+      );
+      const json = await res.json();
+      if (json.success) {
+        setPendingList((prev) => prev.filter((s) => s.studentUid !== studentUid));
+        alert(`Student ${studentUid} approved successfully!`);
+      } else {
+        alert(`Approval failed: ${json.message}`);
+      }
+    } catch (err) {
+      console.error("Error approving student:", err);
+      alert("Network error during approval.");
+    } finally {
+      setProcessingUid(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="admin-page-heading compact">
+        <p className="eyebrow">REGISTRATION QUEUE</p>
+        <h1>Pending Student Approvals</h1>
+        <p>Review newly registered students and assign their fee schedules.</p>
+      </div>
+
+      {loading ? (
+        <div className="p-8 text-center text-slate-400 font-medium">
+          Loading pending registrations...
+        </div>
+      ) : pendingList.length === 0 ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
+          <p className="text-slate-400 font-medium">
+            No pending student registrations in your queue.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <table className="w-full text-left text-sm text-slate-300">
+            <thead className="bg-slate-950 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b border-slate-800">
+              <tr>
+                <th className="px-6 py-4">Student ID & Name</th>
+                <th className="px-6 py-4">Course / Branch</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {pendingList.map((student) => (
+                <tr
+                  key={student.id}
+                  className="hover:bg-slate-800/40 transition-colors"
+                >
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-white">
+                      {student.firstName} {student.lastName}
+                    </div>
+                    <div className="text-xs text-amber-400 font-mono">
+                      {student.studentUid}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div>{student.course?.name || "N/A"}</div>
+                    <div className="text-xs text-slate-500">
+                      {student.branch?.name}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                      {student.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => handleApprove(student.studentUid)}
+                      disabled={processingUid === student.studentUid}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50"
+                    >
+                      {processingUid === student.studentUid
+                        ? "Approving..."
+                        : "Approve & Assign Fees"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StudentSearch({
+  token,
+  context,
+}: {
+  token: string;
+  context: AdminContext;
+}) {
   const [studentId, setStudentId] = useState("");
+  const [selectedCourse, setSelectedCourse] = useState("");
   const [detail, setDetail] = useState<StudentDetail | null>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const collegeId = context.scopes[0]?.college.id;
+
   async function loadStudent(id: string) {
     setError("");
     setBusy(true);
@@ -528,6 +740,7 @@ function StudentSearch({ token }: { token: string }) {
           token,
         ),
       );
+      setSearchResults([]);
     } catch (reason) {
       setDetail(null);
       setError(reason instanceof Error ? reason.message : "Search failed");
@@ -535,28 +748,143 @@ function StudentSearch({ token }: { token: string }) {
       setBusy(false);
     }
   }
-  async function search(event: FormEvent) {
-    event.preventDefault();
-    await loadStudent(studentId);
+
+  async function performFilterSearch(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    setDetail(null);
+    try {
+      const queryParams = new URLSearchParams({
+        collegeId: collegeId || "",
+        ...(studentId && { query: studentId }),
+        ...(selectedCourse && { courseId: selectedCourse }),
+      });
+      const res = await fetch(
+        `${apiBase}/api/v1/college-admin/students/search?${queryParams}`,
+      );
+      const json = await res.json();
+      if (json.success) {
+        setSearchResults(json.data);
+      } else {
+        setError("Failed to search students");
+      }
+    } catch (err) {
+      setError("Network error occurred");
+    } finally {
+      setBusy(false);
+    }
   }
+
   return (
     <>
       <div className="admin-page-heading compact">
-        <p className="eyebrow">STUDENT SEARCH</p>
-        <h1>Find the master record.</h1>
+        <p className="eyebrow">STUDENT SEARCH & FILTER</p>
+        <h1>Search Campus Records</h1>
+        <p>Filter students by Name, Course, or Student ID.</p>
       </div>
-      <form className="admin-search" onSubmit={search}>
-        <input
-          value={studentId}
-          onChange={(event) => setStudentId(event.target.value)}
-          placeholder="Enter Student ID"
-          required
-        />
-        <button className="primary-button" disabled={busy}>
-          {busy ? "Searching..." : "Search"}
-        </button>
+
+      <form
+        className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 mb-6"
+        onSubmit={performFilterSearch}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="text-xs font-semibold text-slate-400 block mb-1">
+              Search Term (Name or ID)
+            </label>
+            <div className="relative">
+              <BookOpen
+                className="absolute left-3 top-3 text-slate-500"
+                size={16}
+              />
+              <input
+                className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl pl-9 pr-4 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
+                value={studentId}
+                onChange={(e) => setStudentId(e.target.value)}
+                placeholder="e.g. Ramesh or NSRHYD-0002"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-400 block mb-1">
+              Course
+            </label>
+            <select
+              className="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-4 py-2.5 text-sm focus:border-amber-500 focus:outline-none"
+              value={selectedCourse}
+              onChange={(e) => setSelectedCourse(e.target.value)}
+            >
+              <option value="">All Courses</option>
+              {context.courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-end">
+            <button
+              type="submit"
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm transition disabled:opacity-50"
+              disabled={busy}
+            >
+              {busy ? "Searching..." : "Apply Filters"}
+            </button>
+          </div>
+        </div>
       </form>
-      {error && <p className="admin-form-error">{error}</p>}
+
+      {error && <p className="admin-form-error mb-4">{error}</p>}
+
+      {searchResults.length > 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden mb-6">
+          <table className="w-full text-left text-sm text-slate-300">
+            <thead className="bg-slate-950 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b border-slate-800">
+              <tr>
+                <th className="px-6 py-4">Student ID & Name</th>
+                <th className="px-6 py-4">Course</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {searchResults.map((st) => (
+                <tr
+                  key={st.id}
+                  className="hover:bg-slate-800/40 transition-colors"
+                >
+                  <td className="px-6 py-4">
+                    <div className="font-bold text-white">
+                      {st.firstName} {st.lastName}
+                    </div>
+                    <div className="text-xs text-amber-400 font-mono">
+                      {st.studentUid}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">{st.course?.name || "N/A"}</td>
+                  <td className="px-6 py-4">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                      {st.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => loadStudent(st.studentUid)}
+                      className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition"
+                    >
+                      View Record
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {detail && (
         <StudentDetails
           detail={detail}
@@ -565,6 +893,173 @@ function StudentSearch({ token }: { token: string }) {
         />
       )}
     </>
+  );
+}
+
+function FeeReports({
+  token,
+  context,
+}: {
+  token: string;
+  context: AdminContext;
+}) {
+  const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const collegeId = context.scopes[0]?.college.id;
+
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${apiBase}/api/v1/college-admin/reports/fee-collections?collegeId=${collegeId}`,
+      );
+      const json = await res.json();
+      if (json.success) {
+        setReports(json.data);
+      }
+    } catch (err) {
+      console.error("Error fetching reports", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, [collegeId]);
+
+  const exportCSV = () => {
+    if (!reports.length) return alert("No records to export.");
+    const headers = [
+      "Payment ID,Amount,Date,Mode,Student ID,Student Name,Course",
+    ];
+    const rows = reports.map((r: any) => {
+      const student = r.installment?.feeAssignment?.student;
+      return [
+        r.id,
+        r.amount,
+        r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "",
+        r.payment?.mode || "OFFLINE",
+        student?.studentUid || "",
+        `"${student?.firstName || ""} ${student?.lastName || ""}"`,
+        `"${student?.course?.name || ""}"`,
+      ].join(",");
+    });
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Fee_Collection_Report_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const sendDueReminders = async () => {
+    setReminderBusy(true);
+    try {
+      const res = await fetch(
+        `${apiBase}/api/v1/college-admin/notifications/send-due-reminders`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ collegeId, daysThreshold: 7 }),
+        },
+      );
+      const json = await res.json();
+      if (json.success) {
+        alert(json.message);
+      } else {
+        alert("Failed to send reminders.");
+      }
+    } catch (err) {
+      alert("Error sending due notifications.");
+    } finally {
+      setReminderBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="admin-page-heading compact flex justify-between items-center">
+        <div>
+          <p className="eyebrow">FINANCIAL INSIGHTS</p>
+          <h1>Fee Collection Reports</h1>
+          <p>Trace daily, weekly, and course-wise fee transactions.</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={sendDueReminders}
+            disabled={reminderBusy}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition"
+          >
+            <Bell size={15} />{" "}
+            {reminderBusy ? "Sending..." : "Send Fee Due Reminders"}
+          </button>
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2.5 rounded-xl text-xs font-bold transition"
+          >
+            <Download size={15} /> Export CSV
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="p-8 text-center text-slate-400">Loading fee collection data...</div>
+      ) : reports.length === 0 ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-400">
+          No fee payment allocations recorded yet.
+        </div>
+      ) : (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <table className="w-full text-left text-sm text-slate-300">
+            <thead className="bg-slate-950 text-slate-400 uppercase text-xs font-semibold tracking-wider border-b border-slate-800">
+              <tr>
+                <th className="px-6 py-4">Transaction ID</th>
+                <th className="px-6 py-4">Student</th>
+                <th className="px-6 py-4">Amount</th>
+                <th className="px-6 py-4">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {reports.map((row: any) => {
+                const student = row.installment?.feeAssignment?.student;
+                return (
+                  <tr
+                    key={row.id}
+                    className="hover:bg-slate-800/40 transition-colors"
+                  >
+                    <td className="px-6 py-4 font-mono text-xs text-amber-400">
+                      {row.id}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-white">
+                        {student?.firstName} {student?.lastName}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {student?.studentUid}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-emerald-400">
+                      ₹{Number(row.amount).toLocaleString("en-IN")}
+                    </td>
+                    <td className="px-6 py-4 text-slate-400 text-xs">
+                      {row.createdAt
+                        ? new Date(row.createdAt).toLocaleDateString()
+                        : "N/A"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1567,6 +2062,7 @@ function FormField({
     </label>
   );
 }
+
 function createRequestId() {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   bytes[6] = (bytes[6]! & 0x0f) | 0x40;
@@ -1576,6 +2072,7 @@ function createRequestId() {
   ).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
+
 async function downloadAdminReceipt(
   detail: StudentDetail,
   payment: OfflinePaymentResult,
@@ -1628,6 +2125,7 @@ async function downloadAdminReceipt(
   );
   document.save(`${payment.receiptNumber}.pdf`);
 }
+
 async function adminFetch<T>(
   path: string,
   token: string,
@@ -1651,9 +2149,9 @@ async function adminFetch<T>(
     throw new Error(result.error?.message ?? "Admin request failed");
   return result.data;
 }
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium" }).format(
     new Date(value),
   );
 }
-import { FeePlanAssignment } from './FeePlanAssignment';

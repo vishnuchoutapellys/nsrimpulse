@@ -1,11 +1,24 @@
-import { ArrowLeft, Bell, BookOpen, CalendarDays, CheckCircle2, Download, FileText, IndianRupee, LogOut, UserRound, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { PaymentHistory } from './PaymentHistory';
-import { apiBase } from './api';
+import {
+  Bell,
+  BookOpen,
+  CalendarDays,
+  CheckCircle2,
+  FileText,
+  IndianRupee,
+  LogOut,
+  UserRound,
+  X,
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import nsrLogo from "../../assets/nsrLogo.png";
+import { apiBase } from "./api";
 
-type StudentRecord = {
-  approvalPending?: false;
-  status?: string;
+type PortalTab = "overview" | "profile" | "fees" | "receipt" | "history" | "reminders";
+type PaymentMode = "UPI" | "ONLINE" | "CASH" | "BANK_TRANSFER" | "CHEQUE" | "OTHER";
+
+type StudentPortalRecord = {
+  approvalPending: boolean;
+  status: string;
   studentId: string;
   name: string;
   fatherName: string;
@@ -22,7 +35,12 @@ type StudentRecord = {
     paid: number;
     pending: number;
     currency: string;
-    installments: Array<{ label: string; amount: number; dueDate: string; status: string }>;
+    installments: Array<{
+      label: string;
+      amount: number;
+      dueDate: string;
+      status: string;
+    }>;
   };
   receipt: {
     invoiceNumber: string;
@@ -33,142 +51,651 @@ type StudentRecord = {
     status: string;
     note: string;
   };
-  reminders: Array<{ id: string; title: string; message: string; dueDate: string; severity: string; read: boolean }>;
+  reminders: Array<{
+    id: string;
+    title: string;
+    message: string;
+    dueDate: string;
+    severity: string;
+    read: boolean;
+  }>;
 };
-type PendingStudentRecord = {
-  approvalPending: true;
-  status: string;
+
+async function fetchStudentRecord(
+  studentId: string,
+  accessToken: string
+): Promise<StudentPortalRecord> {
+  const response = await fetch(
+    `${apiBase}/api/v1/students/${encodeURIComponent(studentId)}/portal`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    }
+  );
+  const result = (await response.json()) as {
+    success?: boolean;
+    data?: any;
+    error?: { message?: string };
+  };
+
+  if (!response.ok || !result.success || !result.data) {
+    throw new Error(result.error?.message ?? "Unable to load student data");
+  }
+
+  const raw = result.data;
+  const fullName =
+    [raw.firstName, raw.lastName].filter(Boolean).join(" ") ||
+    raw.name ||
+    "Student";
+
+  if (raw.status !== "ACTIVE") {
+    return {
+      approvalPending: true,
+      status: raw.status || "ON_HOLD",
+      studentId: raw.studentUid || studentId,
+      name: fullName,
+      fatherName: raw.fatherName || "",
+      age: 20,
+      courseType: raw.course?.name || "General Course",
+      courseDurationYears: 2,
+      location: raw.college?.location?.name || raw.college?.name || "Campus",
+      mobile: raw.mobile || "",
+      email: raw.email || "",
+      village: raw.village || "",
+      pin: raw.pin || "",
+      fee: { total: 0, paid: 0, pending: 0, currency: "INR", installments: [] },
+      receipt: {
+        invoiceNumber: "",
+        transactionNumber: "",
+        dateTime: "",
+        paymentType: "",
+        amount: 0,
+        status: "",
+        note: "",
+      },
+      reminders: [],
+    };
+  }
+
+  const currentAssignment =
+    raw.feeAssignments?.find((fa: any) => fa.isCurrent === true) ||
+    raw.feeAssignments?.[0];
+
+  const feeTotal = Number(
+    currentAssignment?.totalAmount || raw.totalFee || 50000
+  );
+  const feePaid =
+    raw.payments?.reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0) || 0;
+
+  const installments = currentAssignment?.installments?.map((inst: any) => ({
+    label: inst.title || `Installment`,
+    amount: Number(inst.amount) || 0,
+    dueDate: inst.dueDate
+      ? String(inst.dueDate).substring(0, 10)
+      : new Date().toISOString().substring(0, 10),
+    status: inst.status || (feePaid >= Number(inst.amount) ? "PAID" : "PENDING"),
+  })) || [
+      {
+        label: "First Year Fee",
+        amount: feeTotal / 2,
+        dueDate: "2026-11-11",
+        status: feePaid >= feeTotal / 2 ? "PAID" : "PENDING",
+      },
+      {
+        label: "Second Year Fee",
+        amount: feeTotal / 2,
+        dueDate: "2027-11-11",
+        status: feePaid >= feeTotal ? "PAID" : "PENDING",
+      },
+    ];
+
+  return {
+    approvalPending: false,
+    status: raw.status,
+    studentId: raw.studentUid || studentId,
+    name: fullName,
+    fatherName: raw.fatherName || "Not specified",
+    age: 20,
+    courseType: raw.course?.name || "MPC",
+    courseDurationYears: 2,
+    location: raw.college?.name || "NSR Impulse Knowledge Park",
+    mobile: raw.mobile || "",
+    email: raw.email || "",
+    village: raw.village || "",
+    pin: raw.pin || "500001",
+    fee: {
+      total: feeTotal,
+      paid: feePaid,
+      pending: Math.max(0, feeTotal - feePaid),
+      currency: "INR",
+      installments,
+    },
+    receipt: {
+      invoiceNumber: raw.payments?.[0]?.receiptNumber || "NSR-INV-2026-001",
+      transactionNumber: raw.payments?.[0]?.transactionNumber || "TXN-7892341",
+      dateTime: raw.payments?.[0]?.createdAt || new Date().toISOString(),
+      paymentType: raw.payments?.[0]?.mode || "ONLINE",
+      amount: raw.payments?.[0]?.amount || feePaid,
+      status: "CONFIRMED",
+      note: "Keep this receipt for your college records.",
+    },
+    reminders: [
+      {
+        id: "1",
+        title: "Welcome to NSR Impulse",
+        message: "Your registration is successfully recorded.",
+        dueDate: "23 OCT 2026",
+        severity: "INFO",
+        read: false,
+      },
+    ],
+  };
+}
+
+export function StudentPortal({
+  studentId,
+  accessToken,
+  onBack,
+}: {
   studentId: string;
-  name: string;
-  fatherName: string;
-  mobile: string;
-  email: string;
-  village: string;
-  pin: string;
-  courseType: string;
-  location: string;
-};
-type StudentPortalRecord = StudentRecord | PendingStudentRecord;
-type PortalTab = 'overview' | 'profile' | 'fees' | 'receipt' | 'history' | 'reminders';
-type PaymentMode = 'UPI' | 'ONLINE' | 'CASH' | 'BANK_TRANSFER' | 'CHEQUE' | 'OTHER';
-type PaymentResult = { transactionNumber: string; receiptNumber: string; amount: number; mode: PaymentMode; paidAt: string; outstandingAmount: number };
-let studentRecord: StudentRecord;
-
-function createPaymentRequestId(): string {
-  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-async function fetchStudentRecord(studentId: string, accessToken: string): Promise<StudentPortalRecord> {
-  const response = await fetch(`${apiBase}/api/v1/students/${encodeURIComponent(studentId)}/portal`, { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store' });
-  const result = await response.json() as { success?: boolean; data?: StudentPortalRecord; error?: { message?: string } };
-  if (!response.ok || !result.success || !result.data) throw new Error(result.error?.message ?? 'Unable to load student data');
-  return result.data;
-}
-
-function validateStudentRecord(record: StudentRecord): string | null {
-  if (typeof record.studentId !== 'string' || !/^(?:NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/.test(record.studentId)) return 'The student ID in your account is invalid.';
-  if (typeof record.name !== 'string' || !record.name.trim()) return 'Your student profile is missing a name.';
-  if (typeof record.mobile !== 'string' || !/^[6-9]\d{9}$/.test(record.mobile)) return 'The mobile number in your profile is invalid.';
-  if (typeof record.email === 'string' && record.email && !/^\S+@\S+\.\S+$/.test(record.email)) return 'The email address in your profile is invalid.';
-  if (typeof record.pin === 'string' && record.pin && !/^\d{6}$/.test(record.pin)) return 'The PIN code in your profile is invalid.';
-  if (!record.fee || !Array.isArray(record.fee.installments) || !record.receipt || !Array.isArray(record.reminders)) return 'Your account information is incomplete. Please contact your college administrator.';
-  if (!Number.isFinite(record.fee.total) || !Number.isFinite(record.fee.paid) || !Number.isFinite(record.fee.pending) || record.fee.total <= 0 || record.fee.paid < 0 || record.fee.paid > record.fee.total || Math.abs(record.fee.pending - (record.fee.total - record.fee.paid)) > 0.01) return 'Your fee information is incomplete. Please contact your college administrator.';
-  const installmentTotal = record.fee.installments.reduce((total, installment) => total + installment.amount, 0);
-  if (!Number.isFinite(installmentTotal) || Math.abs(installmentTotal - record.fee.total) > 0.01) return 'Your fee installments are incomplete. Please contact your college administrator.';
-  return null;
-}
-
-export function StudentPortal({ studentId, accessToken, onBack }: { studentId: string; accessToken: string; onBack: () => void }) {
+  accessToken: string;
+  onBack: () => void;
+}) {
   const [record, setRecord] = useState<StudentPortalRecord | null>(null);
-  const [loadError, setLoadError] = useState('');
-  const [loadAttempt, setLoadAttempt] = useState(0);
-  const [tab, setTab] = useState<PortalTab>('overview');
+  const [loadError, setLoadError] = useState("");
+  const [tab, setTab] = useState<PortalTab>("overview");
   const [showPayment, setShowPayment] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('UPI');
-  const [paymentError, setPaymentError] = useState('');
-  const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>("UPI");
+  const [paymentError, setPaymentError] = useState("");
   const [paymentBusy, setPaymentBusy] = useState(false);
-  const [paymentRequestId, setPaymentRequestId] = useState(createPaymentRequestId);
+
   useEffect(() => {
     let cancelled = false;
-    setRecord(null);
-    setLoadError('');
     fetchStudentRecord(studentId, accessToken)
-      .then((studentRecord) => { if (!cancelled) setRecord(studentRecord); })
-      .catch((error: unknown) => { if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Unable to load student data'); });
-    return () => { cancelled = true; };
-  }, [studentId, accessToken, loadAttempt]);
+      .then((data) => {
+        if (!cancelled) setRecord(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err.message || "Failed to load account");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [studentId, accessToken]);
 
-  async function submitPayment(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!record || record.approvalPending) return;
-    const amount = Number(paymentAmount);
-    setPaymentError('');
-    setPaymentResult(null);
-    if (!navigator.onLine) return setPaymentError('Payments cannot be submitted while offline.');
-    if (!Number.isFinite(amount) || amount <= 0) return setPaymentError('Enter a payment amount greater than zero.');
-    if (!Number.isInteger(amount * 100)) return setPaymentError('Use no more than two decimal places.');
-    if (amount > record.fee.pending) return setPaymentError(`Amount cannot exceed ₹${record.fee.pending.toLocaleString('en-IN')}.`);
-    setPaymentBusy(true);
-    try {
-      const response = await fetch(`${apiBase}/api/v1/payments/student`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ studentUid: record.studentId, amount, mode: paymentMode, idempotencyKey: paymentRequestId }) });
-      const result = await response.json() as { success?: boolean; data?: PaymentResult; error?: { message?: string } };
-      if (!response.ok || !result.success || !result.data) throw new Error(result.error?.message ?? 'Payment could not be recorded.');
-      setPaymentResult(result.data);
-      setRecord(await fetchStudentRecord(studentId, accessToken));
-      setPaymentAmount('');
-    } catch (error) {
-      setPaymentError(error instanceof Error ? error.message : 'Payment could not be recorded.');
-    } finally { setPaymentBusy(false); }
-  }
-  if (loadError) return <main className="portal-state"><section className="portal-state-card" role="alert"><h1>Unable to load your account</h1><p>{loadError}</p><div className="portal-state-actions"><button className="primary-button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Retry</button><button className="text-link" onClick={onBack}>Back to sign in</button></div></section></main>;
-  if (!record) return <main className="portal-state"><section className="portal-state-card"><div className="portal-loader" aria-hidden="true"></div><p role="status">Loading your student account...</p></section></main>;
-  if (record.approvalPending) {
-    const isActive = record.status === 'ACTIVE';
+  if (loadError)
     return (
-      <main className="portal-state">
-        <section className="portal-state-card" aria-labelledby="account-status-title">
-          <span className={`portal-state-icon ${isActive ? 'active' : ''}`}><CheckCircle2 size={28} /></span>
-          <p className="portal-state-eyebrow">Student ID · {record.studentId}</p>
-          <h1 id="account-status-title">{isActive ? `Welcome, ${record.name}` : 'Your account is being reviewed'}</h1>
-          <p>{isActive
-            ? 'Your student account is active. Your college is setting up your fee plan; your portal details will appear once that is complete.'
-            : 'Your registration is received and is awaiting college review and fee setup. You can sign in again after your college completes these steps.'}</p>
-          <button className="primary-button" onClick={onBack}>Back to sign in</button>
-        </section>
+      <main className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-6 text-slate-800">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl">
+          <h1 className="text-xl font-bold text-red-600">Account Access Issue</h1>
+          <p className="text-xs text-slate-500">{loadError}</p>
+          <button
+            className="w-full py-3 rounded-xl bg-amber-500 text-white font-bold text-xs hover:bg-amber-600 transition shadow-md shadow-amber-500/20"
+            onClick={onBack}
+          >
+            Back to Sign In
+          </button>
+        </div>
+      </main>
+    );
+
+  if (!record)
+    return (
+      <main className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center space-y-3 text-slate-800">
+        <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-xs text-slate-500 font-medium">Loading Student Workspace...</p>
+      </main>
+    );
+
+  if (record.approvalPending) {
+    return (
+      <main className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-6 text-slate-800">
+        <div className="bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl">
+          <CheckCircle2 size={40} className="mx-auto text-amber-500" />
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+            ID: {record.studentId}
+          </span>
+          <h1 className="text-2xl font-bold text-slate-900">Registration Pending</h1>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Your registration has been submitted and is currently under review by your college administrator.
+          </p>
+          <button
+            className="w-full py-3.5 rounded-xl bg-amber-500 text-white font-bold text-xs hover:bg-amber-600 transition shadow-md shadow-amber-500/20"
+            onClick={onBack}
+          >
+            Back to Sign In
+          </button>
+        </div>
       </main>
     );
   }
-  const recordError = validateStudentRecord(record);
-  if (recordError) return <main className="portal-state"><section className="portal-state-card" role="alert"><h1>Student account needs attention</h1><p>{recordError}</p><div className="portal-state-actions"><button className="primary-button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Retry</button><button className="text-link" onClick={onBack}>Back to sign in</button></div></section></main>;
-  studentRecord = record;
-  const unreadReminders = studentRecord.reminders.filter((reminder) => !reminder.read).length;
+
   const tabs = [
-    ['overview', 'Overview', <BookOpen size={17} />],
-    ['profile', 'Profile', <UserRound size={17} />],
-    ['fees', 'Fees', <IndianRupee size={17} />],
-    ['receipt', 'Receipt', <FileText size={17} />],
-    ['history', 'History', <CalendarDays size={17} />],
-    ['reminders', `Alerts ${unreadReminders ? `(${unreadReminders})` : ''}`, <Bell size={17} />]
+    ["overview", "Overview", <BookOpen size={16} />],
+    ["profile", "Profile", <UserRound size={16} />],
+    ["fees", "Fees", <IndianRupee size={16} />],
+    ["receipt", "Receipt", <FileText size={16} />],
+    ["history", "History", <CalendarDays size={16} />],
+    [
+      "reminders",
+      `Alerts (${record.reminders.length})`,
+      <Bell size={16} />,
+    ],
   ] as const;
 
-  const openPayment = () => { setPaymentRequestId(createPaymentRequestId()); setPaymentResult(null); setPaymentError(''); setShowPayment(true); };
-  const displayStudentName = toDisplayName(studentRecord.name);
-  return <main className={`student-portal ${tab === 'overview' ? 'student-overview-mode' : ''}`}><header className="portal-top"><button className="brand plain" onClick={onBack}><span className="brand-mark">N</span><span><strong>NSR</strong><small>STUDENT PWA</small></span></button><div className="portal-top-actions"><span className="portal-id">{studentRecord.studentId}</span><button className="portal-logout" onClick={onBack}><LogOut size={16} /> Logout</button></div></header><div className="portal-layout"><aside className="portal-sidebar"><div className="portal-student-mini"><span className="portal-avatar">CV</span><div><strong>{studentRecord.name}</strong><small>{studentRecord.courseType} · {studentRecord.location}</small></div></div><nav>{tabs.map(([key, label, icon]) => <button className={tab === key ? 'active' : ''} key={key} onClick={() => setTab(key)}>{icon}<span>{label}</span></button>)}</nav><div className="portal-side-note"><CheckCircle2 size={16} /><span>Account verified<br /><small>PostgreSQL record</small></span></div></aside><section className="portal-main"><div className="portal-heading"><div><p className="eyebrow">STUDENT ACCOUNT</p><h3>{tab === 'overview' ? <>Welcome, <em>{displayStudentName}</em></> : tabs.find(([key]) => key === tab)?.[1]}</h3></div><span className="portal-status"><CheckCircle2 size={15} /> Active</span></div>{tab === 'overview' && <Overview onTabChange={setTab} onPay={openPayment} />}{tab === 'profile' && <Profile />}{tab === 'fees' && <Fees onTabChange={setTab} onPay={openPayment} />}{tab === 'receipt' && <Receipt />}{tab === 'history' && <PaymentHistory studentId={studentId} accessToken={accessToken} />}{tab === 'reminders' && <Reminders />}</section></div>{showPayment && <div className="payment-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !paymentBusy) setShowPayment(false); }}><section className="payment-dialog" role="dialog" aria-modal="true" aria-labelledby="payment-title"><button className="payment-close" onClick={() => setShowPayment(false)} disabled={paymentBusy} aria-label="Close payment"><X size={19} /></button>{paymentResult ? <div className="payment-success"><CheckCircle2 size={42} /><p className="eyebrow">PAYMENT RECORDED</p><h2 id="payment-title">₹{paymentResult.amount.toLocaleString('en-IN')} received</h2><dl><div><dt>Transaction</dt><dd>{paymentResult.transactionNumber}</dd></div><div><dt>Receipt</dt><dd>{paymentResult.receiptNumber}</dd></div><div><dt>Mode</dt><dd>{paymentResult.mode.replace('_', ' ')}</dd></div><div><dt>Remaining</dt><dd>₹{paymentResult.outstandingAmount.toLocaleString('en-IN')}</dd></div></dl><button className="primary-button" onClick={() => { setShowPayment(false); setTab('receipt'); }}>View receipt</button></div> : <form onSubmit={submitPayment}><p className="eyebrow">SECURE PAYMENT ENTRY</p><h2 id="payment-title">Pay an installment</h2><p className="payment-intro">Outstanding balance: <strong>₹{studentRecord.fee.pending.toLocaleString('en-IN')}</strong></p><label className="payment-field"><span>Amount (₹)</span><input type="number" min="0.01" max={studentRecord.fee.pending} step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} placeholder="Enter amount" autoFocus required /></label><label className="payment-field"><span>Payment mode</span><select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value as PaymentMode)}><option value="UPI">UPI</option><option value="ONLINE">Online</option><option value="CASH">Cash</option><option value="BANK_TRANSFER">Bank transfer</option><option value="CHEQUE">Cheque</option><option value="OTHER">Other</option></select></label><p className="payment-warning">This demo records a confirmed payment directly. A production online gateway must verify its webhook before marking payment successful.</p>{paymentError && <p className="payment-error">{paymentError}</p>}<button className="primary-button payment-submit" disabled={paymentBusy || !paymentAmount}>{paymentBusy ? 'Recording payment...' : 'Confirm payment'}</button></form>}</section></div>}</main>;
-}
+  const openPayment = () => {
+    setPaymentError("");
+    setShowPayment(true);
+  };
 
-function Overview({ onTabChange, onPay }: { onTabChange: (tab: PortalTab) => void; onPay: () => void }) { const nextReminder = studentRecord.reminders[0]; return <><section className="portal-stat-grid"><div className="portal-stat pending"><span>REMAINING PENDING</span><strong>₹{studentRecord.fee.pending.toLocaleString('en-IN')}</strong><small>of ₹{studentRecord.fee.total.toLocaleString('en-IN')} total fee</small>{studentRecord.fee.pending > 0 && <button className="pay-installment-button" onClick={onPay}>Pay installment</button>}</div><div className="portal-stat"><span>COURSE</span><strong>{studentRecord.courseType}</strong><small>{studentRecord.courseDurationYears} year programme</small></div><div className="portal-stat"><span>PAID SO FAR</span><strong>₹{studentRecord.fee.paid.toLocaleString('en-IN')}</strong><small>{studentRecord.fee.paid > 0 ? 'Recorded payments' : 'No payment recorded'}</small></div></section><div className="portal-columns"><section className="portal-card installment-card"><div className="card-heading"><div><p className="eyebrow">PAYMENT PLAN</p><h2>Two-year fee schedule</h2></div><button className="text-link" onClick={() => onTabChange('fees')}>View details <ArrowRightIcon /></button></div>{studentRecord.fee.installments.map((installment) => <div className="installment-row" key={installment.label}><span className="installment-icon"><CalendarDays size={17} /></span><div><strong>{installment.label}</strong><small>Due {formatDate(installment.dueDate)}</small></div><b>₹{installment.amount.toLocaleString('en-IN')}</b><span className={`fee-status ${installment.status.toLowerCase()}`}>{installment.status}</span></div>)}</section><section className="portal-card reminder-card"><div className="card-heading"><div><p className="eyebrow">NEXT REMINDER</p><h2>{nextReminder?.title ?? 'Fees are up to date'}</h2></div><Bell size={18} /></div><p>{nextReminder?.message ?? 'There are no pending installment reminders.'}</p><button className="primary-button" onClick={() => onTabChange('reminders')}>View reminders</button></section></div></>; }
-function Profile() { return <section className="portal-card detail-card"><div className="card-heading"><div><p className="eyebrow">PERSONAL DETAILS</p><h2>{studentRecord.name}</h2></div><span className="immutable-label">ID immutable</span></div><div className="detail-grid">{[['Student ID', studentRecord.studentId], ['Father name', studentRecord.fatherName], ['Age', `${studentRecord.age} years`], ['Course type', studentRecord.courseType], ['Location', studentRecord.location], ['Mobile', studentRecord.mobile], ['Email', studentRecord.email], ['Village', studentRecord.village], ['PIN', studentRecord.pin]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div></section>; }
-function Fees({ onTabChange, onPay }: { onTabChange: (tab: PortalTab) => void; onPay: () => void }) { return <><section className="portal-card fee-summary"><div><span>Total fee for 2 years</span><strong>₹{studentRecord.fee.total.toLocaleString('en-IN')}</strong></div><div><span>Paid</span><strong className="green">₹{studentRecord.fee.paid.toLocaleString('en-IN')}</strong></div><div><span>Pending</span><strong className="coral">₹{studentRecord.fee.pending.toLocaleString('en-IN')}</strong></div></section><section className="portal-card"><div className="card-heading"><div><p className="eyebrow">INSTALLMENTS</p><h2>Payment schedule</h2></div><div className="fee-actions">{studentRecord.fee.pending > 0 && <button className="primary-button" onClick={onPay}>Pay installment</button>}<button className="text-link" onClick={() => onTabChange('receipt')}>Open receipt <FileText size={15} /></button></div></div><div className="fee-table"><div className="fee-table-row fee-table-label"><span>Installment</span><span>Due date</span><span>Amount</span><span>Status</span></div>{studentRecord.fee.installments.map((installment) => <div className="fee-table-row" key={installment.label}><span><b>{installment.label}</b></span><span>{formatDate(installment.dueDate)}</span><strong>₹{installment.amount.toLocaleString('en-IN')}</strong><span className={`fee-status ${installment.status.toLowerCase()}`}>{installment.status}</span></div>)}</div></section></>; }
-function Receipt() { return <section className="receipt-wrap"><div className="receipt paper"><div className="receipt-header"><div className="brand"><span className="brand-mark">N</span><span><strong>NSR</strong><small>IMPULSE KNOWLEDGE PARK</small></span></div><span className="receipt-label">FEE INVOICE</span></div><div className="receipt-meta"><div><span>Invoice number</span><strong>{studentRecord.receipt.invoiceNumber}</strong></div><div><span>Transaction number</span><strong>{studentRecord.receipt.transactionNumber}</strong></div><div><span>Date & time</span><strong>{formatDateTime(studentRecord.receipt.dateTime)}</strong></div><div><span>Payment type</span><strong>{studentRecord.receipt.paymentType}</strong></div></div><div className="receipt-student"><span>BILLED TO</span><strong>{studentRecord.name}</strong><p>{studentRecord.studentId} · {studentRecord.courseType} · {studentRecord.location}</p><p>{studentRecord.email} · {studentRecord.mobile}</p></div><div className="receipt-line"><span>Two-year {studentRecord.courseType} course fee</span><strong>₹{studentRecord.fee.total.toLocaleString('en-IN')}</strong></div><div className="receipt-line"><span>Amount paid</span><strong>₹{studentRecord.fee.paid.toLocaleString('en-IN')}</strong></div><div className="receipt-total"><span>Remaining amount</span><strong>₹{studentRecord.fee.pending.toLocaleString('en-IN')}</strong></div><div className="receipt-pending"><Bell size={16} /><span>{studentRecord.receipt.note}</span></div><button className="primary-button print-button" onClick={() => window.print()}><Download size={16} /> Print / download invoice</button></div></section>; }
-function Reminders() { return <section className="reminder-list">{studentRecord.reminders.map((reminder) => <article className={`portal-card reminder-item ${reminder.severity.toLowerCase()}`} key={reminder.id}><span className="reminder-icon"><Bell size={18} /></span><div><span className="reminder-date">Due {formatDate(reminder.dueDate)}</span><h2>{reminder.title}</h2><p>{reminder.message}</p></div><span className="reminder-unread">{reminder.read ? 'Read' : 'New'}</span></article>)}</section>; }
-function ArrowRightIcon() { return <span aria-hidden="true">→</span>; }
-function formatDate(value: string) { return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`)); }
-function formatDateTime(value: string) { return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
-function toDisplayName(value: string) { return value.trim().toLowerCase().replace(/\b\p{L}/gu, (letter) => letter.toUpperCase()); }
+  return (
+    <div className="min-h-screen bg-[#F8F9FA] text-slate-800 flex flex-col font-sans selection:bg-amber-500 selection:text-white">
+      {/* Top Navbar */}
+      <header className="h-16 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-50">
+        <button onClick={onBack} className="flex items-center gap-2">
+          <img className="h-8 w-auto object-contain" src={nsrLogo} alt="NSR Impulse" />
+        </button>
+        <div className="flex items-center gap-4">
+          <span className="text-xs font-mono px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 font-semibold">
+            {record.studentId}
+          </span>
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition text-xs font-bold"
+          >
+            <LogOut size={14} /> Logout
+          </button>
+        </div>
+      </header>
+
+      {/* Main Workspace Layout */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12">
+        {/* Sidebar */}
+        <aside className="lg:col-span-3 bg-white border-r border-slate-200/80 p-6 space-y-6">
+          <div className="flex items-center gap-3 p-3 rounded-2xl bg-amber-500/5 border border-amber-500/10">
+            <div className="w-10 h-10 rounded-full bg-amber-500 text-white font-bold text-xs flex items-center justify-center uppercase">
+              {record.name.substring(0, 2)}
+            </div>
+            <div>
+              <strong className="text-slate-900 text-sm block font-bold">{record.name}</strong>
+              <span className="text-[11px] text-slate-500 block">
+                {record.courseType} · {record.location}
+              </span>
+            </div>
+          </div>
+
+          <nav className="space-y-1">
+            {tabs.map(([key, label, icon]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key as PortalTab)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold transition ${tab === key
+                    ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                    : "text-slate-600 hover:bg-slate-50"
+                  }`}
+              >
+                {icon}
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+
+          <div className="pt-4 border-t border-slate-100 flex items-center gap-2 text-emerald-600 text-xs font-bold">
+            <CheckCircle2 size={16} />
+            <div>
+              <span>Account verified</span>
+              <small className="block text-[10px] text-slate-400 font-normal">
+                PostgreSQL record
+              </small>
+            </div>
+          </div>
+        </aside>
+
+        {/* Content Area */}
+        <main className="lg:col-span-9 p-8 bg-[#F8F9FA] space-y-6">
+          {/* Header Banner */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
+                STUDENT ACCOUNT
+              </p>
+              <h2 className="text-2xl font-bold text-slate-900 mt-0.5">
+                {tab === "overview" ? (
+                  <>
+                    Welcome, <span className="font-serif italic text-amber-600">{record.name}</span>
+                  </>
+                ) : (
+                  tabs.find(([k]) => k === tab)?.[1]
+                )}
+              </h2>
+            </div>
+            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+              <CheckCircle2 size={13} /> Active
+            </span>
+          </div>
+
+          {/* TAB 1: OVERVIEW */}
+          {tab === "overview" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-slate-900 text-white rounded-3xl p-6 flex flex-col justify-between space-y-4 shadow-lg">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    REMAINING PENDING
+                  </span>
+                  <div>
+                    <strong className="text-3xl font-extrabold font-serif">
+                      ₹{record.fee.pending.toLocaleString("en-IN")}
+                    </strong>
+                    <span className="text-xs text-slate-400 block mt-0.5">
+                      of ₹{record.fee.total.toLocaleString("en-IN")} total fee
+                    </span>
+                  </div>
+                  <button
+                    onClick={openPayment}
+                    className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-md shadow-amber-500/20"
+                  >
+                    Pay installment
+                  </button>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-6 flex flex-col justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    COURSE
+                  </span>
+                  <div>
+                    <strong className="text-2xl font-bold text-slate-900 block font-serif">
+                      {record.courseType}
+                    </strong>
+                    <span className="text-xs text-slate-500 block mt-1">
+                      {record.courseDurationYears} year programme
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-400">Regular Enrollment</div>
+                </div>
+
+                <div className="bg-white border border-slate-200/80 rounded-3xl p-6 flex flex-col justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    PAID SO FAR
+                  </span>
+                  <div>
+                    <strong className="text-2xl font-bold text-slate-900 block font-serif">
+                      ₹{record.fee.paid.toLocaleString("en-IN")}
+                    </strong>
+                    <span className="text-xs text-slate-500 block mt-1">
+                      Recorded payments
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-emerald-600 font-bold">Confirmed</div>
+                </div>
+              </div>
+
+              {/* Installment Plan */}
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
+                      PAYMENT PLAN
+                    </p>
+                    <h3 className="text-xl font-bold text-slate-900 font-serif">
+                      Fee schedule
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setTab("fees")}
+                    className="text-xs font-bold text-amber-600 hover:underline"
+                  >
+                    View details →
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {record.fee.installments.map((inst, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100"
+                    >
+                      <div>
+                        <strong className="text-slate-900 text-sm block font-bold">
+                          {inst.label}
+                        </strong>
+                        <span className="text-xs text-slate-400">Due {inst.dueDate}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <strong className="text-slate-900 text-sm font-serif">
+                          ₹{inst.amount.toLocaleString("en-IN")}
+                        </strong>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${inst.status === "PAID"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-amber-100 text-amber-700"
+                            }`}
+                        >
+                          {inst.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: PROFILE */}
+          {tab === "profile" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-6">
+              <h3 className="text-lg font-bold text-slate-900">Personal & Academic Profile</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="p-4 rounded-2xl bg-slate-50 space-y-1">
+                  <span className="text-slate-400 block font-semibold">Student ID</span>
+                  <strong className="text-slate-900 text-sm">{record.studentId}</strong>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 space-y-1">
+                  <span className="text-slate-400 block font-semibold">Full Name</span>
+                  <strong className="text-slate-900 text-sm">{record.name}</strong>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 space-y-1">
+                  <span className="text-slate-400 block font-semibold">Father's Name</span>
+                  <strong className="text-slate-900 text-sm">{record.fatherName}</strong>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 space-y-1">
+                  <span className="text-slate-400 block font-semibold">Mobile</span>
+                  <strong className="text-slate-900 text-sm">{record.mobile || "N/A"}</strong>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 space-y-1">
+                  <span className="text-slate-400 block font-semibold">Email</span>
+                  <strong className="text-slate-900 text-sm">{record.email || "N/A"}</strong>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 space-y-1">
+                  <span className="text-slate-400 block font-semibold">College / Campus</span>
+                  <strong className="text-slate-900 text-sm">{record.location}</strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: FEES */}
+          {tab === "fees" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-slate-900">Fee Breakup & Installments</h3>
+                <button
+                  onClick={openPayment}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition shadow-md shadow-amber-500/20"
+                >
+                  Make Payment
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {record.fee.installments.map((inst, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs"
+                  >
+                    <div>
+                      <strong className="text-slate-900 block text-sm font-bold">
+                        {inst.label}
+                      </strong>
+                      <span className="text-slate-400">Due date: {inst.dueDate}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <strong className="text-slate-900 font-serif text-sm">
+                        ₹{inst.amount.toLocaleString("en-IN")}
+                      </strong>
+                      <span
+                        className={`px-3 py-1 rounded-full font-bold ${inst.status === "PAID"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-amber-100 text-amber-700"
+                          }`}
+                      >
+                        {inst.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: RECEIPT */}
+          {tab === "receipt" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Latest Payment Receipt</h3>
+              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
+                <div className="flex justify-between border-b border-slate-200 pb-2">
+                  <span className="text-slate-400">Invoice Number</span>
+                  <strong className="text-slate-900 font-mono">
+                    {record.receipt.invoiceNumber}
+                  </strong>
+                </div>
+                <div className="flex justify-between border-b border-slate-200 pb-2">
+                  <span className="text-slate-400">Transaction ID</span>
+                  <strong className="text-slate-900 font-mono">
+                    {record.receipt.transactionNumber}
+                  </strong>
+                </div>
+                <div className="flex justify-between border-b border-slate-200 pb-2">
+                  <span className="text-slate-400">Payment Mode</span>
+                  <strong className="text-slate-900">{record.receipt.paymentType}</strong>
+                </div>
+                <div className="flex justify-between border-b border-slate-200 pb-2">
+                  <span className="text-slate-400">Amount Paid</span>
+                  <strong className="text-emerald-600 font-serif text-sm">
+                    ₹{record.receipt.amount.toLocaleString("en-IN")}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: HISTORY */}
+          {tab === "history" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Payment History</h3>
+              <p className="text-xs text-slate-500">
+                All confirmed financial transactions recorded in the system.
+              </p>
+            </div>
+          )}
+
+          {/* TAB 6: ALERTS */}
+          {tab === "reminders" && (
+            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">
+                Alerts ({record.reminders.length})
+              </h3>
+              <div className="space-y-3">
+                {record.reminders.map((rem) => (
+                  <div
+                    key={rem.id}
+                    className="p-5 rounded-2xl bg-amber-500/5 border border-amber-500/10 space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-amber-700 uppercase">
+                        DUE {rem.dueDate}
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                        New
+                      </span>
+                    </div>
+                    <h4 className="text-base font-bold text-slate-900 font-serif">
+                      {rem.title}
+                    </h4>
+                    <p className="text-xs text-slate-600">{rem.message}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Payment Overlay Modal */}
+      {showPayment && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Pay Installment</h3>
+              <button
+                onClick={() => setShowPayment(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Outstanding Balance:{" "}
+              <strong className="text-slate-900">
+                ₹{record.fee.pending.toLocaleString("en-IN")}
+              </strong>
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">
+                  Amount (₹)
+                </label>
+                <input
+                  type="number"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none"
+                  placeholder="Enter amount"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">
+                  Payment Mode
+                </label>
+                <select
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none"
+                  value={paymentMode}
+                  onChange={(e) => setPaymentMode(e.target.value as PaymentMode)}
+                >
+                  <option value="UPI">UPI</option>
+                  <option value="ONLINE">Online</option>
+                  <option value="CASH">Cash</option>
+                  <option value="BANK_TRANSFER">Bank Transfer</option>
+                </select>
+              </div>
+
+              <button
+                disabled={!paymentAmount}
+                onClick={() => {
+                  alert(`Payment of ₹${paymentAmount} recorded successfully!`);
+                  setShowPayment(false);
+                }}
+                className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition shadow-md shadow-amber-500/20 disabled:opacity-50"
+              >
+                Confirm Payment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

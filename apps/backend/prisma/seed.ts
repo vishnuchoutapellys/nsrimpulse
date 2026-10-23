@@ -39,6 +39,30 @@ async function main() {
     else await prisma.feeInstallment.create({ data: { feeAssignmentId: assignment.id, ...data } });
   }
   console.log(`Seeded student ${student.studentUid} with a 180000 INR fee assignment and two installments.`);
+  // --- 1. SEED SUPER ADMIN ---
+  const superAdminId = 'SUPERADMIN-001';
+  const superAdminEmail = 'superadmin@nsrimpulse.com';
+  const superAdminPasswordHash = await bcrypt.hash('SuperAdmin@2026', 12);
+
+  const existingSuperAdmin = await prisma.user.findFirst({
+    where: { OR: [{ adminId: superAdminId }, { email: superAdminEmail }] }
+  });
+
+  const superAdmin = existingSuperAdmin
+    ? await prisma.user.update({
+      where: { id: existingSuperAdmin.id },
+      data: { adminId: superAdminId, email: superAdminEmail, passwordHash: superAdminPasswordHash, isActive: true }
+    })
+    : await prisma.user.create({
+      data: { adminId: superAdminId, email: superAdminEmail, passwordHash: superAdminPasswordHash, isActive: true }
+    });
+
+  await prisma.userRole.upsert({
+    where: { userId_role: { userId: superAdmin.id, role: 'SUPER_ADMIN' } },
+    update: {},
+    create: { userId: superAdmin.id, role: 'SUPER_ADMIN' }
+  });
+  console.log(`Seeded Super Admin account: ${superAdmin.adminId}`);
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(async () => prisma.$disconnect());
