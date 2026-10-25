@@ -78,7 +78,7 @@ function SuperAdminLogin({
       const result = await response.json();
       if (!response.ok || !result.success)
         throw new Error(result.error?.message ?? result.message ?? "Unable to sign in");
-      onAuthenticated(result.data.Token);
+      onAuthenticated(result.data.token);
     } catch (reason: any) {
       setError(reason.message || "Unable to sign in");
     } finally {
