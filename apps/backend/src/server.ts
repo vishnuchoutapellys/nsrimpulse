@@ -744,27 +744,84 @@ app.post('/api/v1/college-admin/notifications/send-due-reminders', async (req, r
 
 // ==========================================
 // 2. SUPER ADMIN ROUTES
-// ==========================================
-
-// Create Admin User
+// --- Create College Admin Route (Schema-Aligned) ---
 app.post('/api/v1/super-admin/admins', async (req, res) => {
-  const { name, email, password, collegeId, role = 'COLLEGE_ADMIN' } = req.body;
-
   try {
-    const newAdmin = await prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash: password, // Note: Hash with bcrypt in production
-        role,
-        collegeId
+    const { adminId, email, password, collegeId, scopeType } = req.body;
+
+    // 1. Validate required fields
+    if (!adminId || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Missing required fields: adminId, email, and password.' }
+      });
+    }
+
+    // 2. Check for duplicate adminId or email
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { adminId: adminId },
+          { email: email }
+        ]
       }
     });
 
-    return res.json({ success: true, data: newAdmin });
-  } catch (error) {
-    console.error('Error creating admin:', error);
-    return res.status(500).json({ success: false, message: 'Failed to create admin' });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'An admin with this ID or email already exists.' }
+      });
+    }
+
+    // 3. Hash password securely
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // 4. Atomic transaction to create User, Role, and Admin Scope
+    const newAdmin = await prisma.$transaction(async (tx) => {
+      // Create the user and assign their role
+      const user = await tx.user.create({
+        data: {
+          adminId,
+          email,
+          passwordHash: hashedPassword,
+          isActive: true,
+          roles: {
+            create: {
+              role: scopeType === 'GLOBAL' ? 'SUPER_ADMIN' : 'COLLEGE_ADMIN'
+            }
+          }
+        }
+      });
+
+      // If scope is restricted to a single college, link it in CollegeAdminScope
+      if (scopeType === 'COLLEGE' && collegeId) {
+        await tx.collegeAdminScope.create({
+          data: {
+            userId: user.id,
+            collegeId: collegeId
+          }
+        });
+      }
+
+      return user;
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        id: newAdmin.id,
+        adminId: newAdmin.adminId,
+        email: newAdmin.email
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Create Admin Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Database error while creating admin.' }
+    });
   }
 });
 // Remove Admin User
