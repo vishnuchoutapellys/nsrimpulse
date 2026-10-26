@@ -377,21 +377,21 @@ function AdminWorkspace({
     <main
       className={`admin-portal ${view === "dashboard" ? "admin-overview-mode" : ""}`}
     >
-      <header className="portal-top">
+      <header className="portal-app-header portal-top">
         <button
           className="brand plain admin-header-brand"
           onClick={onBack}
           aria-label="NSR Impulse home"
         >
           <img
-            className="app-logo brand-wordmark"
+            className="portal-app-logo app-logo brand-wordmark"
             src={nsrLogo}
             alt="NSR Impulse Educational Institutions"
           />
         </button>
-        <div className="portal-top-actions">
-          <span className="portal-id">{context.admin.adminId}</span>
-          <button className="portal-logout" onClick={onLogout}>
+        <div className="portal-app-actions portal-top-actions">
+          <span className="portal-app-id portal-id">{context.admin.adminId}</span>
+          <button className="portal-app-logout portal-logout" onClick={onLogout}>
             <LogOut size={16} /> Sign out
           </button>
         </div>

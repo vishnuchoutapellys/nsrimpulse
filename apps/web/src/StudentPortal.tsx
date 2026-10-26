@@ -376,17 +376,17 @@ export function StudentPortal({
   return (
     <div className="student-account-page min-h-screen bg-[#F8F9FA] text-slate-800 flex flex-col font-sans selection:bg-amber-500 selection:text-white">
       {/* Top Navbar */}
-      <header className="student-account-header h-16 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-50">
-        <button onClick={onBack} className="flex items-center gap-2">
-          <img className="h-8 w-auto object-contain" src={nsrLogo} alt="NSR Impulse" />
+      <header className="portal-app-header student-account-header h-16 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-50">
+        <button onClick={onBack} className="portal-app-brand flex items-center gap-2">
+          <img className="portal-app-logo" src={nsrLogo} alt="NSR Impulse Educational Institutions" />
         </button>
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-mono px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 font-semibold">
+        <div className="portal-app-actions flex items-center gap-4">
+          <span className="portal-app-id text-xs font-mono px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 font-semibold">
             {record.studentId}
           </span>
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition text-xs font-bold"
+            className="portal-app-logout flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition text-xs font-bold"
           >
             <LogOut size={14} /> Logout
           </button>

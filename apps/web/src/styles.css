@@ -168,6 +168,94 @@
     box-shadow: none !important;
 }
 
+.portal-app-header {
+    display: flex;
+    min-height: 76px !important;
+    height: 76px !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 clamp(18px, 4vw, 48px) !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    background: rgb(255 255 255 / 97%) !important;
+}
+
+.portal-app-brand {
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+.portal-app-header .portal-app-logo {
+    display: block;
+    width: 200px !important;
+    height: 58px !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: contain !important;
+    object-position: left center !important;
+}
+
+.portal-app-actions {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 12px !important;
+}
+
+.portal-app-id {
+    display: block;
+    max-width: 180px;
+    overflow: hidden;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.portal-app-logout {
+    display: inline-flex !important;
+    min-height: 40px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px !important;
+    padding: 8px 12px !important;
+    border-radius: 12px !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    line-height: 1;
+}
+
+@media (max-width: 767px) {
+    .portal-app-header {
+        min-height: 64px !important;
+        height: 64px !important;
+        padding: 0 12px !important;
+    }
+
+    .portal-app-header .portal-app-logo {
+        width: 150px !important;
+        height: 46px !important;
+    }
+
+    .portal-app-actions {
+        gap: 8px !important;
+    }
+
+    .portal-app-id {
+        max-width: 82px;
+        padding: 6px 9px !important;
+        font-size: 9px !important;
+    }
+
+    .portal-app-logout {
+        min-height: 38px;
+        padding: 7px 9px !important;
+        font-size: 11px !important;
+    }
+}
+
 .public-site header img {
     width: clamp(180px, 16vw, 220px);
     height: auto;
