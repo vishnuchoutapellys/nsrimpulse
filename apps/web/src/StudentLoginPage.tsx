@@ -552,7 +552,7 @@ function SubmitButton({ busy, children }: { busy: boolean; children: React.React
       className="w-full py-3.5 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50 mt-2"
       disabled={busy}
     >
-      {busy ? 'Please wait...' : children}
+      {children}
     </button>
   );
 }

@@ -265,12 +265,7 @@ export function StudentPortal({
     );
 
   if (!record)
-    return (
-      <main className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center space-y-3 text-slate-800">
-        <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-xs text-slate-500 font-medium">Loading Student Workspace...</p>
-      </main>
-    );
+    return <main className="min-h-screen bg-[#F8F9FA]" aria-busy="true" />;
 
   if (record.approvalPending) {
     return (
@@ -769,7 +764,7 @@ export function StudentPortal({
                 disabled={!paymentAmount || paymentBusy}
                 className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition shadow-md shadow-amber-500/20 disabled:opacity-50"
               >
-                {paymentBusy ? "Recording Payment..." : "Confirm Payment"}
+                Confirm Payment
               </button>
             </form>
           </div>

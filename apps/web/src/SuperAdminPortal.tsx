@@ -160,7 +160,7 @@ function SuperAdminLogin({
               disabled={busy}
               className="w-full py-3.5 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-600 transition shadow-md shadow-amber-500/20 disabled:opacity-50 text-sm"
             >
-              {busy ? "Authenticating..." : "Sign in as Super Admin"}
+              Sign in as Super Admin
             </button>
           </form>
         </section>
@@ -198,12 +198,7 @@ function SuperAdminWorkspace({
   }, [token]);
 
   if (!context)
-    return (
-      <main className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center space-y-3">
-        <div className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-xs text-slate-500 font-medium">Loading workspace...</p>
-      </main>
-    );
+    return <main className="min-h-screen bg-[#F8F9FA]" aria-busy="true" />;
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-slate-800 flex flex-col font-sans">
@@ -314,7 +309,7 @@ function ManageAdmins({ token, context, onRefresh }: { token: string; context: S
             {context.colleges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <button disabled={busy} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl text-xs transition shadow-md shadow-amber-500/20">
-            {busy ? "Creating..." : "Create Account"}
+            Create Account
           </button>
         </form>
       </div>
@@ -477,7 +472,7 @@ function GlobalStudentSearch({ token, context }: { token: string; context: Super
             />
           </div>
           <button disabled={busy} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl text-xs transition shadow-md shadow-amber-500/20">
-            {busy ? "Searching records..." : "Search Student Directory"}
+            Search Student Directory
           </button>
         </form>
       </div>

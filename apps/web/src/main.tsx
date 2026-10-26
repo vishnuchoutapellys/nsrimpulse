@@ -2,7 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App';
+import { ApiLoadingOverlay, installApiLoadingTracker } from './ApiLoadingOverlay';
 import './styles.css';
+
+installApiLoadingTracker();
 
 if ('serviceWorker' in navigator) {
 	if (import.meta.env.PROD) {
@@ -22,4 +25,4 @@ if ('serviceWorker' in navigator) {
 		});
 	}
 }
-createRoot(document.getElementById('root')!).render(<StrictMode><BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><App /></BrowserRouter></StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode><BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><ApiLoadingOverlay /><App /></BrowserRouter></StrictMode>);

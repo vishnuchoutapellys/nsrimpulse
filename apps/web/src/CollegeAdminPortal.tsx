@@ -317,7 +317,7 @@ function AdminLogin({
               className="w-full py-4 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
               disabled={busy}
             >
-              {busy ? "Signing in..." : "Sign in as College Admin"}
+              Sign in as College Admin
             </button>
           </form>
 
@@ -367,12 +367,7 @@ function AdminWorkspace({
       </main>
     );
   if (!context)
-    return (
-      <main className="portal-state">
-        <div className="portal-loader"></div>
-        <p>Loading authorized scope...</p>
-      </main>
-    );
+    return <main className="portal-state" aria-busy="true" />;
   return (
     <main
       className={`admin-portal ${view === "dashboard" ? "admin-overview-mode" : ""}`}
@@ -647,11 +642,7 @@ function PendingApprovals({
         <p>Review newly registered students and assign their fee schedules.</p>
       </div>
 
-      {loading ? (
-        <div className="p-8 text-center text-slate-400 font-medium">
-          Loading pending registrations...
-        </div>
-      ) : pendingList.length === 0 ? (
+      {loading ? null : pendingList.length === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
           <p className="text-slate-400 font-medium">
             No pending student registrations in your queue.
@@ -699,9 +690,7 @@ function PendingApprovals({
                       disabled={processingUid === student.studentUid}
                       className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50"
                     >
-                      {processingUid === student.studentUid
-                        ? "Approving..."
-                        : "Approve & Assign Fees"}
+                      Approve & Assign Fees
                     </button>
                   </td>
                 </tr>
@@ -831,7 +820,7 @@ function StudentSearch({
               className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 px-4 rounded-xl text-sm transition disabled:opacity-50"
               disabled={busy}
             >
-              {busy ? "Searching..." : "Apply Filters"}
+              Apply Filters
             </button>
           </div>
         </div>
@@ -997,7 +986,7 @@ function FeeReports({
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition"
           >
             <Bell size={15} />{" "}
-            {reminderBusy ? "Sending..." : "Send Fee Due Reminders"}
+            Send Fee Due Reminders
           </button>
           <button
             onClick={exportCSV}
@@ -1008,9 +997,7 @@ function FeeReports({
         </div>
       </div>
 
-      {loading ? (
-        <div className="p-8 text-center text-slate-400">Loading fee collection data...</div>
-      ) : reports.length === 0 ? (
+      {loading ? null : reports.length === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-400">
           No fee payment allocations recorded yet.
         </div>
@@ -1220,7 +1207,7 @@ function CertificateCenter({ token }: { token: string }) {
           required
         />
         <button className="primary-button" disabled={searching}>
-          {searching ? "Loading..." : "Load student"}
+          Load student
         </button>
       </form>
       {error && (
@@ -1781,7 +1768,7 @@ function OfflinePaymentCard({
           </label>
           {error && <p className="admin-form-error">{error}</p>}
           <button className="primary-button" disabled={busy}>
-            {busy ? "Recording..." : "Record payment & generate receipt"}
+            Record payment & generate receipt
           </button>
         </form>
       )}
@@ -2038,7 +2025,7 @@ function CreateStudent({
             Search students
           </button>
           <button className="primary-button" disabled={busy}>
-            {busy ? "Creating student..." : "Create student & send credentials"}
+            Create student & send credentials
           </button>
         </div>
       </form>
