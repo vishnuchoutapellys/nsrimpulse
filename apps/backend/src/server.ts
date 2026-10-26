@@ -106,7 +106,7 @@ app.get('/api/v1/students/:studentUid/portal', async (req: Request<{ studentUid:
             }
           }
         },
-        payments: true
+        payments: { include: { receipt: true }, orderBy: { createdAt: 'desc' } }
       }
     });
 
@@ -567,7 +567,9 @@ app.get('/api/v1/admin/students/pending', async (req, res) => {
 // 2. Approve student and assign fee structure
 app.post('/api/v1/admin/students/:studentUid/approve', async (req, res) => {
   const { studentUid } = req.params;
-  const { feeTotal = 100000 } = req.body;
+  const parsed = z.object({ feeTotal: z.coerce.number().positive().max(100_000_000).default(100000) }).safeParse(req.body ?? {});
+  if (!parsed.success) return res.status(400).json({ success: false, message: 'Enter a valid positive fee total.' });
+  const feeTotal = parsed.data.feeTotal;
   const normalizedUid = studentUid.toUpperCase();
 
   try {
@@ -580,36 +582,28 @@ app.post('/api/v1/admin/students/:studentUid/approve', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Student record not found.' });
     }
 
-    let feeStructure = await prisma.feeStructure.findFirst({
-      where: { courseId: existingStudent.courseId }
-    });
-
-    if (!feeStructure) {
-      feeStructure = await prisma.feeStructure.create({
-        data: {
-          courseId: existingStudent.courseId,
-          academicYear: '2026-2027',
-          totalAmount: feeTotal
-        }
-      });
-    }
-
     const updatedStudent = await prisma.$transaction(async (tx) => {
       const student = await tx.student.update({
         where: { studentUid: normalizedUid },
         data: { status: 'ACTIVE' }
       });
 
+      const firstInstallment = Math.round((feeTotal / 2) * 100) / 100;
       const defaultInstallments = [
-        { amount: feeTotal / 2, dueDate: new Date('2026-07-01') },
-        { amount: feeTotal / 2, dueDate: new Date('2027-07-01') }
+        { amount: firstInstallment, dueDate: new Date(Date.UTC(student.admissionYear, 6, 1)) },
+        { amount: feeTotal - firstInstallment, dueDate: new Date(Date.UTC(student.admissionYear + 1, 6, 1)) }
       ];
 
       const existingAssignment = await tx.feeAssignment.findFirst({
-        where: { studentId: student.id }
+        where: { studentId: student.id, isCurrent: true }
       });
 
       if (!existingAssignment) {
+        const feeStructure = await tx.feeStructure.upsert({
+          where: { courseId_academicYear: { courseId: student.courseId, academicYear: student.academicYear } },
+          update: {},
+          create: { courseId: student.courseId, academicYear: student.academicYear, totalAmount: feeTotal }
+        });
         await tx.feeAssignment.create({
           data: {
             studentId: student.id,
@@ -658,8 +652,7 @@ app.get('/api/v1/college-admin/students/search', async (req, res) => {
         ...(courseId && { courseId: String(courseId) }),
         ...(query && {
           OR: [
-            { firstName: { contains: String(query), mode: 'insensitive' } },
-            { lastName: { contains: String(query), mode: 'insensitive' } },
+            { name: { contains: String(query), mode: 'insensitive' } },
             { studentUid: { contains: String(query), mode: 'insensitive' } }
           ]
         })

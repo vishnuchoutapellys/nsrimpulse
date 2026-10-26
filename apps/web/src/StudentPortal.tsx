@@ -3,7 +3,6 @@ import {
   BookOpen,
   CalendarDays,
   CheckCircle2,
-  FileText,
   IndianRupee,
   LogOut,
   UserRound,
@@ -12,12 +11,24 @@ import {
 import React, { useEffect, useState } from "react";
 import nsrLogo from "../../assets/nsrLogo.png";
 import { apiBase } from "./api";
+import { PaymentHistory } from "./PaymentHistory";
 
-type PortalTab = "overview" | "profile" | "fees" | "receipt" | "history" | "reminders";
+type PortalTab = "overview" | "profile" | "fees" | "history" | "reminders";
 type PaymentMode = "UPI" | "ONLINE" | "CASH" | "BANK_TRANSFER" | "CHEQUE" | "OTHER";
+
+type PaymentSubmissionResult = {
+  paymentId: string;
+  transactionNumber: string;
+  receiptNumber: string;
+  amount: number;
+  mode: PaymentMode;
+  paidAt: string;
+  outstandingAmount: number;
+};
 
 type StudentPortalRecord = {
   approvalPending: boolean;
+  feePlanMissing: boolean;
   status: string;
   studentId: string;
   name: string;
@@ -38,8 +49,9 @@ type StudentPortalRecord = {
     installments: Array<{
       label: string;
       amount: number;
+      paid: number;
       dueDate: string;
-      status: string;
+      status: "PAID" | "PARTIAL" | "PENDING";
     }>;
   };
   receipt: {
@@ -60,6 +72,15 @@ type StudentPortalRecord = {
     read: boolean;
   }>;
 };
+
+function createPaymentRequestId(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 async function fetchStudentRecord(
   studentId: string,
@@ -91,6 +112,7 @@ async function fetchStudentRecord(
   if (raw.status !== "ACTIVE") {
     return {
       approvalPending: true,
+      feePlanMissing: true,
       status: raw.status || "ON_HOLD",
       studentId: raw.studentUid || studentId,
       name: fullName,
@@ -117,40 +139,34 @@ async function fetchStudentRecord(
     };
   }
 
-  const currentAssignment =
-    raw.feeAssignments?.find((fa: any) => fa.isCurrent === true) ||
-    raw.feeAssignments?.[0];
+  const currentAssignment = raw.feeAssignments?.find((fa: any) => fa.isCurrent === true);
 
   const feeTotal = Number(
-    currentAssignment?.totalAmount || raw.totalFee || 50000
+    currentAssignment?.originalAmount || currentAssignment?.totalAmount || 0
   );
-  const feePaid =
-    raw.payments?.reduce((acc: number, p: any) => acc + (Number(p.amount) || 0), 0) || 0;
+  const feePaid = raw.payments
+    ?.filter((payment: any) => payment.status === "SUCCESS")
+    .reduce((acc: number, payment: any) => acc + (Number(payment.amount) || 0), 0) || 0;
 
-  const installments = currentAssignment?.installments?.map((inst: any) => ({
-    label: inst.title || `Installment`,
-    amount: Number(inst.amount) || 0,
-    dueDate: inst.dueDate
-      ? String(inst.dueDate).substring(0, 10)
-      : new Date().toISOString().substring(0, 10),
-    status: inst.status || (feePaid >= Number(inst.amount) ? "PAID" : "PENDING"),
-  })) || [
-      {
-        label: "First Year Fee",
-        amount: feeTotal / 2,
-        dueDate: "2026-11-11",
-        status: feePaid >= feeTotal / 2 ? "PAID" : "PENDING",
-      },
-      {
-        label: "Second Year Fee",
-        amount: feeTotal / 2,
-        dueDate: "2027-11-11",
-        status: feePaid >= feeTotal ? "PAID" : "PENDING",
-      },
-    ];
+  const installments = currentAssignment?.installments?.map((inst: any, index: number) => {
+    const amount = Number(inst.amount) || 0;
+    const paid = inst.allocations
+      ?.filter((allocation: any) => allocation.payment?.status === "SUCCESS")
+      .reduce((total: number, allocation: any) => total + (Number(allocation.amount) || 0), 0) || 0;
+    return {
+      label: inst.title || `Installment ${index + 1}`,
+      amount,
+      paid,
+      dueDate: inst.dueDate
+        ? String(inst.dueDate).substring(0, 10)
+        : new Date().toISOString().substring(0, 10),
+      status: paid >= amount ? "PAID" as const : paid > 0 ? "PARTIAL" as const : "PENDING" as const,
+    };
+  }) || [];
 
   return {
     approvalPending: false,
+    feePlanMissing: !currentAssignment,
     status: raw.status,
     studentId: raw.studentUid || studentId,
     name: fullName,
@@ -171,8 +187,8 @@ async function fetchStudentRecord(
       installments,
     },
     receipt: {
-      invoiceNumber: raw.payments?.[0]?.receiptNumber || "NSR-INV-2026-001",
-      transactionNumber: raw.payments?.[0]?.transactionNumber || "TXN-7892341",
+      invoiceNumber: raw.payments?.[0]?.receipt?.receiptNumber || raw.payments?.[0]?.receiptNumber || "",
+      transactionNumber: raw.payments?.[0]?.reference || raw.payments?.[0]?.gatewayTransactionId || raw.payments?.[0]?.transactionNumber || "",
       dateTime: raw.payments?.[0]?.createdAt || new Date().toISOString(),
       paymentType: raw.payments?.[0]?.mode || "ONLINE",
       amount: raw.payments?.[0]?.amount || feePaid,
@@ -209,6 +225,8 @@ export function StudentPortal({
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("UPI");
   const [paymentError, setPaymentError] = useState("");
   const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState("");
+  const [paymentRequestId, setPaymentRequestId] = useState(createPaymentRequestId);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,6 +241,12 @@ export function StudentPortal({
       cancelled = true;
     };
   }, [studentId, accessToken]);
+
+  useEffect(() => {
+    if (!paymentSuccess) return;
+    const timeout = window.setTimeout(() => setPaymentSuccess(""), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [paymentSuccess]);
 
   if (loadError)
     return (
@@ -275,8 +299,7 @@ export function StudentPortal({
     ["overview", "Overview", <BookOpen size={16} />],
     ["profile", "Profile", <UserRound size={16} />],
     ["fees", "Fees", <IndianRupee size={16} />],
-    ["receipt", "Receipt", <FileText size={16} />],
-    ["history", "History", <CalendarDays size={16} />],
+    ["history", "Payment History", <CalendarDays size={16} />],
     [
       "reminders",
       `Alerts (${record.reminders.length})`,
@@ -286,13 +309,74 @@ export function StudentPortal({
 
   const openPayment = () => {
     setPaymentError("");
+    setPaymentSuccess("");
+    if (record?.feePlanMissing) {
+      setPaymentSuccess("Your fee plan has not been assigned yet. Contact your College Admin.");
+      return;
+    }
+    setPaymentRequestId(createPaymentRequestId());
     setShowPayment(true);
   };
 
+  const submitPayment = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!record || paymentBusy) return;
+
+    const amount = Number(paymentAmount);
+    setPaymentError("");
+    setPaymentSuccess("");
+    if (!navigator.onLine) return setPaymentError("Payments cannot be submitted while offline.");
+    if (!Number.isFinite(amount) || amount <= 0) return setPaymentError("Enter a payment amount greater than zero.");
+    if (!Number.isInteger(amount * 100)) return setPaymentError("Use no more than two decimal places.");
+    if (amount > record.fee.pending) return setPaymentError(`Payment cannot exceed ₹${record.fee.pending.toLocaleString("en-IN")}.`);
+
+    setPaymentBusy(true);
+    try {
+      const response = await fetch(`${apiBase}/api/v1/payments/student`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          studentUid: record.studentId,
+          amount,
+          mode: paymentMode,
+          idempotencyKey: paymentRequestId,
+        }),
+      });
+      const result = (await response.json()) as {
+        success?: boolean;
+        data?: PaymentSubmissionResult;
+        message?: string;
+        error?: { message?: string };
+      };
+      if (!response.ok || !result.success || !result.data) {
+        throw new Error(result.error?.message ?? result.message ?? "Payment could not be recorded.");
+      }
+
+      setPaymentSuccess(result.message ?? `Payment of ₹${amount.toLocaleString("en-IN")} recorded successfully.`);
+      setShowPayment(false);
+      setPaymentAmount("");
+      setTab("overview");
+      setPaymentRequestId(createPaymentRequestId());
+
+      try {
+        setRecord(await fetchStudentRecord(studentId, accessToken));
+      } catch {
+        setPaymentSuccess("Payment was recorded successfully. Refresh the page to load the latest balance.");
+      }
+    } catch (reason) {
+      setPaymentError(reason instanceof Error ? reason.message : "Payment could not be recorded.");
+    } finally {
+      setPaymentBusy(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-slate-800 flex flex-col font-sans selection:bg-amber-500 selection:text-white">
+    <div className="student-account-page min-h-screen bg-[#F8F9FA] text-slate-800 flex flex-col font-sans selection:bg-amber-500 selection:text-white">
       {/* Top Navbar */}
-      <header className="h-16 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-50">
+      <header className="student-account-header h-16 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-50">
         <button onClick={onBack} className="flex items-center gap-2">
           <img className="h-8 w-auto object-contain" src={nsrLogo} alt="NSR Impulse" />
         </button>
@@ -310,10 +394,10 @@ export function StudentPortal({
       </header>
 
       {/* Main Workspace Layout */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12">
+      <div className="student-account-layout flex-1 grid grid-cols-1 lg:grid-cols-12">
         {/* Sidebar */}
-        <aside className="lg:col-span-3 bg-white border-r border-slate-200/80 p-6 space-y-6">
-          <div className="flex items-center gap-3 p-3 rounded-2xl bg-amber-500/5 border border-amber-500/10">
+        <aside className="student-account-sidebar lg:col-span-3 bg-white border-r border-slate-200/80 p-6 space-y-6">
+          <div className="student-account-identity flex items-center gap-3 p-3 rounded-2xl bg-amber-500/5 border border-amber-500/10">
             <div className="w-10 h-10 rounded-full bg-amber-500 text-white font-bold text-xs flex items-center justify-center uppercase">
               {record.name.substring(0, 2)}
             </div>
@@ -325,7 +409,7 @@ export function StudentPortal({
             </div>
           </div>
 
-          <nav className="space-y-1">
+          <nav className="student-account-nav space-y-1" aria-label="Student account sections">
             {tabs.map(([key, label, icon]) => (
               <button
                 key={key}
@@ -341,7 +425,7 @@ export function StudentPortal({
             ))}
           </nav>
 
-          <div className="pt-4 border-t border-slate-100 flex items-center gap-2 text-emerald-600 text-xs font-bold">
+          <div className="student-account-verified pt-4 border-t border-slate-100 flex items-center gap-2 text-emerald-600 text-xs font-bold">
             <CheckCircle2 size={16} />
             <div>
               <span>Account verified</span>
@@ -353,9 +437,9 @@ export function StudentPortal({
         </aside>
 
         {/* Content Area */}
-        <main className="lg:col-span-9 p-8 bg-[#F8F9FA] space-y-6">
+        <main className="student-account-main lg:col-span-9 p-8 bg-[#F8F9FA] space-y-6">
           {/* Header Banner */}
-          <div className="flex items-center justify-between">
+          <div className="student-account-heading flex items-center justify-between">
             <div>
               <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
                 STUDENT ACCOUNT
@@ -375,6 +459,12 @@ export function StudentPortal({
             </span>
           </div>
 
+          {record.feePlanMissing && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-800" role="status">
+              Your fee plan has not been assigned yet. Payments will be available after your College Admin adds the approved fee schedule.
+            </div>
+          )}
+
           {/* TAB 1: OVERVIEW */}
           {tab === "overview" && (
             <div className="space-y-6">
@@ -391,12 +481,12 @@ export function StudentPortal({
                       of ₹{record.fee.total.toLocaleString("en-IN")} total fee
                     </span>
                   </div>
-                  <button
+                  {!record.feePlanMissing && record.fee.pending > 0 && <button
                     onClick={openPayment}
                     className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition shadow-md shadow-amber-500/20"
                   >
                     Pay installment
-                  </button>
+                  </button>}
                 </div>
 
                 <div className="bg-white border border-slate-200/80 rounded-3xl p-6 flex flex-col justify-between">
@@ -462,12 +552,17 @@ export function StudentPortal({
                         <span className="text-xs text-slate-400">Due {inst.dueDate}</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <strong className="text-slate-900 text-sm font-serif">
-                          ₹{inst.amount.toLocaleString("en-IN")}
-                        </strong>
+                        <div className="text-right">
+                          <strong className="text-slate-900 text-sm font-serif block">
+                            ₹{inst.amount.toLocaleString("en-IN")}
+                          </strong>
+                          {inst.paid > 0 && <small className="text-[10px] font-semibold text-emerald-600">Paid ₹{inst.paid.toLocaleString("en-IN")}</small>}
+                        </div>
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${inst.status === "PAID"
                             ? "bg-emerald-100 text-emerald-700"
+                            : inst.status === "PARTIAL"
+                              ? "bg-blue-100 text-blue-700"
                             : "bg-amber-100 text-amber-700"
                             }`}
                         >
@@ -521,9 +616,10 @@ export function StudentPortal({
                 <h3 className="text-lg font-bold text-slate-900">Fee Breakup & Installments</h3>
                 <button
                   onClick={openPayment}
+                  disabled={record.feePlanMissing}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition shadow-md shadow-amber-500/20"
                 >
-                  Make Payment
+                  {record.feePlanMissing ? "Fee Plan Pending" : "Make Payment"}
                 </button>
               </div>
 
@@ -540,12 +636,17 @@ export function StudentPortal({
                       <span className="text-slate-400">Due date: {inst.dueDate}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <strong className="text-slate-900 font-serif text-sm">
-                        ₹{inst.amount.toLocaleString("en-IN")}
-                      </strong>
+                      <div className="text-right">
+                        <strong className="text-slate-900 font-serif text-sm block">
+                          ₹{inst.amount.toLocaleString("en-IN")}
+                        </strong>
+                        {inst.paid > 0 && <small className="text-[10px] font-semibold text-emerald-600">Paid ₹{inst.paid.toLocaleString("en-IN")}</small>}
+                      </div>
                       <span
                         className={`px-3 py-1 rounded-full font-bold ${inst.status === "PAID"
                           ? "bg-emerald-100 text-emerald-700"
+                          : inst.status === "PARTIAL"
+                            ? "bg-blue-100 text-blue-700"
                           : "bg-amber-100 text-amber-700"
                           }`}
                       >
@@ -558,48 +659,12 @@ export function StudentPortal({
             </div>
           )}
 
-          {/* TAB 4: RECEIPT */}
-          {tab === "receipt" && (
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4">
-              <h3 className="text-lg font-bold text-slate-900">Latest Payment Receipt</h3>
-              <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-3 text-xs">
-                <div className="flex justify-between border-b border-slate-200 pb-2">
-                  <span className="text-slate-400">Invoice Number</span>
-                  <strong className="text-slate-900 font-mono">
-                    {record.receipt.invoiceNumber}
-                  </strong>
-                </div>
-                <div className="flex justify-between border-b border-slate-200 pb-2">
-                  <span className="text-slate-400">Transaction ID</span>
-                  <strong className="text-slate-900 font-mono">
-                    {record.receipt.transactionNumber}
-                  </strong>
-                </div>
-                <div className="flex justify-between border-b border-slate-200 pb-2">
-                  <span className="text-slate-400">Payment Mode</span>
-                  <strong className="text-slate-900">{record.receipt.paymentType}</strong>
-                </div>
-                <div className="flex justify-between border-b border-slate-200 pb-2">
-                  <span className="text-slate-400">Amount Paid</span>
-                  <strong className="text-emerald-600 font-serif text-sm">
-                    ₹{record.receipt.amount.toLocaleString("en-IN")}
-                  </strong>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: HISTORY */}
+          {/* TAB 4: PAYMENT HISTORY */}
           {tab === "history" && (
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4">
-              <h3 className="text-lg font-bold text-slate-900">Payment History</h3>
-              <p className="text-xs text-slate-500">
-                All confirmed financial transactions recorded in the system.
-              </p>
-            </div>
+            <PaymentHistory studentId={record.studentId} accessToken={accessToken} />
           )}
 
-          {/* TAB 6: ALERTS */}
+          {/* TAB 5: ALERTS */}
           {tab === "reminders" && (
             <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4">
               <h3 className="text-lg font-bold text-slate-900">
@@ -631,6 +696,12 @@ export function StudentPortal({
         </main>
       </div>
 
+      {paymentSuccess && (
+        <div className="fixed top-20 right-4 left-4 sm:left-auto sm:max-w-sm z-[80] rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700 shadow-xl" role="status">
+          {paymentSuccess}
+        </div>
+      )}
+
       {/* Payment Overlay Modal */}
       {showPayment && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -638,6 +709,8 @@ export function StudentPortal({
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900">Pay Installment</h3>
               <button
+                type="button"
+                disabled={paymentBusy}
                 onClick={() => setShowPayment(false)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
               >
@@ -652,13 +725,16 @@ export function StudentPortal({
               </strong>
             </p>
 
-            <div className="space-y-3">
+            <form className="space-y-3" onSubmit={submitPayment}>
               <div>
                 <label className="text-[10px] font-bold text-slate-600 uppercase block mb-1">
                   Amount (₹)
                 </label>
                 <input
                   type="number"
+                  min="0.01"
+                  step="0.01"
+                  max={record.fee.pending}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none"
                   placeholder="Enter amount"
                   value={paymentAmount}
@@ -682,17 +758,20 @@ export function StudentPortal({
                 </select>
               </div>
 
+              {paymentError && (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700" role="alert">
+                  {paymentError}
+                </p>
+              )}
+
               <button
-                disabled={!paymentAmount}
-                onClick={() => {
-                  alert(`Payment of ₹${paymentAmount} recorded successfully!`);
-                  setShowPayment(false);
-                }}
+                type="submit"
+                disabled={!paymentAmount || paymentBusy}
                 className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition shadow-md shadow-amber-500/20 disabled:opacity-50"
               >
-                Confirm Payment
+                {paymentBusy ? "Recording Payment..." : "Confirm Payment"}
               </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
