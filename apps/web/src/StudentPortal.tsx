@@ -272,7 +272,7 @@ export function StudentPortal({
       <main className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center p-6 text-slate-800">
         <div className="bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl">
           <CheckCircle2 size={40} className="mx-auto text-amber-500" />
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+          <span className="student-id-highlight mx-auto">
             ID: {record.studentId}
           </span>
           <h1 className="text-2xl font-bold text-slate-900">Registration Pending</h1>
@@ -376,7 +376,7 @@ export function StudentPortal({
           <img className="portal-app-logo" src={nsrLogo} alt="NSR Impulse Educational Institutions" />
         </button>
         <div className="portal-app-actions flex items-center gap-4">
-          <span className="portal-app-id text-xs font-mono px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 font-semibold">
+          <span className="student-id-highlight portal-app-id text-xs font-mono px-3 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 font-semibold">
             {record.studentId}
           </span>
           <button
@@ -578,7 +578,7 @@ export function StudentPortal({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="p-4 rounded-2xl bg-slate-50 space-y-1">
                   <span className="text-slate-400 block font-semibold">Student ID</span>
-                  <strong className="text-slate-900 text-sm">{record.studentId}</strong>
+                  <strong className="student-id-highlight text-slate-900 text-sm">{record.studentId}</strong>
                 </div>
                 <div className="p-4 rounded-2xl bg-slate-50 space-y-1">
                   <span className="text-slate-400 block font-semibold">Full Name</span>

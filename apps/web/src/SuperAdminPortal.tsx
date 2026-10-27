@@ -493,7 +493,7 @@ function GlobalStudentSearch({ token, context }: { token: string; context: Super
                 <tr key={st.id} className="hover:bg-slate-50/80 transition">
                   <td className="px-4 py-3">
                     <strong className="text-slate-900 block text-sm">{st.firstName} {st.lastName}</strong>
-                    <span className="text-amber-600 font-mono text-[11px]">{st.studentUid}</span>
+                    <span className="student-id-highlight mt-1">{st.studentUid}</span>
                   </td>
                   <td className="px-4 py-3">
                     <div>{st.college?.name || "N/A"}</div>

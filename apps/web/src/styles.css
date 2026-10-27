@@ -272,6 +272,48 @@
     line-height: 1;
 }
 
+.student-id-highlight {
+    display: inline-flex !important;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 24px;
+    align-items: center;
+    padding: 4px 9px !important;
+    border: 1px solid #f6c96f !important;
+    border-radius: 999px !important;
+    background: #fff8e8 !important;
+    color: #a84b08 !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-student-detail .detail-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+.admin-student-detail .student-id-detail-cell {
+    background: #fffcf4;
+}
+
+@media (max-width: 1100px) {
+    .admin-student-detail .detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 600px) {
+    .admin-student-detail .detail-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+}
+
 @media (max-width: 767px) {
     .portal-app-header {
         min-height: 64px !important;

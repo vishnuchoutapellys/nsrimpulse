@@ -669,7 +669,7 @@ function PendingApprovals({
                     <div className="font-bold text-white">
                       {student.firstName} {student.lastName}
                     </div>
-                    <div className="text-xs text-amber-400 font-mono">
+                    <div className="student-id-highlight mt-1">
                       {student.studentUid}
                     </div>
                   </td>
@@ -849,7 +849,7 @@ function StudentSearch({
                     <div className="font-bold text-white">
                       {st.firstName} {st.lastName}
                     </div>
-                    <div className="text-xs text-amber-400 font-mono">
+                    <div className="student-id-highlight mt-1">
                       {st.studentUid}
                     </div>
                   </td>
@@ -1027,7 +1027,7 @@ function FeeReports({
                       <div className="font-bold text-white">
                         {student?.firstName} {student?.lastName}
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="student-id-highlight mt-1">
                         {student?.studentUid}
                       </div>
                     </td>
@@ -1235,8 +1235,8 @@ function CertificateCenter({ token }: { token: string }) {
               <span>STUDENT RECORD</span>
               <strong>{detail.student.name}</strong>
               <small>
-                {detail.student.studentUid} · {detail.organization.course} ·{" "}
-                {detail.organization.branch}
+                <span className="student-id-highlight">{detail.student.studentUid}</span>{" "}
+                · {detail.organization.course} · {detail.organization.branch}
               </small>
             </div>
             <div>
@@ -1510,9 +1510,9 @@ function StudentDetails({
         </div>
         <div className="detail-grid">
           {fields.map(([label, value]) => (
-            <div key={label}>
+            <div className={label === "Student ID" ? "student-id-detail-cell" : ""} key={label}>
               <span>{label}</span>
-              <strong>{value ?? "Not provided"}</strong>
+              <strong className={label === "Student ID" ? "student-id-highlight" : ""}>{value ?? "Not provided"}</strong>
             </div>
           ))}
         </div>
