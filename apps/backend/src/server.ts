@@ -140,16 +140,23 @@ app.get('/api/v1/students/:studentUid/payments', authenticateStudent(jwtAccessSe
     return res.json({
       success: true, data: {
         student: { studentId: student.studentUid, name: student.name, course: student.course.name, college: student.college.name },
-        payments: payments.map((payment) => ({
-          id: payment.id,
-          transactionNumber: payment.reference ?? payment.gatewayTransactionId ?? '',
-          receiptNumber: payment.receipt?.receiptNumber ?? '',
-          amount: Number(payment.amount),
-          mode: payment.mode,
-          status: payment.status,
-          paidAt: payment.createdAt.toISOString(),
-          allocations: payment.allocations.map((allocation) => ({ installmentId: allocation.installmentId, amount: Number(allocation.amount), dueDate: allocation.installment.dueDate.toISOString() }))
-        })),
+        payments: payments.map((payment) => {
+          const rawResponse = payment.rawResponse && typeof payment.rawResponse === 'object' && !Array.isArray(payment.rawResponse)
+            ? payment.rawResponse as Prisma.JsonObject
+            : null;
+          const feeCollectedBy = typeof rawResponse?.feeCollectedBy === 'string' ? rawResponse.feeCollectedBy : undefined;
+          return {
+            id: payment.id,
+            transactionNumber: payment.reference ?? payment.gatewayTransactionId ?? '',
+            receiptNumber: payment.receipt?.receiptNumber ?? '',
+            amount: Number(payment.amount),
+            mode: payment.mode,
+            status: payment.status,
+            paidAt: payment.createdAt.toISOString(),
+            feeCollectedBy,
+            allocations: payment.allocations.map((allocation) => ({ installmentId: allocation.installmentId, amount: Number(allocation.amount), dueDate: allocation.installment.dueDate.toISOString() }))
+          };
+        }),
         pagination: { page: query.data.page, pageSize: query.data.pageSize, totalItems, totalPages: Math.ceil(totalItems / query.data.pageSize) }
       }, message: 'Payment history loaded from PostgreSQL'
     });

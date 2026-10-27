@@ -11,6 +11,7 @@ type PaymentHistoryItem = {
   mode: string;
   status: string;
   paidAt: string;
+  feeCollectedBy?: string;
   allocations: Array<{ installmentId: string; amount: number; dueDate: string }>;
 };
 
@@ -39,7 +40,7 @@ export function PaymentHistory({ studentId, accessToken }: { studentId: string; 
   if (!history) return <section className="portal-card history-empty" aria-busy="true" />;
   if (!history.payments.length) return <section className="portal-card history-empty"><FileText size={30} /><h2>No payments yet</h2><p>Paid receipts will appear here after a payment is confirmed.</p></section>;
 
-  return <section className="history-view"><div className="history-summary"><div><span>SUCCESSFUL PAYMENTS</span><strong>{history.pagination.totalItems}</strong></div><div><span>TOTAL PAID</span><strong>₹{history.payments.reduce((sum, payment) => sum + payment.amount, 0).toLocaleString('en-IN')}</strong></div><button className="primary-button" onClick={() => downloadAllReceipts(history)}><Download size={16} /> Download all receipts</button></div><div className="history-list">{history.payments.map((payment) => <article className="portal-card history-item" key={payment.id}><div className="history-icon"><IndianRupee size={20} /></div><div className="history-main"><span className="history-date">{formatDateTime(payment.paidAt)}</span><h2>₹{payment.amount.toLocaleString('en-IN')}</h2><p>{payment.mode.replaceAll('_', ' ')} · {payment.status}</p><div className="history-identifiers"><span><b>Transaction</b>{payment.transactionNumber}</span><span><b>Receipt</b>{payment.receiptNumber}</span></div>{payment.allocations.length > 0 && <p className="history-allocation">Allocated: {payment.allocations.map((allocation) => `₹${allocation.amount.toLocaleString('en-IN')}`).join(' + ')}</p>}</div><button className="history-download" onClick={() => downloadReceipt(history.student, payment)} title="Download receipt"><Download size={18} /><span>Receipt</span></button></article>)}</div></section>;
+  return <section className="history-view"><div className="history-summary"><div><span>SUCCESSFUL PAYMENTS</span><strong>{history.pagination.totalItems}</strong></div><div><span>TOTAL PAID</span><strong>₹{history.payments.reduce((sum, payment) => sum + payment.amount, 0).toLocaleString('en-IN')}</strong></div><button className="primary-button" onClick={() => downloadAllReceipts(history)}><Download size={16} /> Download all receipts</button></div><div className="history-list">{history.payments.map((payment) => <article className="portal-card history-item" key={payment.id}><div className="history-icon"><IndianRupee size={20} /></div><div className="history-main"><span className="history-date">{formatDateTime(payment.paidAt)}</span><h2>₹{payment.amount.toLocaleString('en-IN')}</h2><p>{payment.mode.replaceAll('_', ' ')} · {payment.status}</p>{payment.feeCollectedBy && <p className="history-allocation">Fee collected by: {payment.feeCollectedBy}</p>}<div className="history-identifiers"><span><b>Transaction</b>{payment.transactionNumber}</span><span><b>Receipt</b>{payment.receiptNumber}</span></div>{payment.allocations.length > 0 && <p className="history-allocation">Allocated: {payment.allocations.map((allocation) => `₹${allocation.amount.toLocaleString('en-IN')}`).join(' + ')}</p>}</div><button className="history-download" onClick={() => downloadReceipt(history.student, payment)} title="Download receipt"><Download size={18} /><span>Receipt</span></button></article>)}</div></section>;
 }
 
 function addReceiptPage(document: JsPdfDocument, student: PaymentHistoryResponse['student'], payment: PaymentHistoryItem, page: number, totalPages: number) {
@@ -63,6 +64,7 @@ function addReceiptPage(document: JsPdfDocument, student: PaymentHistoryResponse
     ['Course', student.course],
     ['College', student.college]
   ];
+  if (payment.feeCollectedBy) rows.splice(4, 0, ['Fee collected by', payment.feeCollectedBy]);
   let y = 54;
   for (const [label, value] of rows) {
     document.setFont('helvetica', 'bold');

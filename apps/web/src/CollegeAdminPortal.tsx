@@ -45,6 +45,7 @@ type OfflinePaymentResult = {
   transactionNumber: string;
   receiptNumber: string;
   paidAt: string;
+  feeCollectedBy: string;
   outstandingAmount?: number;
 };
 type StudentDetail = {
@@ -1638,6 +1639,7 @@ function OfflinePaymentCard({
   const [mode, setMode] = useState<"CASH" | "UPI">("CASH");
   const [amount, setAmount] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
+  const [feeCollectedBy, setFeeCollectedBy] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1654,6 +1656,8 @@ function OfflinePaymentCard({
       return setError(
         `Amount cannot exceed ₹${detail.fees.pending.toLocaleString("en-IN")}.`,
       );
+    if (feeCollectedBy.trim().length < 2)
+      return setError("Enter the fee collecting person's name.");
     if (mode === "UPI" && !referenceNumber.trim())
       return setError("UPI reference number is required.");
     setBusy(true);
@@ -1666,6 +1670,7 @@ function OfflinePaymentCard({
           body: JSON.stringify({
             amount: numericAmount,
             mode,
+            feeCollectedBy: feeCollectedBy.trim(),
             referenceNumber: referenceNumber.trim() || undefined,
             notes: notes.trim() || undefined,
             paymentDate: new Date().toISOString(),
@@ -1676,6 +1681,7 @@ function OfflinePaymentCard({
       setResult(payment);
       setAmount("");
       setReferenceNumber("");
+      setFeeCollectedBy("");
       setNotes("");
       await onPaymentRecorded();
     } catch (reason) {
@@ -1703,6 +1709,7 @@ function OfflinePaymentCard({
             <p>
               {result.receiptNumber} · {result.transactionNumber}
             </p>
+            <p>Fee collected by {result.feeCollectedBy}</p>
           </div>
           <button
             className="primary-button"
@@ -1757,6 +1764,18 @@ function OfflinePaymentCard({
               />
             </label>
           )}
+          <label>
+            <span>Fee collected by</span>
+            <input
+              value={feeCollectedBy}
+              onChange={(event) => setFeeCollectedBy(event.target.value)}
+              minLength={2}
+              maxLength={120}
+              autoComplete="name"
+              placeholder="Collector's full name"
+              required
+            />
+          </label>
           <label className="admin-notes">
             <span>Notes</span>
             <input
@@ -2081,6 +2100,7 @@ async function downloadAdminReceipt(
     ["Transaction number", payment.transactionNumber],
     ["Payment date", formatDate(payment.paidAt)],
     ["Payment mode", payment.mode],
+    ["Fee collected by", payment.feeCollectedBy],
     ["Student ID", detail.student.studentUid],
     ["Student name", detail.student.name],
     ["Course", detail.organization.course],

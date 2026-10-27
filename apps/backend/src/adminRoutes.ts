@@ -71,9 +71,10 @@ const createStudentSchema = z.object({
   const [startYear, endYear] = data.academicYear.split('-').map(Number);
   if (startYear !== data.admissionYear || endYear! <= startYear!) context.addIssue({ code: z.ZodIssueCode.custom, path: ['academicYear'], message: 'Academic year must start with admission year' });
 });
-const offlinePaymentSchema = z.object({
+export const offlinePaymentSchema = z.object({
   amount: z.number().finite().positive().multipleOf(0.01),
   mode: z.enum(['CASH', 'UPI']),
+  feeCollectedBy: z.string().trim().min(2).max(120),
   referenceNumber: z.string().trim().max(100).optional(),
   paymentDate: z.string().datetime(),
   notes: z.string().trim().max(500).optional(),
@@ -448,7 +449,15 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
       const idempotencyReference = `ADMIN-OFFLINE-${parsed.data.idempotencyKey}`;
       const result = await prisma.$transaction(async (transaction) => {
         const existing = await transaction.payment.findUnique({ where: { gatewayOrderId: idempotencyReference }, include: { receipt: true, student: true } });
-        if (existing) return { studentUid: existing.student.studentUid, paymentId: existing.id, amount: Number(existing.amount), mode: existing.mode, transactionNumber: existing.reference ?? '', receiptNumber: existing.receipt?.receiptNumber ?? '', paidAt: existing.createdAt.toISOString() };
+        if (existing) {
+          const rawResponse = existing.rawResponse && typeof existing.rawResponse === 'object' && !Array.isArray(existing.rawResponse)
+            ? existing.rawResponse as Prisma.JsonObject
+            : null;
+          const feeCollectedBy = typeof rawResponse?.feeCollectedBy === 'string'
+            ? rawResponse.feeCollectedBy
+            : typeof rawResponse?.collectedBy === 'string' ? rawResponse.collectedBy : admin.adminId;
+          return { studentUid: existing.student.studentUid, paymentId: existing.id, amount: Number(existing.amount), mode: existing.mode, transactionNumber: existing.reference ?? '', receiptNumber: existing.receipt?.receiptNumber ?? '', paidAt: existing.createdAt.toISOString(), feeCollectedBy };
+        }
         const student = await transaction.student.findUnique({ where: { studentUid: params.data.studentUid.toUpperCase() }, include: { payments: { where: { status: PaymentStatus.SUCCESS } }, feeAssignments: { include: { installments: { include: { allocations: { include: { payment: true } } }, orderBy: { dueDate: 'asc' } } } } } });
         if (!student) throw new AdminPaymentError('STUDENT_NOT_FOUND', 'Student ID was not found', 404);
         if (!isStudentInScope(admin.adminScopes, student.collegeId, student.branchId)) throw new AdminPaymentError('FORBIDDEN', 'You do not have access to this student', 403);
@@ -461,7 +470,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
         const token = randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase();
         const transactionNumber = parsed.data.mode === 'UPI' ? parsed.data.referenceNumber! : `NSR-CASH-${token}`;
         const receiptNumber = `NSR-RCP-${token}`;
-        const payment = await transaction.payment.create({ data: { studentId: student.id, amount: parsed.data.amount, mode: parsed.data.mode as PaymentMode, status: PaymentStatus.SUCCESS, reference: transactionNumber, gatewayOrderId: idempotencyReference, gatewayTransactionId: parsed.data.mode === 'UPI' ? transactionNumber : null, createdAt: new Date(parsed.data.paymentDate), rawResponse: { source: 'college-admin-offline', collectedBy: admin.adminId, notes: parsed.data.notes ?? null, recordedAt: new Date().toISOString() } } });
+        const payment = await transaction.payment.create({ data: { studentId: student.id, amount: parsed.data.amount, mode: parsed.data.mode as PaymentMode, status: PaymentStatus.SUCCESS, reference: transactionNumber, gatewayOrderId: idempotencyReference, gatewayTransactionId: parsed.data.mode === 'UPI' ? transactionNumber : null, createdAt: new Date(parsed.data.paymentDate), rawResponse: { source: 'college-admin-offline', collectedBy: admin.adminId, feeCollectedBy: parsed.data.feeCollectedBy, notes: parsed.data.notes ?? null, recordedAt: new Date().toISOString() } } });
         let unallocated = parsed.data.amount;
         for (const installment of assignment.installments) {
           if (unallocated <= 0) break;
@@ -470,8 +479,8 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
           if (allocationAmount > 0) { await transaction.paymentAllocation.create({ data: { paymentId: payment.id, installmentId: installment.id, amount: allocationAmount } }); unallocated -= allocationAmount; }
         }
         const receipt = await transaction.receipt.create({ data: { paymentId: payment.id, receiptNumber, issuedAt: new Date(parsed.data.paymentDate) } });
-        await transaction.auditLog.create({ data: { userId: admin.id, action: 'OFFLINE_PAYMENT_RECORDED', entity: 'Payment', entityId: payment.id, ipAddress: req.ip, newData: { studentUid: student.studentUid, amount: parsed.data.amount, mode: parsed.data.mode, transactionNumber, receiptNumber, notes: parsed.data.notes ?? null } } });
-        return { studentUid: student.studentUid, paymentId: payment.id, amount: Number(payment.amount), mode: payment.mode, transactionNumber, receiptNumber: receipt.receiptNumber, paidAt: payment.createdAt.toISOString(), outstandingAmount: outstanding - parsed.data.amount };
+        await transaction.auditLog.create({ data: { userId: admin.id, action: 'OFFLINE_PAYMENT_RECORDED', entity: 'Payment', entityId: payment.id, ipAddress: req.ip, newData: { studentUid: student.studentUid, amount: parsed.data.amount, mode: parsed.data.mode, transactionNumber, receiptNumber, feeCollectedBy: parsed.data.feeCollectedBy, notes: parsed.data.notes ?? null } } });
+        return { studentUid: student.studentUid, paymentId: payment.id, amount: Number(payment.amount), mode: payment.mode, transactionNumber, receiptNumber: receipt.receiptNumber, paidAt: payment.createdAt.toISOString(), outstandingAmount: outstanding - parsed.data.amount, feeCollectedBy: parsed.data.feeCollectedBy };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       return res.status(201).json({ success: true, data: result, message: 'Offline payment recorded and receipt generated' });
     } catch (error) {
