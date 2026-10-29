@@ -1007,6 +1007,414 @@ app.get('/api/v1/admin/super-admin/reports/fee-collections', async (req, res) =>
     return res.status(500).json({ success: false, error: { message: error.message } });
   }
 });
+// ==========================================
+// FEATURE 1: Dynamic Branches & Locations API
+// ==========================================
+
+// 1. Get all Locations, Colleges, and Branches (for registration form & Super Admin dashboard)
+app.get('/api/v1/institutions/metadata', async (req, res) => {
+  try {
+    const [locations, colleges, branches] = await Promise.all([
+      prisma.location.findMany(),
+      prisma.college.findMany({ include: { location: true, branches: true } }),
+      prisma.branch.findMany({ include: { college: true } })
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        locations,
+        colleges,
+        branches
+      }
+    });
+  } catch (error: any) {
+    console.error('Fetch Metadata Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to fetch institution metadata' }
+    });
+  }
+});
+
+// 2. Super Admin: Add a new Branch to a College
+app.post('/api/v1/super-admin/branches', async (req, res) => {
+  try {
+    const { name, collegeId } = req.body;
+
+    if (!name || !collegeId) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Branch name and collegeId are required.' }
+      });
+    }
+
+    const newBranch = await prisma.branch.create({
+      data: {
+        name,
+        collegeId
+      },
+      include: {
+        college: true
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: newBranch
+    });
+  } catch (error: any) {
+    console.error('Create Branch Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to create branch. It may already exist for this college.' }
+    });
+  }
+});
+
+// 3. Super Admin: Remove a Branch
+app.delete('/api/v1/super-admin/branches/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await prisma.branch.delete({
+      where: { id }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Branch successfully removed.'
+    });
+  } catch (error: any) {
+    console.error('Delete Branch Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to delete branch.' }
+    });
+  }
+});
+// 4. Super Admin: Create a new College (linked to a Location)
+app.post('/api/v1/super-admin/colleges', async (req, res) => {
+  try {
+    const { name, locationId } = req.body;
+
+    if (!name || !locationId) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'College name and locationId are required.' }
+      });
+    }
+
+    const newCollege = await prisma.college.create({
+      data: {
+        name,
+        locationId
+      },
+      include: {
+        location: true,
+        branches: true
+      }
+    });
+
+    return res.json({
+      success: true,
+      data: newCollege
+    });
+  } catch (error: any) {
+    console.error('Create College Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to create college.' }
+    });
+  }
+});
+// ===================================================
+// FEATURE 2 & 3: Fee Structures & Student Discounts
+// ===================================================
+
+// 1. Get all Fee Structures with Course Details
+app.get('/api/v1/super-admin/fee-structures', async (req, res) => {
+  try {
+    const feeStructures = await prisma.feeStructure.findMany({
+      include: {
+        course: true,
+      },
+      orderBy: { academicYear: 'desc' },
+    });
+
+    return res.json({ success: true, data: feeStructures });
+  } catch (error: any) {
+    console.error('Fetch Fee Structures Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to fetch fee structures' },
+    });
+  }
+});
+
+// 2. Create or Upsert Master Fee Structure for a Course & Academic Year
+app.post('/api/v1/super-admin/fee-structures', async (req, res) => {
+  try {
+    const { courseId, academicYear, totalAmount } = req.body;
+
+    if (!courseId || !academicYear || totalAmount === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'courseId, academicYear, and totalAmount are required.' },
+      });
+    }
+
+    // Upsert ensures we update if (courseId, academicYear) exists, or create a new entry
+    const feeStructure = await prisma.feeStructure.upsert({
+      where: {
+        courseId_academicYear: { courseId, academicYear },
+      },
+      update: { totalAmount },
+      create: {
+        courseId,
+        academicYear,
+        totalAmount,
+      },
+      include: { course: true },
+    });
+
+    return res.json({ success: true, data: feeStructure });
+  } catch (error: any) {
+    console.error('Upsert Fee Structure Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to set master fee structure' },
+    });
+  }
+});
+
+// 3. Super Admin Only: Create a Master Discount Rule
+app.post('/api/v1/super-admin/discounts', async (req, res) => {
+  try {
+    const { name, type, value, reason } = req.body;
+
+    if (!name || !type || value === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'name, type, and value are required.' },
+      });
+    }
+
+    const discount = await prisma.discount.create({
+      data: { name, type, value, reason },
+    });
+
+    return res.json({ success: true, data: discount });
+  } catch (error: any) {
+    console.error('Create Discount Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to create discount rule' },
+    });
+  }
+});
+
+// 4. Super Admin Only: Assign Custom Discount to a Student Fee Assignment
+app.post('/api/v1/super-admin/student-discounts', async (req, res) => {
+  try {
+    const { feeAssignmentId, discountId, amount, approvedBy } = req.body;
+
+    if (!feeAssignmentId || !discountId || amount === undefined || !approvedBy) {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'feeAssignmentId, discountId, amount, and approvedBy are required.' },
+      });
+    }
+
+    const studentDiscount = await prisma.studentDiscount.create({
+      data: {
+        feeAssignmentId,
+        discountId,
+        amount,
+        approvedBy,
+      },
+      include: {
+        discount: true,
+        feeAssignment: {
+          include: { student: true },
+        },
+      },
+    });
+
+    return res.json({ success: true, data: studentDiscount });
+  } catch (error: any) {
+    console.error('Assign Student Discount Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to assign discount to student' },
+    });
+  }
+});
+
+// 5. College Admin (Read-Only): Fetch Discounts Applied to a Student's Fee Assignment
+app.get('/api/v1/college-admin/student-discounts/:feeAssignmentId', async (req, res) => {
+  try {
+    const { feeAssignmentId } = req.params;
+
+    const discounts = await prisma.studentDiscount.findMany({
+      where: { feeAssignmentId },
+      include: {
+        discount: true,
+      },
+      orderBy: { approvedAt: 'desc' },
+    });
+
+    return res.json({ success: true, data: discounts });
+  } catch (error: any) {
+    console.error('Fetch Student Discounts Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to fetch student discounts' },
+    });
+  }
+});
+// ==========================================
+// FEATURE 4: Master Student CRUD (Update & Delete)
+// ==========================================
+
+// 1. Super Admin: Update Student Details (Name, Status, Academic Year, etc.)
+app.put('/api/v1/super-admin/students/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { firstName, lastName, email, mobile, academicYear, status, branchId, collegeId } = req.body;
+
+    const updatedStudent = await prisma.student.update({
+      where: { id },
+      data: {
+        ...(firstName && { firstName }),
+        ...(lastName && { lastName }),
+        ...(email && { email }),
+        ...(mobile && { mobile }),
+        ...(academicYear && { academicYear }),
+        ...(status && { status }),
+        ...(branchId && { branchId }),
+        ...(collegeId && { collegeId }),
+      },
+      include: {
+        college: true,
+        branch: true,
+      },
+    });
+
+    return res.json({ success: true, data: updatedStudent });
+  } catch (error: any) {
+    console.error('Update Student Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to update student record.' },
+    });
+  }
+});
+
+// 2. Super Admin: Delete Student Record
+app.delete('/api/v1/super-admin/students/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Delete related fee assignments / dependencies if necessary, or let Prisma cascade/restrict based on schema
+    await prisma.student.delete({
+      where: { id },
+    });
+
+    return res.json({ success: true, message: 'Student successfully removed from the system.' });
+  } catch (error: any) {
+    console.error('Delete Student Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to delete student. Record may have active financial assignments.' },
+    });
+  }
+});
+// ==========================================
+// FEATURE 5: System Fee Reports & Audit Logs
+// ==========================================
+
+app.get('/api/v1/super-admin/reports/fees', async (req, res) => {
+  try {
+    const { collegeId, branchId, academicYear } = req.query;
+
+    // Fetch fee assignments with student, college, and discount details
+    const feeAssignments = await prisma.feeAssignment.findMany({
+      where: {
+        isCurrent: true, // 👈 Ensures only the active fee assignment per student is listed
+        ...(academicYear && { feeStructure: { academicYear: String(academicYear) } }),
+        ...(collegeId && { student: { collegeId: String(collegeId) } }),
+        ...(branchId && { student: { branchId: String(branchId) } }),
+      },
+      include: {
+        student: {
+          include: {
+            college: true,
+            branch: true,
+          },
+        },
+        feeStructure: {
+          include: {
+            course: true,
+          },
+        },
+        discounts: {
+          include: {
+            discount: true,
+          },
+        },
+        installments: true,
+      },
+    });
+
+    // Compute summary metrics
+    let totalAssignedAmount = 0;
+    let totalDiscountsGiven = 0;
+    let totalNetPayable = 0;
+
+    const formattedReport = feeAssignments.map((fa: any) => {
+      const baseAmount = Number(fa.originalAmount || fa.feeStructure.totalAmount || 0);
+      const studentDiscountTotal = fa.discounts.reduce((acc: number, d: any) => acc + Number(d.amount || 0), 0);
+      const netPayable = baseAmount - studentDiscountTotal;
+
+      totalAssignedAmount += baseAmount;
+      totalDiscountsGiven += studentDiscountTotal;
+      totalNetPayable += netPayable;
+
+      return {
+        id: fa.id,
+        studentName: `${fa.student.firstName || ''} ${fa.student.lastName || ''}`.trim() || fa.student.name,
+        studentUid: fa.student.studentUid,
+        collegeName: fa.student.college?.name || 'N/A',
+        branchName: fa.student.branch?.name || 'N/A',
+        courseName: fa.feeStructure.course.name,
+        academicYear: fa.feeStructure.academicYear,
+        baseAmount,
+        studentDiscountTotal,
+        netPayable,
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        summary: {
+          totalStudents: formattedReport.length,
+          totalAssignedAmount,
+          totalDiscountsGiven,
+          totalNetPayable,
+        },
+        records: formattedReport,
+      },
+    });
+  } catch (error: any) {
+    console.error('System Fee Reports Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to generate system fee report.' },
+    });
+  }
+});
 export default app;
 
 // Keep the local development server working.

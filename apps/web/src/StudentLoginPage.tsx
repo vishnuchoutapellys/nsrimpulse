@@ -48,6 +48,22 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
         console.error('Failed to load metadata dropdowns:', err);
       });
   }, []);
+  useEffect(() => {
+    async function loadMetadata() {
+      try {
+        const response = await fetch(`${apiBase}/api/v1/institutions/metadata`);
+        const result = await response.json();
+        if (result.success) {
+          // Update collegesData state with fresh dynamic colleges & branches
+          setCollegesData(result.data.colleges);
+        }
+      } catch (error) {
+        console.error("Failed to load institution metadata:", error);
+      }
+    }
+
+    loadMetadata();
+  }, []);
   // Filter branches based on selected college
   const selectedCollege = collegesData.find((c) => c.id === selectedCollegeId);
   const availableBranches = selectedCollege ? selectedCollege.branches : [];
