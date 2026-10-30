@@ -1,5 +1,5 @@
 ALTER TABLE "FeeAssignment"
-ADD COLUMN "isCurrent" BOOLEAN NOT NULL DEFAULT true;
+ADD COLUMN IF NOT EXISTS "isCurrent" BOOLEAN NOT NULL DEFAULT true;
 
 WITH ranked_assignments AS (
   SELECT

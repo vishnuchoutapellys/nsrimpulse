@@ -113,9 +113,12 @@ model CollegeAdminScope {
 
 model Course {
   id            String          @id @default(cuid())
-  name          String          @unique
+  name          String
+  programType   String          @default("INTERMEDIATE")
   students      Student[]
   feeStructures FeeStructure[]
+
+  @@unique([programType, name])
 }
 
 model Student {

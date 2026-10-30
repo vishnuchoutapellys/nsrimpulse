@@ -43,6 +43,7 @@ type StudentPortalRecord = {
   pin: string;
   fee: {
     total: number;
+    discount: number;
     paid: number;
     pending: number;
     currency: string;
@@ -125,7 +126,7 @@ async function fetchStudentRecord(
       email: raw.email || "",
       village: raw.village || "",
       pin: raw.pin || "",
-      fee: { total: 0, paid: 0, pending: 0, currency: "INR", installments: [] },
+      fee: { total: 0, discount: 0, paid: 0, pending: 0, currency: "INR", installments: [] },
       receipt: {
         invoiceNumber: "",
         transactionNumber: "",
@@ -141,9 +142,14 @@ async function fetchStudentRecord(
 
   const currentAssignment = raw.feeAssignments?.find((fa: any) => fa.isCurrent === true);
 
-  const feeTotal = Number(
+  const originalFee = Number(
     currentAssignment?.originalAmount || currentAssignment?.totalAmount || 0
   );
+  const feeDiscount = currentAssignment?.discounts?.reduce(
+    (total: number, discount: any) => total + (Number(discount.amount) || 0),
+    0
+  ) || 0;
+  const feeTotal = Math.max(0, originalFee - feeDiscount);
   const feePaid = raw.payments
     ?.filter((payment: any) => payment.status === "SUCCESS")
     .reduce((acc: number, payment: any) => acc + (Number(payment.amount) || 0), 0) || 0;
@@ -181,6 +187,7 @@ async function fetchStudentRecord(
     pin: raw.pin || "500001",
     fee: {
       total: feeTotal,
+      discount: feeDiscount,
       paid: feePaid,
       pending: Math.max(0, feeTotal - feePaid),
       currency: "INR",
@@ -228,19 +235,39 @@ export function StudentPortal({
   const [paymentSuccess, setPaymentSuccess] = useState("");
   const [paymentRequestId, setPaymentRequestId] = useState(createPaymentRequestId);
 
+  async function refreshRecord(showError = false): Promise<boolean> {
+    try {
+      setRecord(await fetchStudentRecord(studentId, accessToken));
+      setLoadError("");
+      return true;
+    } catch (reason) {
+      if (showError || !record) setLoadError(reason instanceof Error ? reason.message : "Failed to load account");
+      else console.error("Unable to refresh student fee and payment data", reason);
+      return false;
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
+    if (record && record.studentId !== studentId) setRecord(null);
+    setLoadError("");
     fetchStudentRecord(studentId, accessToken)
       .then((data) => {
-        if (!cancelled) setRecord(data);
+        if (!cancelled) {
+          setRecord(data);
+          setLoadError("");
+        }
       })
-      .catch((err) => {
-        if (!cancelled) setLoadError(err.message || "Failed to load account");
+      .catch((reason: unknown) => {
+        if (cancelled) return;
+        if (!record || record.studentId !== studentId) {
+          setLoadError(reason instanceof Error ? reason.message : "Failed to load account");
+        } else {
+          console.error("Unable to refresh student data after navigation", reason);
+        }
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [studentId, accessToken]);
+    return () => { cancelled = true; };
+  }, [studentId, accessToken, tab]);
 
   useEffect(() => {
     if (!paymentSuccess) return;
@@ -356,9 +383,7 @@ export function StudentPortal({
       setTab("overview");
       setPaymentRequestId(createPaymentRequestId());
 
-      try {
-        setRecord(await fetchStudentRecord(studentId, accessToken));
-      } catch {
+      if (!(await refreshRecord())) {
         setPaymentSuccess("Payment was recorded successfully. Refresh the page to load the latest balance.");
       }
     } catch (reason) {
@@ -473,8 +498,13 @@ export function StudentPortal({
                       ₹{record.fee.pending.toLocaleString("en-IN")}
                     </strong>
                     <span className="text-xs text-slate-400 block mt-0.5">
-                      of ₹{record.fee.total.toLocaleString("en-IN")} total fee
+                      of ₹{record.fee.total.toLocaleString("en-IN")} {record.fee.discount > 0 ? "net fee after waiver" : "total fee"}
                     </span>
+                    {record.fee.discount > 0 && (
+                      <span className="text-xs text-emerald-400 block mt-1">
+                        Includes ₹{record.fee.discount.toLocaleString("en-IN")} discount
+                      </span>
+                    )}
                   </div>
                   {!record.feePlanMissing && record.fee.pending > 0 && <button
                     onClick={openPayment}

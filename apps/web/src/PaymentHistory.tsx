@@ -26,15 +26,27 @@ export function PaymentHistory({ studentId, accessToken }: { studentId: string; 
   const [history, setHistory] = useState<PaymentHistoryResponse | null>(null);
   const [error, setError] = useState('');
 
+  async function refreshHistory(showError = false) {
+    try {
+      const response = await fetch(`${apiBase}/api/v1/students/${encodeURIComponent(studentId)}/payments?page=1&pageSize=50`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      });
+      const result = await response.json() as { success?: boolean; data?: PaymentHistoryResponse; error?: { message?: string } };
+      if (!response.ok || !result.success || !result.data) throw new Error(result.error?.message ?? 'Unable to load payment history');
+      setHistory(result.data);
+      setError('');
+    } catch (reason) {
+      if (showError || !history) setError(reason instanceof Error ? reason.message : 'Unable to load payment history');
+      else console.error('Unable to refresh student payment history', reason);
+    }
+  }
+
   useEffect(() => {
-    fetch(`${apiBase}/api/v1/students/${encodeURIComponent(studentId)}/payments?page=1&pageSize=50`, { headers: { Authorization: `Bearer ${accessToken}` }, cache: 'no-store' })
-      .then(async (response) => {
-        const result = await response.json() as { success?: boolean; data?: PaymentHistoryResponse; error?: { message?: string } };
-        if (!response.ok || !result.success || !result.data) throw new Error(result.error?.message ?? 'Unable to load payment history');
-        setHistory(result.data);
-      })
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Unable to load payment history'));
-  }, [studentId]);
+    setHistory(null);
+    setError('');
+    void refreshHistory(true);
+  }, [studentId, accessToken]);
 
   if (error) return <section className="portal-card history-empty"><FileText size={30} /><h2>Payment history unavailable</h2><p>{error}</p></section>;
   if (!history) return <section className="portal-card history-empty" aria-busy="true" />;

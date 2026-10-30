@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { PaymentMode, PaymentStatus, Prisma, PrismaClient, RoleName } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import type { NextFunction, Request, Response } from 'express';
-import { createAdminRouter } from './adminRoutes.js';
+import { createAdminRouter, createSuperAdminRouter } from './adminRoutes.js';
 import { createNotificationService } from './notifications.js';
 import { issueStudentAccessToken, studentCanAccessRecord, studentIdPattern, verifyStudentAccessToken, type StudentClaims } from './studentAuth.js';
 import { createStudentAuthRouter } from './studentAuthRoutes.js';
@@ -63,6 +63,14 @@ const studentPaymentSchema = z.object({
   mode: z.enum(['ONLINE', 'UPI', 'CASH', 'BANK_TRANSFER', 'CHEQUE', 'OTHER']),
   idempotencyKey: z.string().uuid()
 });
+const studentDiscountSchema = z.object({
+  feeAssignmentId: z.string().min(1),
+  name: z.string().trim().min(2).max(120),
+  type: z.enum(['FIXED', 'PERCENTAGE']),
+  value: z.number().finite().positive(),
+  reason: z.string().trim().max(500).optional(),
+  approvedBy: z.string().trim().min(1).max(120)
+});
 
 app.get('/health', (_req, res) => res.json({ success: true, data: { service: 'backend', status: 'ok' } }));
 app.get('/api/v1/public/overview', (_req, res) => res.json({
@@ -97,6 +105,7 @@ app.get('/api/v1/students/:studentUid/portal', async (req: Request<{ studentUid:
         course: true,
         feeAssignments: {
           include: {
+            discounts: { include: { discount: true } },
             installments: {
               include: {
                 allocations: {
@@ -169,9 +178,12 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
   try {
     const idempotencyReference = `PORTAL-${parsed.data.idempotencyKey}`;
     const result = await prisma.$transaction(async (transaction) => {
-      const existingPayment = await transaction.payment.findUnique({ where: { gatewayOrderId: idempotencyReference }, include: { receipt: true, student: { include: { payments: { where: { status: PaymentStatus.SUCCESS } }, feeAssignments: true } } } });
+      const existingPayment = await transaction.payment.findUnique({ where: { gatewayOrderId: idempotencyReference }, include: { receipt: true, student: { include: { payments: { where: { status: PaymentStatus.SUCCESS } }, feeAssignments: { where: { isCurrent: true }, include: { discounts: true } } } } } });
       if (existingPayment) {
-        const total = Number(existingPayment.student.feeAssignments.find((feeAssignment) => feeAssignment.isCurrent)?.originalAmount ?? 0);
+        const assignment = existingPayment.student.feeAssignments[0];
+        const originalAmount = Number(assignment?.originalAmount ?? 0);
+        const discountTotal = assignment?.discounts.reduce((sum, discount) => sum + Number(discount.amount), 0) ?? 0;
+        const total = Math.max(0, originalAmount - discountTotal);
         const paid = existingPayment.student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
         return { paymentId: existingPayment.id, transactionNumber: existingPayment.reference ?? '', receiptNumber: existingPayment.receipt?.receiptNumber ?? '', amount: Number(existingPayment.amount), mode: existingPayment.mode, paidAt: existingPayment.createdAt.toISOString(), outstandingAmount: Math.max(total - paid, 0) };
       }
@@ -179,13 +191,15 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
         where: { studentUid: parsed.data.studentUid },
         include: {
           payments: { where: { status: PaymentStatus.SUCCESS } },
-          feeAssignments: { include: { installments: { include: { allocations: { include: { payment: true } } }, orderBy: { dueDate: 'asc' } } } }
+          feeAssignments: { include: { discounts: true, installments: { include: { allocations: { include: { payment: true } } }, orderBy: { dueDate: 'asc' } } } }
         }
       });
       if (!student) throw new PaymentRequestError('STUDENT_NOT_FOUND', 'Student ID was not found', 404);
       const assignment = student.feeAssignments.find((feeAssignment) => feeAssignment.isCurrent);
       if (!assignment) throw new PaymentRequestError('FEE_ASSIGNMENT_NOT_FOUND', 'No fee assignment exists for this student', 409);
-      const total = Number(assignment.originalAmount);
+      const originalAmount = Number(assignment.originalAmount);
+      const discountTotal = assignment.discounts.reduce((sum, discount) => sum + Number(discount.amount), 0);
+      const total = Math.max(0, originalAmount - discountTotal);
       const paid = student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
       const outstanding = Math.max(total - paid, 0);
       if (parsed.data.amount > outstanding) throw new PaymentRequestError('AMOUNT_EXCEEDS_OUTSTANDING', `Payment cannot exceed the outstanding amount of ₹${outstanding.toLocaleString('en-IN')}`, 409);
@@ -227,6 +241,7 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
     return next(error);
   }
 });
+app.use('/api/v1/super-admin', createSuperAdminRouter(prisma));
 app.use('/api/v1/admin', createAdminRouter(prisma, notifications));
 // ==========================================
 // PUBLIC METADATA ENDPOINT (For Registration Dropdowns)
@@ -257,6 +272,7 @@ app.get('/api/v1/public/metadata', async (_req, res) => {
         courses: courses.map((co) => ({
           id: co.id,
           name: co.name,
+          programType: co.programType,
         })),
       },
     });
@@ -953,7 +969,7 @@ app.get('/api/v1/super-admin/students/search', async (req, res) => {
     const branchId = req.query.branchId ? String(req.query.branchId) : '';
     const sessionYear = req.query.session ? String(req.query.session) : '';
 
-    const whereClause: any = {};
+    const whereClause: Prisma.StudentWhereInput = {};
 
     if (collegeId) whereClause.collegeId = collegeId;
     if (branchId) whereClause.branchId = branchId;
@@ -962,8 +978,7 @@ app.get('/api/v1/super-admin/students/search', async (req, res) => {
     if (query) {
       whereClause.OR = [
         { studentUid: { contains: query, mode: 'insensitive' } },
-        { firstName: { contains: query, mode: 'insensitive' } },
-        { lastName: { contains: query, mode: 'insensitive' } },
+        { name: { contains: query, mode: 'insensitive' } },
         { college: { name: { contains: query, mode: 'insensitive' } } },
         { branch: { name: { contains: query, mode: 'insensitive' } } },
         { academicYear: { contains: query, mode: 'insensitive' } }
@@ -972,7 +987,20 @@ app.get('/api/v1/super-admin/students/search', async (req, res) => {
 
     const students = await prisma.student.findMany({
       where: whereClause,
-      include: { college: true, branch: true, course: true },
+      include: {
+        college: true,
+        branch: true,
+        course: true,
+        feeAssignments: {
+          where: { isCurrent: true },
+          select: {
+            id: true,
+            isCurrent: true,
+            originalAmount: true,
+            discounts: { select: { amount: true } }
+          }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -1216,32 +1244,70 @@ app.post('/api/v1/super-admin/discounts', async (req, res) => {
 
 // 4. Super Admin Only: Assign Custom Discount to a Student Fee Assignment
 app.post('/api/v1/super-admin/student-discounts', async (req, res) => {
-  try {
-    const { feeAssignmentId, discountId, amount, approvedBy } = req.body;
+  const parsed = studentDiscountSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'Enter a valid discount and fee assignment.' },
+    });
+  }
+  if (parsed.data.type === 'PERCENTAGE' && parsed.data.value > 100) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'Percentage discounts cannot exceed 100%.' },
+    });
+  }
 
-    if (!feeAssignmentId || !discountId || amount === undefined || !approvedBy) {
-      return res.status(400).json({
+  try {
+    const result = await prisma.$transaction(async (transaction) => {
+      const assignment = await transaction.feeAssignment.findUnique({
+        where: { id: parsed.data.feeAssignmentId },
+        include: { discounts: { select: { amount: true } } }
+      });
+      if (!assignment || !assignment.isCurrent) {
+        return { ok: false as const, status: 404, message: 'The current fee assignment was not found.' };
+      }
+
+      const originalAmount = Number(assignment.originalAmount);
+      const existingDiscountTotal = assignment.discounts.reduce(
+        (total, discount) => total + Number(discount.amount),
+        0
+      );
+      const remainingFee = Math.max(0, originalAmount - existingDiscountTotal);
+      const amount = parsed.data.type === 'PERCENTAGE'
+        ? Math.round(((originalAmount * parsed.data.value) / 100 + Number.EPSILON) * 100) / 100
+        : Math.round((parsed.data.value + Number.EPSILON) * 100) / 100;
+      if (amount <= 0 || amount > remainingFee) {
+        return { ok: false as const, status: 400, message: 'The discount must be greater than zero and cannot exceed the remaining fee.' };
+      }
+
+      const discount = await transaction.discount.create({
+        data: {
+          name: parsed.data.name,
+          type: parsed.data.type,
+          value: parsed.data.value,
+          reason: parsed.data.reason || null
+        }
+      });
+      const studentDiscount = await transaction.studentDiscount.create({
+        data: {
+          feeAssignmentId: assignment.id,
+          discountId: discount.id,
+          amount,
+          approvedBy: parsed.data.approvedBy
+        },
+        include: { discount: true }
+      });
+      return { ok: true as const, data: studentDiscount };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    if (!result.ok) {
+      return res.status(result.status).json({
         success: false,
-        error: { message: 'feeAssignmentId, discountId, amount, and approvedBy are required.' },
+        error: { message: result.message }
       });
     }
-
-    const studentDiscount = await prisma.studentDiscount.create({
-      data: {
-        feeAssignmentId,
-        discountId,
-        amount,
-        approvedBy,
-      },
-      include: {
-        discount: true,
-        feeAssignment: {
-          include: { student: true },
-        },
-      },
-    });
-
-    return res.json({ success: true, data: studentDiscount });
+    return res.status(201).json({ success: true, data: result.data });
   } catch (error: any) {
     console.error('Assign Student Discount Error:', error);
     return res.status(500).json({

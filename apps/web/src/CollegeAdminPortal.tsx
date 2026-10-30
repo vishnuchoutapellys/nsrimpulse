@@ -17,7 +17,6 @@ import {
 import { FormEvent, useEffect, useState } from "react";
 import nsrLogo from "../../assets/nsrLogo.png";
 import { apiBase } from "./api";
-import { FeePlanAssignment } from "./FeePlanAssignment";
 import { getIstGreeting } from "./timeGreeting";
 
 type AdminView =
@@ -34,9 +33,8 @@ type AdminContext = {
     college: { id: string; name: string };
     branch: { id: string; name: string } | null;
   }>;
-  courses: Array<{ id: string; name: string }>;
+  courses: Array<{ id: string; name: string; programType: string }>;
 };
-type InstallmentInput = { amount: string; dueDate: string };
 type OfflinePaymentResult = {
   studentUid: string;
   paymentId: string;
@@ -442,7 +440,7 @@ function AdminWorkspace({
             <AdminOverview context={context} onNavigate={setView} />
           )}
           {view === "approvals" && (
-            <PendingApprovals token={token} context={context} />
+            <PendingApprovals token={token} />
           )}
           {view === "search" && (
             <StudentSearch token={token} context={context} />
@@ -572,82 +570,58 @@ function AdminOverview({
   );
 }
 
-function PendingApprovals({
-  token,
-  context,
-}: {
-  token: string;
-  context: AdminContext;
-}) {
+function PendingApprovals({ token }: { token: string }) {
   const [pendingList, setPendingList] = useState<any[]>([]);
+  const [feeSelections, setFeeSelections] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [processingUid, setProcessingUid] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
-  const collegeId = context.scopes[0]?.college.id;
-
-  const loadPendingStudents = async () => {
+  async function loadPendingStudents() {
     setLoading(true);
+    setError("");
     try {
-      const res = await fetch(
-        `${apiBase}/api/v1/college-admin/students/search?collegeId=${collegeId}`,
-      );
-      const json = await res.json();
-      if (json.success) {
-        setPendingList(json.data.filter((s: any) => s.status === "ON_HOLD"));
-      }
-    } catch (err) {
-      console.error("Error loading pending students", err);
+      const students = await adminFetch<any[]>("/students/pending", token);
+      setPendingList(students);
+      setFeeSelections(Object.fromEntries(students.map((student) => [student.studentUid, student.feeOptions?.[0]?.id ?? ""])));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load pending student approvals.");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  useEffect(() => {
-    loadPendingStudents();
-  }, [collegeId]);
+  useEffect(() => { void loadPendingStudents(); }, [token]);
 
-  const handleApprove = async (studentUid: string) => {
+  async function handleApprove(studentUid: string) {
     setProcessingUid(studentUid);
+    setError("");
     try {
-      const res = await fetch(
-        `${apiBase}/api/v1/admin/students/${studentUid}/approve`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ feeTotal: 100000 }),
-        },
-      );
-      const json = await res.json();
-      if (json.success) {
-        setPendingList((prev) => prev.filter((s) => s.studentUid !== studentUid));
-        alert(`Student ${studentUid} approved successfully!`);
-      } else {
-        alert(`Approval failed: ${json.message}`);
-      }
-    } catch (err) {
-      console.error("Error approving student:", err);
-      alert("Network error during approval.");
+      const feeStructureId = feeSelections[studentUid];
+      if (!feeStructureId) throw new Error("No master fee is configured for this course and academic year.");
+      await adminFetch(`/students/${studentUid}/approve`, token, {
+        method: "POST",
+        body: JSON.stringify({ feeStructureId }),
+      });
+      setPendingList((current) => current.filter((student) => student.studentUid !== studentUid));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to approve student.");
     } finally {
       setProcessingUid(null);
     }
-  };
+  }
 
   return (
     <div className="space-y-6">
       <div className="admin-page-heading compact">
         <p className="eyebrow">REGISTRATION QUEUE</p>
         <h1>Pending Student Approvals</h1>
-        <p>Review newly registered students and assign their fee schedules.</p>
+        <p>Review registrations and assign the Super Admin-configured fee for the student course and year.</p>
       </div>
-
+      {error && <p role="alert" className="text-sm text-red-300 bg-red-950/40 border border-red-800 rounded-xl p-3">{error}</p>}
       {loading ? null : pendingList.length === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
-          <p className="text-slate-400 font-medium">
-            No pending student registrations in your queue.
-          </p>
+          <p className="text-slate-400 font-medium">No pending student registrations in your queue.</p>
         </div>
       ) : (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
@@ -657,38 +631,39 @@ function PendingApprovals({
                 <th className="px-6 py-4">Student ID & Name</th>
                 <th className="px-6 py-4">Course / Branch</th>
                 <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Master fee</th>
                 <th className="px-6 py-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {pendingList.map((student) => (
-                <tr
-                  key={student.id}
-                  className="hover:bg-slate-800/40 transition-colors"
-                >
+                <tr key={student.id} className="hover:bg-slate-800/40 transition-colors">
                   <td className="px-6 py-4">
-                    <div className="font-bold text-white">
-                      {student.firstName} {student.lastName}
-                    </div>
-                    <div className="student-id-highlight mt-1">
-                      {student.studentUid}
-                    </div>
+                    <div className="font-bold text-white">{student.name}</div>
+                    <div className="student-id-highlight mt-1">{student.studentUid}</div>
                   </td>
                   <td className="px-6 py-4">
                     <div>{student.course?.name || "N/A"}</div>
-                    <div className="text-xs text-slate-500">
-                      {student.branch?.name}
-                    </div>
+                    <div className="text-xs text-slate-500">{student.branch?.name}</div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                      {student.status}
-                    </span>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 border border-amber-500/20 text-amber-400">{student.status}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {student.feeOptions?.length ? (
+                      <select
+                        value={feeSelections[student.studentUid] ?? ""}
+                        onChange={(event) => setFeeSelections((current) => ({ ...current, [student.studentUid]: event.target.value }))}
+                        className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2 py-2 text-xs text-white"
+                      >
+                        {student.feeOptions.map((fee: any) => <option key={fee.id} value={fee.id}>{fee.academicYear} - INR {Number(fee.totalAmount).toLocaleString("en-IN")}</option>)}
+                      </select>
+                    ) : <span className="text-xs text-rose-300">Master fee not configured</span>}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button
                       onClick={() => handleApprove(student.studentUid)}
-                      disabled={processingUid === student.studentUid}
+                      disabled={processingUid === student.studentUid || !student.feeOptions?.length}
                       className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition disabled:opacity-50"
                     >
                       Approve & Assign Fees
@@ -903,6 +878,7 @@ function FeeReports({
     try {
       const res = await fetch(
         `${apiBase}/api/v1/college-admin/reports/fee-collections?collegeId=${collegeId}`,
+        { cache: "no-store" },
       );
       const json = await res.json();
       if (json.success) {
@@ -918,7 +894,6 @@ function FeeReports({
   useEffect(() => {
     fetchReports();
   }, [collegeId]);
-
   const exportCSV = () => {
     if (!reports.length) return alert("No records to export.");
     const headers = [
@@ -1499,6 +1474,10 @@ function StudentDetails({
     ["Branch", detail.organization.branch],
     ["Course", detail.organization.course],
   ];
+  const totalDiscountAmount = detail.fees.discounts.reduce(
+    (total, discount) => total + discount.amount,
+    0,
+  );
   return (
     <div className="admin-student-detail">
       <section className="portal-card">
@@ -1536,14 +1515,6 @@ function StudentDetails({
           </strong>
         </div>
       </section>
-      <FeePlanAssignment
-        studentUid={detail.student.studentUid}
-        status={detail.student.status}
-        academicYear={detail.student.academicYear}
-        totalFee={detail.fees.totalFee}
-        token={token}
-        onAssigned={onPaymentRecorded}
-      />
       {detail.fees.pending > 0 && (
         <OfflinePaymentCard
           detail={detail}
@@ -1587,7 +1558,17 @@ function StudentDetails({
         )}
       </section>
       <section className="portal-card">
-        <p className="eyebrow">DISCOUNTS</p>
+        <div className="card-heading">
+          <p className="eyebrow">DISCOUNTS</p>
+          <div className="text-right">
+            <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              Total concession
+            </span>
+            <strong className="mt-1 block text-base font-bold text-emerald-700">
+              ₹{totalDiscountAmount.toLocaleString("en-IN")}
+            </strong>
+          </div>
+        </div>
         {detail.fees.discounts.length ? (
           detail.fees.discounts.map((discount) => (
             <div
@@ -1806,71 +1787,81 @@ function CreateStudent({
 }) {
   const scope = context.scopes[0];
   const currentYear = new Date().getFullYear();
-  const [installments, setInstallments] = useState<InstallmentInput[]>([
-    { amount: "", dueDate: `${currentYear}-10-15` },
-    { amount: "", dueDate: `${currentYear + 1}-10-15` },
-  ]);
-  const [totalFee, setTotalFee] = useState("");
+  const [admissionYear, setAdmissionYear] = useState(currentYear);
+  const [academicYear, setAcademicYear] = useState(`${currentYear}-${currentYear + 1}`);
+  const [courseId, setCourseId] = useState(context.courses[0]?.id ?? "");
+  const [feeOptions, setFeeOptions] = useState<Array<{ id: string; totalAmount: number; academicYear: string }>>([]);
+  const [feeStructureId, setFeeStructureId] = useState("");
+  const [feeError, setFeeError] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  function splitFee(value: string) {
-    setTotalFee(value);
-    const total = Number(value);
-    if (total > 0) {
-      const base = Math.floor((total / installments.length) * 100) / 100;
-      setInstallments((items) =>
-        items.map((item, index) => ({
-          ...item,
-          amount: String(
-            index === items.length - 1
-              ? Number((total - base * (items.length - 1)).toFixed(2))
-              : base,
-          ),
-        })),
-      );
+
+  useEffect(() => {
+    if (!courseId || !/^\d{4}-\d{4}$/.test(academicYear)) {
+      setFeeOptions([]);
+      setFeeStructureId("");
+      return;
     }
+    let active = true;
+    setFeeError("");
+    adminFetch<Array<{ id: string; totalAmount: number; academicYear: string }>>(
+      `/fee-options?courseId=${encodeURIComponent(courseId)}&academicYear=${encodeURIComponent(academicYear)}`,
+      token,
+    ).then((options) => {
+      if (!active) return;
+      setFeeOptions(options);
+      setFeeStructureId(options[0]?.id ?? "");
+    }).catch((reason) => {
+      if (active) {
+        setFeeOptions([]);
+        setFeeStructureId("");
+        setFeeError(reason instanceof Error ? reason.message : "Unable to load configured fees.");
+      }
+    });
+    return () => { active = false; };
+  }, [courseId, academicYear, token]);
+
+  function updateAdmissionYear(value: string) {
+    const year = Number(value);
+    setAdmissionYear(year);
+    if (Number.isInteger(year) && year >= 2000 && year <= 2100) setAcademicYear(`${year}-${year + 1}`);
   }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setMessage("");
     if (!scope?.branch) return setError("An assigned branch is required.");
+    if (!feeStructureId) return setError("Configure a master fee for the selected course and academic year before creating a student.");
     const form = Object.fromEntries(new FormData(event.currentTarget));
     const body = {
       ...form,
       age: Number(form.age),
-      admissionYear: Number(form.admissionYear),
-      totalFee: Number(totalFee),
+      admissionYear,
+      academicYear,
+      courseId,
+      feeStructureId,
       collegeId: scope.college.id,
       branchId: scope.branch.id,
-      installments: installments.map((installment) => ({
-        amount: Number(installment.amount),
-        dueDate: new Date(
-          `${installment.dueDate}T00:00:00+05:30`,
-        ).toISOString(),
-      })),
     };
     setBusy(true);
     try {
-      const result = await adminFetch<{ studentUid: string }>(
-        "/students",
-        token,
-        { method: "POST", body: JSON.stringify(body) },
-      );
-      setMessage(
-        `Student ${result.studentUid} created. The temporary password was sent to the registered email.`,
-      );
+      const result = await adminFetch<{ studentUid: string }>("/students", token, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      setMessage(`Student ${result.studentUid} created. The temporary password was sent to the registered email.`);
       event.currentTarget.reset();
-      setTotalFee("");
+      onCreated();
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Unable to create student",
-      );
+      setError(reason instanceof Error ? reason.message : "Unable to create student");
     } finally {
       setBusy(false);
     }
   }
+
+  const selectedFee = feeOptions.find((fee) => fee.id === feeStructureId);
   return (
     <>
       <div className="admin-page-heading compact">
@@ -1891,20 +1882,8 @@ function CreateStudent({
               <option value="OTHER">Other</option>
             </select>
           </label>
-          <FormField
-            name="age"
-            label="Age"
-            type="number"
-            min="14"
-            max="80"
-            required
-          />
-          <FormField
-            name="mobile"
-            label="Mobile"
-            placeholder="10-digit number"
-            required
-          />
+          <FormField name="age" label="Age" type="number" min="14" max="80" required />
+          <FormField name="mobile" label="Mobile" placeholder="10-digit number" required />
           <FormField name="email" label="Email" type="email" required />
         </fieldset>
         <fieldset>
@@ -1912,46 +1891,30 @@ function CreateStudent({
           <FormField name="address" label="Address" required />
           <FormField name="village" label="Village / City" required />
           <FormField name="pin" label="PIN" placeholder="6 digits" required />
-          <FormField
-            name="admissionYear"
-            label="Admission year"
-            type="number"
-            defaultValue={String(currentYear)}
-            required
-          />
-          <FormField
-            name="academicYear"
-            label="Academic year"
-            defaultValue={`${currentYear}-${currentYear + 2}`}
-            required
-          />
+          <label>
+            <span>Admission year</span>
+            <input name="admissionYear" type="number" min="2000" max="2100" value={admissionYear} onChange={(event) => updateAdmissionYear(event.target.value)} required />
+          </label>
+          <label>
+            <span>Academic year</span>
+            <input name="academicYear" value={academicYear} readOnly required />
+          </label>
           <label>
             <span>Course</span>
-            <select name="courseId" required>
-              {context.courses.map((course) => (
-                <option value={course.id} key={course.id}>
-                  {course.name}
-                </option>
-              ))}
+            <select name="courseId" value={courseId} onChange={(event) => setCourseId(event.target.value)} required>
+              {context.courses.map((course) => <option value={course.id} key={course.id}>{course.programType.replaceAll("_", " ")} - {course.name}</option>)}
             </select>
           </label>
           <label>
             <span>College / branch</span>
-            <input
-              value={`${scope?.college.name ?? ""} · ${scope?.branch?.name ?? ""}`}
-              disabled
-            />
+            <input value={`${scope?.college.name ?? ""} - ${scope?.branch?.name ?? ""}`} disabled />
           </label>
         </fieldset>
         <fieldset>
           <legend>Certificate profile</legend>
           <FormField name="motherName" label="Mother name" />
           <FormField name="dateOfBirth" label="Date of birth" type="date" />
-          <FormField
-            name="nationality"
-            label="Nationality"
-            defaultValue="INDIAN"
-          />
+          <FormField name="nationality" label="Nationality" defaultValue="INDIAN" />
           <FormField name="religion" label="Religion" />
           <FormField name="casteCommunity" label="Caste / community" />
           <FormField name="mediumOfInstruction" label="Medium of instruction" />
@@ -1962,91 +1925,18 @@ function CreateStudent({
         <fieldset className="fee-fieldset">
           <legend>Fee assignment</legend>
           <label>
-            <span>Total fee (₹)</span>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={totalFee}
-              onChange={(event) => splitFee(event.target.value)}
-              required
-            />
+            <span>Super Admin master fee</span>
+            <select value={feeStructureId} onChange={(event) => setFeeStructureId(event.target.value)} required disabled={!feeOptions.length}>
+              <option value="">{feeOptions.length ? "Select configured fee" : "No fee configured for this course/year"}</option>
+              {feeOptions.map((fee) => <option value={fee.id} key={fee.id}>{fee.academicYear} - INR {fee.totalAmount.toLocaleString("en-IN")}</option>)}
+            </select>
           </label>
-          <div className="admin-installment-editor">
-            {installments.map((installment, index) => (
-              <div key={index}>
-                <strong>Installment {index + 1}</strong>
-                <input
-                  aria-label={`Installment ${index + 1} amount`}
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={installment.amount}
-                  onChange={(event) =>
-                    setInstallments((items) =>
-                      items.map((item, itemIndex) =>
-                        itemIndex === index
-                          ? { ...item, amount: event.target.value }
-                          : item,
-                      ),
-                    )
-                  }
-                  required
-                />
-                <input
-                  aria-label={`Installment ${index + 1} due date`}
-                  type="date"
-                  value={installment.dueDate}
-                  onChange={(event) =>
-                    setInstallments((items) =>
-                      items.map((item, itemIndex) =>
-                        itemIndex === index
-                          ? { ...item, dueDate: event.target.value }
-                          : item,
-                      ),
-                    )
-                  }
-                  required
-                />
-                {installments.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setInstallments((items) =>
-                        items.filter((_, itemIndex) => itemIndex !== index),
-                      )
-                    }
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="text-link"
-            onClick={() =>
-              setInstallments((items) => [
-                ...items,
-                { amount: "", dueDate: `${currentYear + items.length}-10-15` },
-              ])
-            }
-            disabled={installments.length >= 12}
-          >
-            + Add installment
-          </button>
+          {selectedFee && <p>Configured total: <strong>INR {selectedFee.totalAmount.toLocaleString("en-IN")}</strong>. Two installments are generated automatically.</p>}
+          {feeError && <p className="admin-form-error">{feeError}</p>}
         </fieldset>
         {error && <p className="admin-form-error">{error}</p>}
-        {message && <p className="admin-form-success">{message}</p>}
-        <div className="admin-form-actions">
-          <button type="button" className="text-link" onClick={onCreated}>
-            Search students
-          </button>
-          <button className="primary-button" disabled={busy}>
-            Create student & send credentials
-          </button>
-        </div>
+        {message && <p role="status" className="admin-form-success">{message}</p>}
+        <button className="primary-button" disabled={busy || !feeStructureId}>{busy ? "Creating student..." : "Create student and assign master fee"}</button>
       </form>
     </>
   );

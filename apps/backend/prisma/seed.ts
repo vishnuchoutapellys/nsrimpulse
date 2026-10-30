@@ -20,9 +20,16 @@ async function main() {
   await prisma.userRole.upsert({ where: { userId_role: { userId: collegeAdmin.id, role: 'COLLEGE_ADMIN' } }, update: {}, create: { userId: collegeAdmin.id, role: 'COLLEGE_ADMIN' } });
   const existingScope = await prisma.collegeAdminScope.findFirst({ where: { userId: collegeAdmin.id, collegeId: college.id, branchId: branch.id } });
   if (!existingScope) await prisma.collegeAdminScope.create({ data: { userId: collegeAdmin.id, collegeId: college.id, branchId: branch.id } });
-  const course = await prisma.course.upsert({ where: { name: 'MPC' }, update: {}, create: { name: 'MPC' } });
-  const feeStructure = await prisma.feeStructure.upsert({ where: { courseId_academicYear: { courseId: course.id, academicYear: '2026-2028' } }, update: { totalAmount: '180000' }, create: { courseId: course.id, academicYear: '2026-2028', totalAmount: '180000' } });
-  const studentData = { studentUid, name: 'CH Vishnu', age: 26, mobile: '9014249898', email: 'vishnuchoutapellys@gmail.com', fatherName: 'Nagabushanam', address: 'Hyderabad, Bachupally', village: 'Hyderabad, Bachupally', pin: '500090', admissionYear: 2026, academicYear: '2026-2028', status: StudentStatus.ACTIVE, collegeId: college.id, branchId: branch.id, courseId: course.id };
+  const course = await prisma.course.upsert({ where: { programType_name: { programType: 'INTERMEDIATE', name: 'MPC' } }, update: {}, create: { programType: 'INTERMEDIATE', name: 'MPC' } });
+  for (const name of ['BiPC', 'MEC', 'HEC']) {
+    await prisma.course.upsert({
+      where: { programType_name: { programType: 'INTERMEDIATE', name } },
+      update: {},
+      create: { programType: 'INTERMEDIATE', name }
+    });
+  }
+  const feeStructure = await prisma.feeStructure.upsert({ where: { courseId_academicYear: { courseId: course.id, academicYear: '2026-2027' } }, update: { totalAmount: '180000' }, create: { courseId: course.id, academicYear: '2026-2027', totalAmount: '180000' } });
+  const studentData = { studentUid, name: 'CH Vishnu', age: 26, mobile: '9014249898', email: 'vishnuchoutapellys@gmail.com', fatherName: 'Nagabushanam', address: 'Hyderabad, Bachupally', village: 'Hyderabad, Bachupally', pin: '500090', admissionYear: 2026, academicYear: '2026-2027', status: StudentStatus.ACTIVE, collegeId: college.id, branchId: branch.id, courseId: course.id };
   const existingStudent = await prisma.student.findFirst({ where: { OR: [{ studentUid }, { studentUid: 'NSRTSHYD-001' }, { mobile: studentData.mobile }] } });
   const student = existingStudent
     ? await prisma.student.update({ where: { id: existingStudent.id }, data: studentData })
