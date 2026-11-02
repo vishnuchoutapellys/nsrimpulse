@@ -2,19 +2,23 @@ import { ArrowLeft, ArrowRight, Eye, EyeOff, Home, LockKeyhole, Mail, Phone, Spa
 import { FormEvent, useState, useEffect } from 'react';
 import nsrLogo from '../../assets/nsrLogo.png';
 import { apiBase } from './api';
-import { } from 'lucide-react';
 
 type AuthStep = 'login' | 'change-password' | 'forgot' | 'verify' | 'reset';
 type AuthMode = 'signin' | 'register';
 type RoleType = 'STUDENT' | 'COLLEGE_ADMIN';
 
 type ApiResult = { success?: boolean; data?: Record<string, unknown>; message?: string; error?: { message?: string } };
+type RegistrationBranch = { id: string; name: string };
+type RegistrationCollege = { id: string; name: string; location: string; branches: RegistrationBranch[] };
+type RegistrationCourse = { id: string; name: string; programType?: string };
 const studentIdPattern = /^(?:demo-account-\d+|NSR[A-Z]+-\d{3,6}|NSR-[A-Z]{2}-[A-Z]+-\d{4}-\d{6})$/i;
 
 
 export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { onBack: () => void; onAdminLogin: () => void; onAuthenticated: (studentId: string, accessToken: string) => void }) {
-  const [collegesData, setCollegesData] = useState<any[]>([]);
-  const [coursesData, setCoursesData] = useState<any[]>([]);
+  const [collegesData, setCollegesData] = useState<RegistrationCollege[]>([]);
+  const [coursesData, setCoursesData] = useState<RegistrationCourse[]>([]);
+  const [metadataLoading, setMetadataLoading] = useState(true);
+  const [metadataError, setMetadataError] = useState('');
   const [selectedCollegeId, setSelectedCollegeId] = useState('');
   const [mode, setMode] = useState<AuthMode>('signin');
   const [step, setStep] = useState<AuthStep>('login');
@@ -31,38 +35,61 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
   // Registration specific state
   const [regRole, setRegRole] = useState<RoleType>('STUDENT');
   useEffect(() => {
-    // Explicitly point to the backend server URL on port 5000
-    fetch('http://localhost:4000/api/v1/public/metadata')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        return res.json();
-      })
-      .then((json) => {
-        console.log('Fetched metadata:', json);
-        if (json.success) {
-          setCollegesData(json.data.colleges || []);
-          setCoursesData(json.data.courses || []);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to load metadata dropdowns:', err);
-      });
-  }, []);
-  useEffect(() => {
+    const controller = new AbortController();
     async function loadMetadata() {
       try {
-        const response = await fetch(`${apiBase}/api/v1/institutions/metadata`);
-        const result = await response.json();
-        if (result.success) {
-          // Update collegesData state with fresh dynamic colleges & branches
-          setCollegesData(result.data.colleges);
+        const response = await fetch(`${apiBase}/api/v1/public/metadata`, { signal: controller.signal });
+        const result = await response.json() as {
+          success?: boolean;
+          data?: { colleges?: unknown[]; courses?: unknown[] };
+          error?: { message?: string };
+          message?: string;
+        };
+        if (!response.ok || !result.success || !result.data) {
+          throw new Error(result.error?.message ?? result.message ?? `Unable to load registration options (HTTP ${response.status}).`);
         }
-      } catch (error) {
-        console.error("Failed to load institution metadata:", error);
+
+        const colleges = (result.data.colleges ?? []).flatMap((value): RegistrationCollege[] => {
+          if (!value || typeof value !== 'object') return [];
+          const college = value as Record<string, unknown>;
+          if (typeof college.id !== 'string' || typeof college.name !== 'string') return [];
+          const location = typeof college.location === 'string'
+            ? college.location
+            : college.location && typeof college.location === 'object' && 'name' in college.location
+              ? String((college.location as { name: unknown }).name ?? '')
+              : '';
+          const branches = Array.isArray(college.branches)
+            ? college.branches.flatMap((branchValue): RegistrationBranch[] => {
+                if (!branchValue || typeof branchValue !== 'object') return [];
+                const branch = branchValue as Record<string, unknown>;
+                return typeof branch.id === 'string' && typeof branch.name === 'string'
+                  ? [{ id: branch.id, name: branch.name }]
+                  : [];
+              })
+            : [];
+          return [{ id: college.id, name: college.name, location, branches }];
+        });
+        const courses = (result.data.courses ?? []).flatMap((value): RegistrationCourse[] => {
+          if (!value || typeof value !== 'object') return [];
+          const course = value as Record<string, unknown>;
+          return typeof course.id === 'string' && typeof course.name === 'string'
+            ? [{ id: course.id, name: course.name, programType: typeof course.programType === 'string' ? course.programType : undefined }]
+            : [];
+        });
+        setCollegesData(colleges);
+        setCoursesData(courses);
+        setMetadataError(colleges.length && courses.length ? '' : 'Registration options are currently unavailable. Please try again later.');
+      } catch (reason) {
+        if (reason instanceof Error && reason.name === 'AbortError') return;
+        const message = reason instanceof Error ? reason.message : 'Unable to load registration options.';
+        setMetadataError(message);
+        console.error('Failed to load registration metadata:', reason);
+      } finally {
+        if (!controller.signal.aborted) setMetadataLoading(false);
       }
     }
-
-    loadMetadata();
+    void loadMetadata();
+    return () => controller.abort();
   }, []);
   // Filter branches based on selected college
   const selectedCollege = collegesData.find((c) => c.id === selectedCollegeId);
@@ -387,7 +414,7 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
                       <option value="">-- Choose College --</option>
                       {collegesData.map((college) => (
                         <option key={college.id} value={college.id}>
-                          {college.name} ({college.location})
+                          {college.name}{college.location ? ` (${college.location})` : ''}
                         </option>
                       ))}
                     </select>
@@ -404,7 +431,7 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
                       <option value="">-- Choose Branch --</option>
                       {collegesData
                         .find((c) => c.id === selectedCollegeId)
-                        ?.branches?.map((branch: any) => (
+                        ?.branches.map((branch) => (
                           <option key={branch.id} value={branch.id}>
                             {branch.name}
                           </option>
@@ -444,7 +471,12 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
               )}
 
               <PasswordField name="password" label="Password" show={showPassword} onToggle={() => setShowPassword(!showPassword)} autoComplete="new-password" />
-              <SubmitButton busy={busy}>Register Account <ArrowRight size={17} /></SubmitButton>
+              {regRole === 'STUDENT' && metadataError && (
+                <p className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs font-medium text-red-300" role="alert">
+                  {metadataError}
+                </p>
+              )}
+              <SubmitButton busy={busy || (regRole === 'STUDENT' && (metadataLoading || !!metadataError))}>Register Account <ArrowRight size={17} /></SubmitButton>
             </form>
           )}
 
