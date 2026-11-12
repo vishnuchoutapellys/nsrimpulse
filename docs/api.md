@@ -9,8 +9,8 @@ All endpoints use `/api/v1` and return `{ success, data, message }` on success o
 | POST | `/api/v1/students/validate` | Public validation only; does not persist |
 | POST | `/api/v1/auth/login` | Public; returns a password-change token for temporary credentials or a 15-minute student JWT |
 | POST | `/api/v1/auth/change-temporary-password` | Public with a valid short-lived password-change token |
-| POST | `/api/v1/auth/forgot-password` | Public; sends separate email and mobile OTPs without disclosing account existence |
-| POST | `/api/v1/auth/forgot-password/verify` | Public; verifies both OTPs and returns a one-time reset token |
+| POST | `/api/v1/auth/forgot-password` | Public; attempts email and mobile OTP delivery independently and returns a challenge when either channel succeeds |
+| POST | `/api/v1/auth/forgot-password/verify` | Public; verifies at least one successfully delivered OTP and returns a one-time reset token |
 | POST | `/api/v1/auth/forgot-password/reset` | Public with a valid one-time reset token |
 | GET | `/api/v1/students/:studentUid/portal` | Student JWT for the same `studentUid` |
 | GET | `/api/v1/students/:studentUid/payments` | Student JWT for the same `studentUid` |

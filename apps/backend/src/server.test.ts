@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { createHmac } from 'node:crypto';
 import { createStudentSchema, formatValidationIssue, getCredentialDeliveryHint, isStudentInCollegeScope, offlinePaymentSchema } from './adminRoutes.js';
+import { forgotPasswordResponse, getVerifiedOtpChannels, verifyOtpSchema } from './studentAuthRoutes.js';
 import { issueStudentAccessToken, studentCanAccessRecord, verifyStudentAccessToken } from './studentAuth.js';
 
 const jwtSecret = 'test-only-secret-for-student-auth';
@@ -102,6 +104,44 @@ describe('College Admin student admission payload', () => {
         .toContain('API key is active');
       expect(getCredentialDeliveryHint(new Error('Resend email API returned HTTP 422: private provider detail')))
         .toContain('sender address belongs to a verified domain');
+    });
+
+    describe('forgot-password response', () => {
+      it('includes the challenge ID for the verification screen when available', () => {
+        expect(forgotPasswordResponse('challenge-123', { email: true, mobile: false }).data).toEqual({
+          requested: true,
+          challengeId: 'challenge-123',
+          channels: { email: true, mobile: false }
+        });
+      });
+
+      it('does not disclose account status when no challenge was issued', () => {
+        expect(forgotPasswordResponse().data).toEqual({ requested: true });
+        expect(forgotPasswordResponse().message).toContain('If the Student ID is active');
+      });
+    });
+
+    describe('password-reset verification channels', () => {
+      const hashOtp = (otp: string) => createHmac('sha256', jwtSecret).update(otp).digest('hex');
+      const challenge = { emailOtpHash: hashOtp('123456'), mobileOtpHash: hashOtp('654321') };
+
+      it('accepts a valid email code without requiring the mobile code', () => {
+        expect(getVerifiedOtpChannels(challenge, { emailOtp: '123456' }, jwtSecret)).toEqual({ email: true, mobile: false });
+      });
+
+      it('accepts a valid mobile code without requiring the email code', () => {
+        expect(getVerifiedOtpChannels(challenge, { mobileOtp: '654321' }, jwtSecret)).toEqual({ email: false, mobile: true });
+      });
+
+      it('does not accept a code for a channel that was not delivered', () => {
+        expect(getVerifiedOtpChannels({ emailOtpHash: hashOtp('123456'), mobileOtpHash: null }, { mobileOtp: '654321' }, jwtSecret))
+          .toEqual({ email: false, mobile: false });
+      });
+
+      it('accepts a request containing one code and rejects a request containing none', () => {
+        expect(verifyOtpSchema.safeParse({ challengeId: 'challenge-123', emailOtp: '123456' }).success).toBe(true);
+        expect(verifyOtpSchema.safeParse({ challengeId: 'challenge-123' }).success).toBe(false);
+      });
     });
 
     it('does not expose raw provider errors to the client', () => {

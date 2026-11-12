@@ -23,6 +23,8 @@ The values must not have a trailing slash. `VITE_API_URL` is embedded during the
 
 Keep `DATABASE_URL`, JWT secrets, SMTP credentials, and SMS credentials in the backend Vercel project's environment settings. Never commit them to the repository.
 
+Before deploying the backend change that permits recovery through either email or SMS, apply its database migration using the production database configuration (`npm run db:deploy`). The email and SMS notification providers are attempted independently; a successful channel alone is sufficient for the student to verify and continue.
+
 ## Verification
 
 1. Open `https://nsr-impulse-api-nine.vercel.app/api/v1/public/overview` and confirm it returns JSON.

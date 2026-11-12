@@ -26,6 +26,7 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
   const [temporaryPassword, setTemporaryPassword] = useState('');
   const [changeToken, setChangeToken] = useState('');
   const [challengeId, setChallengeId] = useState('');
+  const [recoveryChannels, setRecoveryChannels] = useState({ email: false, mobile: false });
   const [resetToken, setResetToken] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState('');
@@ -222,17 +223,40 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
       const result = await request('forgot-password', { studentId: normalizedStudentId });
       const nextChallengeId = result.data?.challengeId;
       setStudentId(normalizedStudentId);
-      setMessage(result.message ?? 'Verification codes sent.');
-      if (typeof nextChallengeId === 'string') { setChallengeId(nextChallengeId); setStep('verify'); }
+      if (typeof nextChallengeId === 'string' && nextChallengeId.length > 0) {
+        const channels = result.data?.channels;
+        const availableChannels = isRecoveryChannels(channels)
+          ? channels
+          : { email: true, mobile: true };
+        if (!availableChannels.email && !availableChannels.mobile) {
+          setError('We could not deliver a verification code. Please contact your College Admin and try again later.');
+          return;
+        }
+        setChallengeId(nextChallengeId);
+        setRecoveryChannels(availableChannels);
+        setStep('verify');
+        setMessage(availableChannels.email && availableChannels.mobile
+          ? 'Verification codes were sent to your registered email and mobile. Enter either code to continue.'
+          : availableChannels.email
+            ? 'A verification code was sent to your registered email. Enter it to continue.'
+            : 'A verification code was sent to your registered mobile. Enter it to continue.');
+      } else {
+        setError('We could not send a verification code to your registered email or mobile. Please contact your College Admin to check your contact details and try again later.');
+      }
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to request password reset.'); }
     finally { setBusy(false); }
   }
   async function submitOtp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
     const data = new FormData(event.currentTarget);
+    const emailOtp = String(data.get('emailOtp') ?? '').trim();
+    const mobileOtp = String(data.get('mobileOtp') ?? '').trim();
+    const codes: Record<string, string> = { challengeId };
+    if (emailOtp) codes.emailOtp = emailOtp;
+    if (mobileOtp) codes.mobileOtp = mobileOtp;
     setBusy(true);
     try {
-      const result = await request('forgot-password/verify', { challengeId, emailOtp: String(data.get('emailOtp') ?? ''), mobileOtp: String(data.get('mobileOtp') ?? '') });
+      const result = await request('forgot-password/verify', codes);
       const nextResetToken = result.data?.resetToken;
       if (typeof nextResetToken === 'string') { setResetToken(nextResetToken); moveTo('reset'); }
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to verify codes.'); }
@@ -377,7 +401,7 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
                 step === 'login' ? <>Student <span className="text-amber-400 italic font-normal">Sign In.</span></> :
                   step === 'change-password' ? <>Secure your <span className="text-amber-400 italic font-normal">account.</span></> :
                     step === 'forgot' ? <>Forgot your <span className="text-amber-400 italic font-normal">password?</span></> :
-                      step === 'verify' ? <>Verify both <span className="text-amber-400 italic font-normal">codes.</span></> :
+                      step === 'verify' ? <>Verify your <span className="text-amber-400 italic font-normal">code.</span></> :
                         <>Set a new <span className="text-amber-400 italic font-normal">password.</span></>
               )}
             </h1>
@@ -388,7 +412,13 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
                 step === 'login' ? 'Use the Student ID and password issued by your college.' :
                   step === 'change-password' ? 'Your temporary password must be changed before accessing the student portal.' :
                     step === 'forgot' ? 'We will send separate verification codes to your registered email and mobile.' :
-                      step === 'verify' ? 'Enter the code from your email and the code sent to your mobile.' :
+                      step === 'verify'
+                        ? recoveryChannels.email && recoveryChannels.mobile
+                          ? 'Enter either the code sent to your email or the code sent to your mobile.'
+                          : recoveryChannels.email
+                            ? 'Enter the code sent to your registered email.'
+                            : 'Enter the code sent to your registered mobile.'
+                        :
                         'Choose a secure password for future sign-ins.'
               )}
             </p>
@@ -510,9 +540,9 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
 
           {mode === 'signin' && step === 'verify' && (
             <form onSubmit={submitOtp} className="space-y-5">
-              <AuthField name="emailOtp" label="Email OTP" placeholder="6-digit code" inputMode="numeric" maxLength={6} icon={<Mail size={17} />} />
-              <AuthField name="mobileOtp" label="Mobile OTP" placeholder="6-digit code" inputMode="numeric" maxLength={6} icon={<Phone size={17} />} />
-              <SubmitButton busy={busy}>Verify both codes <ArrowRight size={17} /></SubmitButton>
+              {recoveryChannels.email && <AuthField name="emailOtp" label="Email verification code" placeholder="6-digit code" inputMode="numeric" maxLength={6} icon={<Mail size={17} />} />}
+              {recoveryChannels.mobile && <AuthField name="mobileOtp" label="Mobile verification code" placeholder="6-digit code" inputMode="numeric" maxLength={6} icon={<Phone size={17} />} />}
+              <SubmitButton busy={busy}>Verify code and continue <ArrowRight size={17} /></SubmitButton>
             </form>
           )}
 
@@ -548,6 +578,15 @@ function validateNewPassword(password: string, confirmation: string) {
   }
   if (password !== confirmation) return 'Passwords do not match.';
   return '';
+}
+
+function isRecoveryChannels(value: unknown): value is { email: boolean; mobile: boolean } {
+  return value !== null
+    && typeof value === 'object'
+    && 'email' in value
+    && typeof value.email === 'boolean'
+    && 'mobile' in value
+    && typeof value.mobile === 'boolean';
 }
 
 function AuthField({ name, label, icon, type = 'text', ...props }: { name: string; label: string; icon: JSX.Element; type?: string;[key: string]: unknown }) {

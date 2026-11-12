@@ -187,8 +187,8 @@ model StudentAccount {
 model PasswordResetChallenge {
   id                String         @id @default(cuid())
   accountId         String
-  emailOtpHash      String
-  mobileOtpHash     String
+  emailOtpHash      String?
+  mobileOtpHash     String?
   expiresAt         DateTime
   attemptsRemaining Int            @default(5)
   emailVerifiedAt   DateTime?

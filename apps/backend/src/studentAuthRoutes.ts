@@ -11,7 +11,13 @@ const passwordSchema = z.string().min(8).max(128).regex(/[A-Z]/, 'Password must 
 const loginSchema = z.object({ studentId: z.string().trim().regex(studentIdPattern), password: z.string().min(6).max(128) });
 const changePasswordSchema = z.object({ changeToken: z.string().min(1), currentPassword: z.string().min(6).max(128), newPassword: passwordSchema });
 const forgotPasswordSchema = z.object({ studentId: z.string().trim().regex(studentIdPattern) });
-const verifyOtpSchema = z.object({ challengeId: z.string().min(1), emailOtp: z.string().regex(/^\d{6}$/), mobileOtp: z.string().regex(/^\d{6}$/) });
+export const verifyOtpSchema = z.object({
+  challengeId: z.string().min(1),
+  emailOtp: z.string().regex(/^\d{6}$/).optional(),
+  mobileOtp: z.string().regex(/^\d{6}$/).optional()
+}).refine((data) => Boolean(data.emailOtp || data.mobileOtp), {
+  message: 'Enter at least one 6-digit verification code'
+});
 const resetPasswordSchema = z.object({ resetToken: z.string().min(32).max(256), newPassword: passwordSchema });
 const LOGIN_ATTEMPT_LIMIT = 5;
 const LOGIN_LOCK_MINUTES = 15;
@@ -78,46 +84,82 @@ export function createStudentAuthRouter(prisma: PrismaClient, notifications: Not
   router.post('/forgot-password', async (req, res, next) => {
     const parsed = forgotPasswordSchema.safeParse(req.body);
     if (!parsed.success) return validationError(res, 'Enter a valid Student ID', parsed.error.issues);
-    const genericResponse = { success: true, data: { requested: true }, message: 'If the Student ID is active, verification codes have been sent to the registered email and mobile.' };
     try {
       const student = await prisma.student.findUnique({ where: { studentUid: parsed.data.studentId.toUpperCase() }, include: { account: true } });
-      if (!student?.account || !student.email || student.status === 'DISCONTINUED') return res.status(202).json(genericResponse);
-      const recentChallenge = await prisma.passwordResetChallenge.findFirst({ where: { accountId: student.account.id, consumedAt: null, createdAt: { gt: new Date(Date.now() - 60_000) } } });
-      if (recentChallenge) return res.status(202).json(genericResponse);
+      if (!student?.account || !student.email || student.status === 'DISCONTINUED') return res.status(202).json(forgotPasswordResponse());
+      const recentChallenge = await prisma.passwordResetChallenge.findFirst({
+        where: {
+          accountId: student.account.id,
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+          createdAt: { gt: new Date(Date.now() - 60_000) },
+          OR: [{ emailOtpHash: { not: null } }, { mobileOtpHash: { not: null } }]
+        }
+      });
+      if (recentChallenge) {
+        return res.status(202).json(forgotPasswordResponse(recentChallenge.id, {
+          email: Boolean(recentChallenge.emailOtpHash),
+          mobile: Boolean(recentChallenge.mobileOtpHash)
+        }));
+      }
       const emailOtp = generateOtp();
       const mobileOtp = generateOtp();
-      const challenge = await prisma.passwordResetChallenge.create({ data: { accountId: student.account.id, emailOtpHash: hashSecret(emailOtp, jwtSecret), mobileOtpHash: hashSecret(mobileOtp, jwtSecret), expiresAt: minutesFromNow(OTP_EXPIRY_MINUTES), attemptsRemaining: OTP_ATTEMPT_LIMIT } });
-      try {
-        await Promise.all([
-          notifications.sendEmail(student.email, 'NSR Impulse password reset code', `Your email verification code is ${emailOtp}. It expires in ${OTP_EXPIRY_MINUTES} minutes. Do not share this code.`),
-          notifications.sendSms(student.mobile, `NSR Impulse mobile verification code: ${mobileOtp}. Expires in ${OTP_EXPIRY_MINUTES} minutes. Do not share it.`)
-        ]);
-      } catch (deliveryError) {
+      const challenge = await prisma.passwordResetChallenge.create({
+        data: {
+          accountId: student.account.id,
+          emailOtpHash: null,
+          mobileOtpHash: null,
+          expiresAt: minutesFromNow(OTP_EXPIRY_MINUTES),
+          attemptsRemaining: OTP_ATTEMPT_LIMIT
+        }
+      });
+      const [emailResult, mobileResult] = await Promise.allSettled([
+        notifications.sendEmail(student.email, 'NSR Impulse password reset code', `Your email verification code is ${emailOtp}. It expires in ${OTP_EXPIRY_MINUTES} minutes. Do not share this code.`),
+        notifications.sendSms(student.mobile, `NSR Impulse mobile verification code: ${mobileOtp}. Expires in ${OTP_EXPIRY_MINUTES} minutes. Do not share it.`)
+      ]);
+      const emailDelivered = emailResult.status === 'fulfilled';
+      const mobileDelivered = mobileResult.status === 'fulfilled';
+      if (emailResult.status === 'rejected') console.error('Password reset email delivery failed', emailResult.reason);
+      if (mobileResult.status === 'rejected') console.error('Password reset SMS delivery failed', mobileResult.reason);
+      if (!emailDelivered && !mobileDelivered) {
         await prisma.passwordResetChallenge.delete({ where: { id: challenge.id } });
-        console.error('Password reset notification delivery failed', deliveryError);
-        return res.status(202).json(genericResponse);
+        return res.status(202).json(forgotPasswordResponse());
       }
+      await prisma.passwordResetChallenge.update({
+        where: { id: challenge.id },
+        data: {
+          emailOtpHash: emailDelivered ? hashSecret(emailOtp, jwtSecret) : null,
+          mobileOtpHash: mobileDelivered ? hashSecret(mobileOtp, jwtSecret) : null
+        }
+      });
       await prisma.auditLog.create({ data: { action: 'STUDENT_PASSWORD_RESET_REQUESTED', entity: 'StudentAccount', entityId: student.account.id, ipAddress: req.ip } });
-      return res.status(202).json({ ...genericResponse, data: { requested: true, challengeId: challenge.id } });
+      return res.status(202).json(forgotPasswordResponse(challenge.id, { email: emailDelivered, mobile: mobileDelivered }));
     } catch (error) { return next(error); }
   });
 
   router.post('/forgot-password/verify', async (req, res, next) => {
     const parsed = verifyOtpSchema.safeParse(req.body);
-    if (!parsed.success) return validationError(res, 'Enter both 6-digit verification codes', parsed.error.issues);
+    if (!parsed.success) return validationError(res, 'Enter at least one valid 6-digit verification code', parsed.error.issues);
     try {
       const challenge = await prisma.passwordResetChallenge.findUnique({ where: { id: parsed.data.challengeId } });
       if (!challenge || challenge.consumedAt || challenge.expiresAt <= new Date() || challenge.attemptsRemaining <= 0) return res.status(400).json({ success: false, error: { code: 'INVALID_OR_EXPIRED_OTP', message: 'The verification request is invalid or expired. Request new codes.' } });
-      const emailVerified = secureHashMatches(parsed.data.emailOtp, challenge.emailOtpHash, jwtSecret);
-      const mobileVerified = secureHashMatches(parsed.data.mobileOtp, challenge.mobileOtpHash, jwtSecret);
-      if (!emailVerified || !mobileVerified) {
+      const verifiedChannels = getVerifiedOtpChannels(challenge, parsed.data, jwtSecret);
+      if (!verifiedChannels.email && !verifiedChannels.mobile) {
         await prisma.passwordResetChallenge.update({ where: { id: challenge.id }, data: { attemptsRemaining: { decrement: 1 } } });
-        return res.status(400).json({ success: false, error: { code: 'INVALID_OTP', message: 'One or both verification codes are incorrect.' } });
+        return res.status(400).json({ success: false, error: { code: 'INVALID_OTP', message: 'The verification code is incorrect. Check the code and try again.' } });
       }
       const resetToken = randomBytes(32).toString('base64url');
       const now = new Date();
-      await prisma.passwordResetChallenge.update({ where: { id: challenge.id }, data: { emailVerifiedAt: now, mobileVerifiedAt: now, resetTokenHash: hashSecret(resetToken, jwtSecret), resetTokenExpiresAt: minutesFromNow(RESET_TOKEN_EXPIRY_MINUTES) } });
-      return res.json({ success: true, data: { resetToken }, message: 'Email and mobile verified. Set your new password.' });
+      await prisma.passwordResetChallenge.update({
+        where: { id: challenge.id },
+        data: {
+          ...(verifiedChannels.email ? { emailVerifiedAt: now } : {}),
+          ...(verifiedChannels.mobile ? { mobileVerifiedAt: now } : {}),
+          resetTokenHash: hashSecret(resetToken, jwtSecret),
+          resetTokenExpiresAt: minutesFromNow(RESET_TOKEN_EXPIRY_MINUTES)
+        }
+      });
+      return res.json({ success: true, data: { resetToken }, message: 'Verification successful. Set your new password.' });
     } catch (error) { return next(error); }
   });
 
@@ -126,7 +168,15 @@ export function createStudentAuthRouter(prisma: PrismaClient, notifications: Not
     if (!parsed.success) return validationError(res, 'Enter a secure new password', parsed.error.issues);
     try {
       const resetTokenHash = hashSecret(parsed.data.resetToken, jwtSecret);
-      const challenge = await prisma.passwordResetChallenge.findFirst({ where: { resetTokenHash, consumedAt: null, resetTokenExpiresAt: { gt: new Date() }, emailVerifiedAt: { not: null }, mobileVerifiedAt: { not: null } }, include: { account: { include: { student: true } } } });
+      const challenge = await prisma.passwordResetChallenge.findFirst({
+        where: {
+          resetTokenHash,
+          consumedAt: null,
+          resetTokenExpiresAt: { gt: new Date() },
+          OR: [{ emailVerifiedAt: { not: null } }, { mobileVerifiedAt: { not: null } }]
+        },
+        include: { account: { include: { student: true } } }
+      });
       if (!challenge) return res.status(401).json({ success: false, error: { code: 'INVALID_RESET_TOKEN', message: 'The password reset session is invalid or expired.' } });
       if (await bcrypt.compare(parsed.data.newPassword, challenge.account.passwordHash)) return res.status(400).json({ success: false, error: { code: 'PASSWORD_REUSE', message: 'Choose a password different from your current password.' } });
       const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
@@ -153,6 +203,22 @@ function verifyChangeToken(token: string, secret: string): ChangeClaims | null {
 }
 
 function generateOtp() { return randomInt(100000, 1000000).toString(); }
+export function forgotPasswordResponse(challengeId?: string, channels?: { email: boolean; mobile: boolean }) {
+  return {
+    success: true,
+    data: challengeId ? { requested: true, challengeId, channels } : { requested: true },
+    message: 'If the Student ID is active, a verification code will be sent to a registered contact method.'
+  };
+}
+export function getVerifiedOtpChannels(
+  challenge: { emailOtpHash: string | null; mobileOtpHash: string | null },
+  codes: { emailOtp?: string; mobileOtp?: string },
+  secret: string
+) {
+  const emailVerified = Boolean(challenge.emailOtpHash && codes.emailOtp && secureHashMatches(codes.emailOtp, challenge.emailOtpHash, secret));
+  const mobileVerified = Boolean(challenge.mobileOtpHash && codes.mobileOtp && secureHashMatches(codes.mobileOtp, challenge.mobileOtpHash, secret));
+  return { email: emailVerified, mobile: mobileVerified };
+}
 function minutesFromNow(minutes: number) { return new Date(Date.now() + minutes * 60_000); }
 function hashSecret(value: string, secret: string) { return createHmac('sha256', secret).update(value).digest('hex'); }
 function secureHashMatches(value: string, expectedHash: string, secret: string) {
