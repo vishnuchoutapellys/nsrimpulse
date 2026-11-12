@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { offlinePaymentSchema } from './adminRoutes.js';
+import { createStudentSchema, formatValidationIssue, getCredentialDeliveryHint, isStudentInCollegeScope, offlinePaymentSchema } from './adminRoutes.js';
 import { issueStudentAccessToken, studentCanAccessRecord, verifyStudentAccessToken } from './studentAuth.js';
 
 const jwtSecret = 'test-only-secret-for-student-auth';
@@ -50,5 +50,69 @@ describe('offline payment collection', () => {
     const parsed = offlinePaymentSchema.safeParse({ ...payment, feeCollectedBy: '  Anil Kumar  ' });
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.feeCollectedBy).toBe('Anil Kumar');
+  });
+});
+
+describe('College Admin college scope', () => {
+  const scopes = [
+    { collegeId: 'college-a', branchId: 'branch-a' },
+    { collegeId: 'college-b', branchId: null }
+  ];
+
+  it('allows student records across all branches of the assigned college', () => {
+    expect(isStudentInCollegeScope(scopes, 'college-a')).toBe(true);
+  });
+
+  it('denies student records belonging to another college', () => {
+    expect(isStudentInCollegeScope(scopes, 'college-other')).toBe(false);
+  });
+
+  it('recognizes college-wide scopes even when there is no branch assignment', () => {
+    expect(isStudentInCollegeScope(scopes, 'college-b')).toBe(true);
+  });
+});
+
+describe('College Admin student admission payload', () => {
+  const validStudent = {
+    name: 'Student Example',
+    fatherName: 'Parent Example',
+    gender: 'OTHER',
+    age: 18,
+    mobile: '9012345678',
+    email: 'student@example.com',
+    address: '123 Example Street',
+    village: 'Example City',
+    pin: '500090',
+    admissionYear: 2026,
+    academicYear: '2026-2027',
+    collegeId: 'college-a',
+    courseId: 'course-a',
+    feeStructureId: 'fee-a'
+  };
+
+  it('does not require a branch selector from the College Admin', () => {
+    const parsed = createStudentSchema.safeParse(validStudent);
+
+    expect(parsed.success).toBe(true);
+  });
+
+  describe('student credential email errors', () => {
+    it('gives actionable guidance when Resend rejects the API key or sender domain', () => {
+      expect(getCredentialDeliveryHint(new Error('Resend email API returned HTTP 403: private provider detail')))
+        .toContain('API key is active');
+      expect(getCredentialDeliveryHint(new Error('Resend email API returned HTTP 422: private provider detail')))
+        .toContain('sender address belongs to a verified domain');
+    });
+
+    it('does not expose raw provider errors to the client', () => {
+      const hint = getCredentialDeliveryHint(new Error('Resend email API returned HTTP 403: private provider detail'));
+      expect(hint).not.toContain('private provider detail');
+    });
+  });
+
+  it('explains that an address must contain at least five characters', () => {
+    const parsed = createStudentSchema.safeParse({ ...validStudent, address: '1234' });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) expect(formatValidationIssue(parsed.error.issues[0]!)).toBe('Address must contain at least 5 characters.');
   });
 });

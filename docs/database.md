@@ -4,6 +4,8 @@ The Prisma schema in `apps/backend/prisma/schema.prisma` models organization hie
 
 The `20261010120000_student_certificate_profile` migration adds these nullable profile columns, preserving existing student records.
 
+The `20261112120000_admin_account_status` migration adds persisted `ACTIVE`, `HOLD`, and `BLOCKED` states for admin accounts. Existing inactive accounts are migrated to `BLOCKED`; College Admin access is denied unless the status is `ACTIVE`.
+
 ## Vercel Postgres
 
 1. Copy `.env.example` to the repository-root `.env` if `.env` does not exist.

@@ -186,7 +186,7 @@ async function fetchStudentRecord(
     village: raw.village || "",
     pin: raw.pin || "500001",
     fee: {
-      total: feeTotal,
+      total: originalFee,
       discount: feeDiscount,
       paid: feePaid,
       pending: Math.max(0, feeTotal - feePaid),
@@ -498,11 +498,11 @@ export function StudentPortal({
                       ₹{record.fee.pending.toLocaleString("en-IN")}
                     </strong>
                     <span className="text-xs text-slate-400 block mt-0.5">
-                      of ₹{record.fee.total.toLocaleString("en-IN")} {record.fee.discount > 0 ? "net fee after waiver" : "total fee"}
+                      Total Fee: ₹{record.fee.total.toLocaleString("en-IN")}
                     </span>
                     {record.fee.discount > 0 && (
                       <span className="text-xs text-emerald-400 block mt-1">
-                        Includes ₹{record.fee.discount.toLocaleString("en-IN")} discount
+                        Discount Amount: ₹{record.fee.discount.toLocaleString("en-IN")}
                       </span>
                     )}
                   </div>

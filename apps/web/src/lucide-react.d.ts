@@ -22,10 +22,13 @@ declare module 'lucide-react' {
   export const Mail: ComponentType<IconProps>;
   export const Menu: ComponentType<IconProps>;
   export const Phone: ComponentType<IconProps>;
+  export const Pencil: ComponentType<IconProps>;
+  export const Plus: ComponentType<IconProps>;
   export const ShieldCheck: ComponentType<IconProps>;
   export const Sparkles: ComponentType<IconProps>;
   export const Star: ComponentType<IconProps>;
   export const Trophy: ComponentType<IconProps>;
+  export const Trash2: ComponentType<IconProps>;
   export const UserRound: ComponentType<IconProps>;
   export const X: ComponentType<IconProps>;
 }

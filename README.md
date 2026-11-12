@@ -42,7 +42,7 @@ For the seeded demo accounts, use Student ID `NSRHYD-001` with password `NSRHYD@
 
 ## Production readiness
 
-The repository is a functioning PWA foundation, not a complete production payment deployment. Online payments are currently simulated and must not be treated as gateway-verified settlement. Refresh-token rotation/revocation, gateway order/signature/webhook verification, applicant approval and bulk import, secure document storage, automated tenant-boundary API tests, and production PWA icon assets remain required before launch. Configure and verify real SMTP and SMS providers before using credential delivery or password recovery. Student APIs reject anonymous requests and tokens for another Student ID; College Admin routes enforce assigned college/branch scope.
+The repository is a functioning PWA foundation, not a complete production payment deployment. Online payments are currently simulated and must not be treated as gateway-verified settlement. Refresh-token rotation/revocation, gateway order/signature/webhook verification, applicant approval and bulk import, secure document storage, automated tenant-boundary API tests, and production PWA icon assets remain required before launch. Configure a verified email provider (Resend or SMTP) and SMS provider before using credential delivery or password recovery. Student APIs reject anonymous requests and tokens for another Student ID; College Admin routes are restricted to the admin's assigned college.
 
 Use separate, high-entropy `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` values from a secret manager in production. Serve over HTTPS, configure `WEB_ORIGIN` to the exact deployed web origin, restrict database network access, and replace seeded demo credentials.
 

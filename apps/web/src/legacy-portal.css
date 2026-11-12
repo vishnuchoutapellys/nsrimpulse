@@ -3065,6 +3065,16 @@ footer button {
     color: #397253
 }
 
+.admin-search-empty {
+    padding: 14px 16px;
+    border: 1px solid #d5e0d8;
+    border-radius: 10px;
+    background: #f3f7f3;
+    color: #506c63;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
 .admin-layout {
     display: grid;
     grid-template-columns: 235px 1fr;
@@ -3482,6 +3492,30 @@ footer button {
 .admin-create-form label input:disabled {
     color: #71847e;
     background: #edf2ed
+}
+
+.admin-create-form label.has-field-error input,
+.admin-create-form label.has-field-error select,
+.admin-create-form input[aria-invalid="true"],
+.admin-create-form select[aria-invalid="true"] {
+    border-color: #c43d3d;
+}
+
+.admin-create-form .field-error {
+    display: block;
+    margin: 6px 0 0;
+    color: #b42318;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.admin-create-form .field-helper {
+    display: block;
+    margin-top: 6px;
+    color: #71847e;
+    font-size: 11px;
+    line-height: 1.4;
 }
 
 .admin-create-form .fee-fieldset {

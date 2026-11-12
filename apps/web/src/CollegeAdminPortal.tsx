@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, InputHTMLAttributes, useEffect, useState } from "react";
 import nsrLogo from "../../assets/nsrLogo.png";
 import { apiBase } from "./api";
 import { getIstGreeting } from "./timeGreeting";
@@ -30,11 +30,12 @@ type CertificateType = "TRANSFER" | "BONAFIDE_CONDUCT";
 type AdminContext = {
   admin: { adminId: string; email: string };
   scopes: Array<{
-    college: { id: string; name: string };
+    college: { id: string; name: string; branches: Array<{ id: string; name: string }> };
     branch: { id: string; name: string } | null;
   }>;
   courses: Array<{ id: string; name: string; programType: string }>;
 };
+
 type OfflinePaymentResult = {
   studentUid: string;
   paymentId: string;
@@ -276,7 +277,6 @@ function AdminLogin({
                 />
               </div>
             </label>
-
             <label className="block space-y-2">
               <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
                 Password
@@ -394,7 +394,7 @@ function AdminWorkspace({
         <aside className="admin-nav">
           <div>
             <strong>{context.scopes[0]?.college.name}</strong>
-            <small>{context.scopes[0]?.branch?.name ?? "All branches"}</small>
+            <small>College-wide access</small>
           </div>
           <nav>
             <button
@@ -471,10 +471,6 @@ function AdminOverview({
 }) {
   const collegeCount = new Set(context.scopes.map((scope) => scope.college.id))
     .size;
-  const assignedBranches = new Set(
-    context.scopes.map((scope) => scope.branch?.id).filter(Boolean),
-  ).size;
-  const branchCount = assignedBranches || "All";
   return (
     <div className="admin-overview-page">
       <div className="admin-page-heading admin-welcome">
@@ -501,13 +497,9 @@ function AdminOverview({
           <small>Within your authorized scope</small>
         </article>
         <article>
-          <span>Assigned branches</span>
-          <strong>{branchCount}</strong>
-          <small>
-            {assignedBranches
-              ? "Branch-specific access"
-              : "College-wide access"}
-          </small>
+          <span>Access scope</span>
+          <strong>College-wide</strong>
+          <small>All student branches in this college</small>
         </article>
         <article>
           <span>Available courses</span>
@@ -690,13 +682,14 @@ function StudentSearch({
   const [selectedCourse, setSelectedCourse] = useState("");
   const [detail, setDetail] = useState<StudentDetail | null>(null);
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const collegeId = context.scopes[0]?.college.id;
-
   async function loadStudent(id: string) {
     setError("");
+    setSearchResults([]);
+    setHasSearched(false);
     setBusy(true);
     try {
       setDetail(
@@ -719,23 +712,20 @@ function StudentSearch({
     setError("");
     setBusy(true);
     setDetail(null);
+    setSearchResults([]);
+    setHasSearched(false);
     try {
-      const queryParams = new URLSearchParams({
-        collegeId: collegeId || "",
-        ...(studentId && { query: studentId }),
-        ...(selectedCourse && { courseId: selectedCourse }),
-      });
-      const res = await fetch(
-        `${apiBase}/api/v1/college-admin/students/search?${queryParams}`,
+      const queryParams = new URLSearchParams();
+      if (studentId) queryParams.set("query", studentId);
+      if (selectedCourse) queryParams.set("courseId", selectedCourse);
+      const students = await adminFetch<any[]>(
+        `/students/search?${queryParams.toString()}`,
+        token,
       );
-      const json = await res.json();
-      if (json.success) {
-        setSearchResults(json.data);
-      } else {
-        setError("Failed to search students");
-      }
-    } catch (err) {
-      setError("Network error occurred");
+      setSearchResults(students);
+      setHasSearched(true);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to search branch students.");
     } finally {
       setBusy(false);
     }
@@ -746,7 +736,7 @@ function StudentSearch({
       <div className="admin-page-heading compact">
         <p className="eyebrow">STUDENT SEARCH & FILTER</p>
         <h1>Search Campus Records</h1>
-        <p>Filter students by Name, Course, or Student ID.</p>
+        <p>Search student records available to your college by name, course, or Student ID.</p>
       </div>
 
       <form
@@ -804,6 +794,12 @@ function StudentSearch({
 
       {error && <p className="admin-form-error mb-4">{error}</p>}
 
+      {hasSearched && searchResults.length === 0 && !error && (
+        <p className="admin-search-empty mb-6" role="status">
+          No matching student was found in your college. Check the name or Student ID and try again. If you believe this student should be available to you, please contact your Super Admin.
+        </p>
+      )}
+
       {searchResults.length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden mb-6">
           <table className="w-full text-left text-sm text-slate-300">
@@ -823,7 +819,7 @@ function StudentSearch({
                 >
                   <td className="px-6 py-4">
                     <div className="font-bold text-white">
-                      {st.firstName} {st.lastName}
+                      {st.name}
                     </div>
                     <div className="student-id-highlight mt-1">
                       {st.studentUid}
@@ -871,29 +867,23 @@ function FeeReports({
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [reminderBusy, setReminderBusy] = useState(false);
-  const collegeId = context.scopes[0]?.college.id;
+  const [error, setError] = useState("");
 
   const fetchReports = async () => {
     setLoading(true);
+    setError("");
     try {
-      const res = await fetch(
-        `${apiBase}/api/v1/college-admin/reports/fee-collections?collegeId=${collegeId}`,
-        { cache: "no-store" },
-      );
-      const json = await res.json();
-      if (json.success) {
-        setReports(json.data);
-      }
-    } catch (err) {
-      console.error("Error fetching reports", err);
+      setReports(await adminFetch<any[]>("/reports/fee-collections", token));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load branch fee reports.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchReports();
-  }, [collegeId]);
+    void fetchReports();
+  }, [token]);
   const exportCSV = () => {
     if (!reports.length) return alert("No records to export.");
     const headers = [
@@ -902,12 +892,12 @@ function FeeReports({
     const rows = reports.map((r: any) => {
       const student = r.installment?.feeAssignment?.student;
       return [
-        r.id,
+        r.paymentId,
         r.amount,
-        r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "",
+        r.payment?.createdAt ? new Date(r.payment.createdAt).toLocaleDateString() : "",
         r.payment?.mode || "OFFLINE",
         student?.studentUid || "",
-        `"${student?.firstName || ""} ${student?.lastName || ""}"`,
+        `"${student?.name || ""}"`,
         `"${student?.course?.name || ""}"`,
       ].join(",");
     });
@@ -926,22 +916,13 @@ function FeeReports({
   const sendDueReminders = async () => {
     setReminderBusy(true);
     try {
-      const res = await fetch(
-        `${apiBase}/api/v1/college-admin/notifications/send-due-reminders`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ collegeId, daysThreshold: 7 }),
-        },
-      );
-      const json = await res.json();
-      if (json.success) {
-        alert(json.message);
-      } else {
-        alert("Failed to send reminders.");
-      }
-    } catch (err) {
-      alert("Error sending due notifications.");
+      const result = await adminFetch<{ message: string }>("/notifications/send-due-reminders", token, {
+        method: "POST",
+        body: JSON.stringify({ daysThreshold: 7 }),
+      });
+      alert(result.message);
+    } catch (reason) {
+      alert(reason instanceof Error ? reason.message : "Unable to send due reminders.");
     } finally {
       setReminderBusy(false);
     }
@@ -973,7 +954,9 @@ function FeeReports({
         </div>
       </div>
 
-      {loading ? null : reports.length === 0 ? (
+      {error && <p role="alert" className="admin-form-error">{error}</p>}
+
+      {loading || error ? null : reports.length === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-400">
           No fee payment allocations recorded yet.
         </div>
@@ -993,15 +976,15 @@ function FeeReports({
                 const student = row.installment?.feeAssignment?.student;
                 return (
                   <tr
-                    key={row.id}
+                    key={`${row.paymentId}-${row.installmentId}`}
                     className="hover:bg-slate-800/40 transition-colors"
                   >
                     <td className="px-6 py-4 font-mono text-xs text-amber-400">
-                      {row.id}
+                      {row.paymentId}
                     </td>
                     <td className="px-6 py-4">
                       <div className="font-bold text-white">
-                        {student?.firstName} {student?.lastName}
+                        {student?.name}
                       </div>
                       <div className="student-id-highlight mt-1">
                         {student?.studentUid}
@@ -1011,8 +994,8 @@ function FeeReports({
                       ₹{Number(row.amount).toLocaleString("en-IN")}
                     </td>
                     <td className="px-6 py-4 text-slate-400 text-xs">
-                      {row.createdAt
-                        ? new Date(row.createdAt).toLocaleDateString()
+                      {row.payment?.createdAt
+                        ? new Date(row.payment.createdAt).toLocaleDateString()
                         : "N/A"}
                     </td>
                   </tr>
@@ -1795,6 +1778,7 @@ function CreateStudent({
   const [feeError, setFeeError] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -1831,10 +1815,16 @@ function CreateStudent({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setFieldErrors({});
     setMessage("");
-    if (!scope?.branch) return setError("An assigned branch is required.");
-    if (!feeStructureId) return setError("Configure a master fee for the selected course and academic year before creating a student.");
-    const form = Object.fromEntries(new FormData(event.currentTarget));
+    if (!scope) return setError("No college is assigned to this College Admin account.");
+    const formElement = event.currentTarget;
+    const validationErrors = validateStudentForm(formElement);
+    if (Object.keys(validationErrors).length) {
+      setFieldErrors(validationErrors);
+      return;
+    }
+    const form = Object.fromEntries(new FormData(formElement));
     const body = {
       ...form,
       age: Number(form.age),
@@ -1843,7 +1833,6 @@ function CreateStudent({
       courseId,
       feeStructureId,
       collegeId: scope.college.id,
-      branchId: scope.branch.id,
     };
     setBusy(true);
     try {
@@ -1852,84 +1841,102 @@ function CreateStudent({
         body: JSON.stringify(body),
       });
       setMessage(`Student ${result.studentUid} created. The temporary password was sent to the registered email.`);
-      event.currentTarget.reset();
+      formElement.reset();
       onCreated();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to create student");
+      if (reason instanceof AdminRequestError && Object.keys(reason.fieldErrors).length) {
+        setFieldErrors(reason.fieldErrors);
+      } else {
+        setError(reason instanceof Error ? reason.message : "Unable to create student");
+      }
     } finally {
       setBusy(false);
     }
   }
 
   const selectedFee = feeOptions.find((fee) => fee.id === feeStructureId);
+
+  function clearFieldError(name: string) {
+    setFieldErrors((current) => {
+      if (!current[name]) return current;
+      const next = { ...current };
+      delete next[name];
+      return next;
+    });
+  }
   return (
     <>
       <div className="admin-page-heading compact">
         <p className="eyebrow">NEW ADMISSION</p>
         <h1>Create student and fee plan.</h1>
       </div>
-      <form className="admin-create-form" onSubmit={submit}>
+      <form className="admin-create-form" onSubmit={submit} noValidate>
         <fieldset>
           <legend>Student identity</legend>
-          <FormField name="name" label="Full name" required />
-          <FormField name="fatherName" label="Father name" required />
+          <FormField name="name" label="Full name" required error={fieldErrors.name} onErrorClear={clearFieldError} />
+          <FormField name="fatherName" label="Father name" required error={fieldErrors.fatherName} onErrorClear={clearFieldError} />
           <label>
             <span>Gender</span>
-            <select name="gender" required>
+            <select name="gender" required aria-invalid={Boolean(fieldErrors.gender)} onChange={() => clearFieldError("gender")}>
               <option value="">Select</option>
               <option value="MALE">Male</option>
               <option value="FEMALE">Female</option>
               <option value="OTHER">Other</option>
             </select>
+            <FieldError message={fieldErrors.gender} />
           </label>
-          <FormField name="age" label="Age" type="number" min="14" max="80" required />
-          <FormField name="mobile" label="Mobile" placeholder="10-digit number" required />
-          <FormField name="email" label="Email" type="email" required />
+          <FormField name="age" label="Age" type="number" min="14" max="80" required error={fieldErrors.age} onErrorClear={clearFieldError} />
+          <FormField name="mobile" label="Mobile" placeholder="10-digit number" required error={fieldErrors.mobile} onErrorClear={clearFieldError} />
+          <FormField name="email" label="Email" type="email" required error={fieldErrors.email} onErrorClear={clearFieldError} />
         </fieldset>
         <fieldset>
           <legend>Address & academics</legend>
-          <FormField name="address" label="Address" required />
-          <FormField name="village" label="Village / City" required />
-          <FormField name="pin" label="PIN" placeholder="6 digits" required />
+          <FormField name="address" label="Address" placeholder="Enter your complete address" minLength={5} required error={fieldErrors.address} onErrorClear={clearFieldError} helper="Enter at least 5 characters." />
+          <FormField name="village" label="Village / City" required error={fieldErrors.village} onErrorClear={clearFieldError} />
+          <FormField name="pin" label="PIN" placeholder="6 digits" required error={fieldErrors.pin} onErrorClear={clearFieldError} />
           <label>
             <span>Admission year</span>
-            <input name="admissionYear" type="number" min="2000" max="2100" value={admissionYear} onChange={(event) => updateAdmissionYear(event.target.value)} required />
+            <input name="admissionYear" type="number" min="2000" max="2100" value={admissionYear} onChange={(event) => { updateAdmissionYear(event.target.value); clearFieldError("admissionYear"); }} required aria-invalid={Boolean(fieldErrors.admissionYear)} />
+            <FieldError message={fieldErrors.admissionYear} />
           </label>
           <label>
             <span>Academic year</span>
-            <input name="academicYear" value={academicYear} readOnly required />
+            <input name="academicYear" value={academicYear} readOnly required aria-invalid={Boolean(fieldErrors.academicYear)} />
+            <FieldError message={fieldErrors.academicYear} />
           </label>
           <label>
             <span>Course</span>
-            <select name="courseId" value={courseId} onChange={(event) => setCourseId(event.target.value)} required>
+            <select name="courseId" value={courseId} onChange={(event) => { setCourseId(event.target.value); clearFieldError("courseId"); }} required aria-invalid={Boolean(fieldErrors.courseId)}>
               {context.courses.map((course) => <option value={course.id} key={course.id}>{course.programType.replaceAll("_", " ")} - {course.name}</option>)}
             </select>
+            <FieldError message={fieldErrors.courseId} />
           </label>
           <label>
-            <span>College / branch</span>
-            <input value={`${scope?.college.name ?? ""} - ${scope?.branch?.name ?? ""}`} disabled />
+            <span>College</span>
+            <input value={scope?.college.name ?? "No college assigned"} disabled />
           </label>
         </fieldset>
         <fieldset>
           <legend>Certificate profile</legend>
-          <FormField name="motherName" label="Mother name" />
-          <FormField name="dateOfBirth" label="Date of birth" type="date" />
-          <FormField name="nationality" label="Nationality" defaultValue="INDIAN" />
-          <FormField name="religion" label="Religion" />
-          <FormField name="casteCommunity" label="Caste / community" />
-          <FormField name="mediumOfInstruction" label="Medium of instruction" />
-          <FormField name="firstLanguage" label="First language" />
-          <FormField name="secondLanguage" label="Second language" />
-          <FormField name="thirdLanguage" label="Third language" />
+          <FormField name="motherName" label="Mother name" error={fieldErrors.motherName} onErrorClear={clearFieldError} />
+          <FormField name="dateOfBirth" label="Date of birth" type="date" error={fieldErrors.dateOfBirth} onErrorClear={clearFieldError} />
+          <FormField name="nationality" label="Nationality" defaultValue="INDIAN" error={fieldErrors.nationality} onErrorClear={clearFieldError} />
+          <FormField name="religion" label="Religion" error={fieldErrors.religion} onErrorClear={clearFieldError} />
+          <FormField name="casteCommunity" label="Caste / community" error={fieldErrors.casteCommunity} onErrorClear={clearFieldError} />
+          <FormField name="mediumOfInstruction" label="Medium of instruction" error={fieldErrors.mediumOfInstruction} onErrorClear={clearFieldError} />
+          <FormField name="firstLanguage" label="First language" error={fieldErrors.firstLanguage} onErrorClear={clearFieldError} />
+          <FormField name="secondLanguage" label="Second language" error={fieldErrors.secondLanguage} onErrorClear={clearFieldError} />
+          <FormField name="thirdLanguage" label="Third language" error={fieldErrors.thirdLanguage} onErrorClear={clearFieldError} />
         </fieldset>
         <fieldset className="fee-fieldset">
           <legend>Fee assignment</legend>
-          <label>
+          <label className={fieldErrors.feeStructureId ? "has-field-error" : undefined}>
             <span>Super Admin master fee</span>
-            <select value={feeStructureId} onChange={(event) => setFeeStructureId(event.target.value)} required disabled={!feeOptions.length}>
+            <select name="feeStructureId" value={feeStructureId} onChange={(event) => { setFeeStructureId(event.target.value); clearFieldError("feeStructureId"); }} required disabled={!feeOptions.length} aria-invalid={Boolean(fieldErrors.feeStructureId)}>
               <option value="">{feeOptions.length ? "Select configured fee" : "No fee configured for this course/year"}</option>
               {feeOptions.map((fee) => <option value={fee.id} key={fee.id}>{fee.academicYear} - INR {fee.totalAmount.toLocaleString("en-IN")}</option>)}
             </select>
+            <FieldError message={fieldErrors.feeStructureId} />
           </label>
           {selectedFee && <p>Configured total: <strong>INR {selectedFee.totalAmount.toLocaleString("en-IN")}</strong>. Two installments are generated automatically.</p>}
           {feeError && <p className="admin-form-error">{feeError}</p>}
@@ -1945,18 +1952,74 @@ function CreateStudent({
 function FormField({
   name,
   label,
+  error,
+  helper,
+  onErrorClear,
+  onChange,
   ...props
 }: {
   name: string;
   label: string;
-  [key: string]: string | boolean | undefined;
-}) {
+  error?: string;
+  helper?: string;
+  onErrorClear?: (name: string) => void;
+} & Omit<InputHTMLAttributes<HTMLInputElement>, "name">) {
   return (
-    <label>
+    <label className={error ? "has-field-error" : undefined}>
       <span>{label}</span>
-      <input name={name} {...props} />
+      <input
+        name={name}
+        {...props}
+        aria-invalid={Boolean(error)}
+        onChange={(event) => {
+          onChange?.(event);
+          onErrorClear?.(name);
+        }}
+      />
+      {helper && !error && <small className="field-helper">{helper}</small>}
+      <FieldError message={error} />
     </label>
   );
+}
+
+function FieldError({ message }: { message?: string }) {
+  return message ? <p className="field-error" role="alert">{message}</p> : null;
+}
+
+function validateStudentForm(form: HTMLFormElement) {
+  const errors: Record<string, string> = {};
+  for (const control of Array.from(form.elements)) {
+    if (!(control instanceof HTMLInputElement || control instanceof HTMLSelectElement)) continue;
+    if (!control.name || control.validity.valid) continue;
+
+    const label = control.closest("label")?.querySelector("span")?.textContent?.trim() || control.name;
+    const validity = control.validity;
+    if (validity.valueMissing) errors[control.name] = `${label} is required.`;
+    else if (validity.tooShort && control instanceof HTMLInputElement) errors[control.name] = `${label} must contain at least ${control.minLength} characters.`;
+    else if (validity.typeMismatch && control instanceof HTMLInputElement && control.type === "email") errors[control.name] = "Enter a valid email address.";
+    else if (validity.rangeUnderflow && control instanceof HTMLInputElement) errors[control.name] = `${label} must be at least ${control.min}.`;
+    else if (validity.rangeOverflow && control instanceof HTMLInputElement) errors[control.name] = `${label} must not exceed ${control.max}.`;
+    else if (validity.patternMismatch && control.name === "pin") errors[control.name] = "Enter a valid 6-digit PIN code.";
+    else if (validity.patternMismatch && control.name === "mobile") errors[control.name] = "Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.";
+    else errors[control.name] = `Enter a valid ${label.toLowerCase()}.`;
+  }
+  return errors;
+}
+
+class AdminRequestError extends Error {
+  constructor(message: string, readonly fieldErrors: Record<string, string>) {
+    super(message);
+    this.name = "AdminRequestError";
+  }
+}
+
+function parseFieldErrors(details: Array<{ path?: unknown[]; message?: string }> | undefined) {
+  const errors: Record<string, string> = {};
+  for (const detail of details ?? []) {
+    const name = detail.path?.[0];
+    if (typeof name === "string" && detail.message && !errors[name]) errors[name] = detail.message;
+  }
+  return errors;
 }
 
 function createRequestId() {
@@ -2040,10 +2103,15 @@ async function adminFetch<T>(
   const result = (await response.json()) as {
     success?: boolean;
     data?: T;
-    error?: { message?: string };
+    error?: {
+      message?: string;
+      details?: Array<{ path?: unknown[]; message?: string }>;
+    };
   };
-  if (!response.ok || !result.success || !result.data)
-    throw new Error(result.error?.message ?? "Admin request failed");
+  if (!response.ok || !result.success || !result.data) {
+    const message = result.error?.message ?? "Admin request failed";
+    throw new AdminRequestError(message, parseFieldErrors(result.error?.details));
+  }
   return result.data;
 }
 

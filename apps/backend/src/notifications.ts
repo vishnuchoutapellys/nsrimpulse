@@ -6,6 +6,7 @@ export type NotificationService = {
 };
 
 export function createNotificationService(): NotificationService {
+  const resendApiKey = process.env.RESEND_API_KEY;
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = Number(process.env.SMTP_PORT ?? 587);
   const smtpUser = process.env.SMTP_USER;
@@ -26,7 +27,38 @@ export function createNotificationService(): NotificationService {
 
   return {
     async sendEmail(to, subject, text) {
-      if (!transporter || !emailFrom) throw new NotificationConfigurationError('Email delivery is not configured');
+      if (!emailFrom) throw new NotificationConfigurationError('EMAIL_FROM is required for email delivery');
+      if (resendApiKey) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+        try {
+          const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ from: emailFrom, to: [to], subject, text }),
+            signal: controller.signal
+          });
+          if (!response.ok) {
+            const responseBody = await response.text();
+            let providerMessage = '';
+            try {
+              const details = JSON.parse(responseBody) as { message?: unknown; name?: unknown };
+              if (typeof details.message === 'string') providerMessage = details.message;
+              else if (typeof details.name === 'string') providerMessage = details.name;
+            } catch {
+              providerMessage = responseBody.slice(0, 300);
+            }
+            throw new Error(`Resend email API returned HTTP ${response.status}${providerMessage ? `: ${providerMessage}` : ''}`);
+          }
+        } finally {
+          clearTimeout(timeout);
+        }
+        return;
+      }
+      if (!transporter) throw new NotificationConfigurationError('Configure RESEND_API_KEY or complete the SMTP settings to enable email delivery');
       await transporter.sendMail({ from: emailFrom, to, subject, text });
     },
     async sendSms(to, message) {

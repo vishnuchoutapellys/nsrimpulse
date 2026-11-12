@@ -13,6 +13,12 @@ enum RoleName {
   SUPER_ADMIN
 }
 
+enum AdminAccountStatus {
+  ACTIVE
+  HOLD
+  BLOCKED
+}
+
 enum StudentStatus {
   ACTIVE
   ON_HOLD
@@ -44,6 +50,7 @@ model User {
   email        String      @unique
   passwordHash String
   isActive     Boolean     @default(true)
+  accountStatus AdminAccountStatus @default(ACTIVE)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
   roles        UserRole[]

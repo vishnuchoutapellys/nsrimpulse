@@ -9,11 +9,14 @@ import {
   Home,
   LockKeyhole,
   LogOut,
+  Pencil,
+  Plus,
   ShieldCheck as SearchIcon,
   ShieldCheck,
-  ShieldCheck as Trash2,
+  Trash2,
   UserRound as UserPlus,
   UserRound,
+  X,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import nsrLogo from "../../assets/nsrLogo.png";
@@ -24,12 +27,14 @@ type SuperAdminView = "dashboard" | "admins" | "search" | "reports" | "fees";
 type SuperAdminContext = {
   superAdmin: { id: string; email: string; adminId: string };
   colleges: Array<{ id: string; name: string; branches: Array<{ id: string; name: string }> }>;
+  locations: Array<{ id: string; name: string; stateName: string }>;
   courses: Array<{ id: string; name: string; programType: string }>;
   admins: Array<{
     id: string;
     adminId: string;
     email: string;
     isActive: boolean;
+    accountStatus: "ACTIVE" | "HOLD" | "BLOCKED";
     scopes: Array<{
       college: { id: string; name: string };
       branch: { id: string; name: string } | null;
@@ -308,26 +313,272 @@ function SuperAdminWorkspace({
 }
 
 
+function CollegeActions({ token, context, onRefresh }: { token: string; context: SuperAdminContext; onRefresh: () => Promise<void> }) {
+  const [mode, setMode] = useState<"add" | "delete" | null>(null);
+  const [collegeName, setCollegeName] = useState("");
+  const [locationId, setLocationId] = useState(context.locations[0]?.id ?? "");
+  const [selectedDelete, setSelectedDelete] = useState<{ id: string; name: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  async function checkResponse(response: Response) {
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.success) throw new Error(result?.error?.message ?? `Request failed (HTTP ${response.status}).`);
+  }
+
+  async function addCollege(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = collegeName.trim();
+    if (!window.confirm(`Add "${name}" as a new college?`)) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`${apiBase}/api/v1/super-admin/colleges`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name, locationId })
+      });
+      await checkResponse(response);
+      setCollegeName("");
+      setMode(null);
+      setMessage("College added successfully.");
+      await onRefresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to add college.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteCollege() {
+    if (!selectedDelete) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch(`${apiBase}/api/v1/super-admin/colleges/${encodeURIComponent(selectedDelete.id)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await checkResponse(response);
+      setMessage(`${selectedDelete.name} deleted successfully.`);
+      setSelectedDelete(null);
+      await onRefresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to delete college.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <div className="flex items-center gap-2">
+        <button type="button" aria-label="Add college" title="Add college" onClick={() => { setError(""); setMode("add"); }} className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700 hover:bg-emerald-100">
+          <Plus size={18} />
+        </button>
+        <button type="button" aria-label="Delete college" title="Delete college" onClick={() => { setError(""); setMode("delete"); }} className="rounded-xl bg-red-50 p-2.5 text-red-600 hover:bg-red-100">
+          <Trash2 size={18} />
+        </button>
+      </div>
+      {message && <p role="status" className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl p-3">{message}</p>}
+      {mode === "add" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <section role="dialog" aria-modal="true" aria-labelledby="add-college-title" className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h4 id="add-college-title" className="text-lg font-bold text-slate-900">Add New College</h4>
+              <button type="button" aria-label="Close" onClick={() => setMode(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button>
+            </div>
+            {error && <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</p>}
+            <form onSubmit={addCollege} className="space-y-4">
+              <label className="block text-xs font-semibold text-slate-600">College name
+                <input value={collegeName} onChange={(event) => setCollegeName(event.target.value)} required minLength={2} maxLength={120} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm" />
+              </label>
+              <label className="block text-xs font-semibold text-slate-600">Location
+                <select value={locationId} onChange={(event) => setLocationId(event.target.value)} required disabled={!context.locations.length} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm">
+                  <option value="">Select a location</option>
+                  {context.locations.map(location => <option key={location.id} value={location.id}>{location.name} — {location.stateName}</option>)}
+                </select>
+              </label>
+              {!context.locations.length && <p className="text-sm text-amber-700">No locations are configured yet. Add a location before creating a college.</p>}
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setMode(null)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
+                <button disabled={busy || !context.locations.length} className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{busy ? "Adding..." : "Add College"}</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+      {mode === "delete" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <section role="dialog" aria-modal="true" aria-labelledby="delete-college-title" className="w-full max-w-2xl space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h4 id="delete-college-title" className="text-lg font-bold text-slate-900">Delete College</h4>
+              <button type="button" aria-label="Close" onClick={() => setMode(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button>
+            </div>
+            <p className="text-sm text-slate-500">Colleges with students or assigned College Admins cannot be deleted.</p>
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">College</th><th className="px-4 py-3">Branches</th><th className="px-4 py-3 text-right">Action</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {context.colleges.map(college => (
+                    <tr key={college.id}>
+                      <td className="px-4 py-3 font-semibold text-slate-800">{college.name}</td>
+                      <td className="px-4 py-3 text-slate-500">{college.branches.length}</td>
+                      <td className="px-4 py-3 text-right"><button type="button" aria-label={`Delete ${college.name}`} onClick={() => setSelectedDelete({ id: college.id, name: college.name })} className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 size={16} /></button></td>
+                    </tr>
+                  ))}
+                  {!context.colleges.length && <tr><td className="px-4 py-5 text-center text-slate-400" colSpan={3}>No colleges found.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      )}
+      {selectedDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="confirm-delete-title" className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <h4 id="confirm-delete-title" className="text-lg font-bold text-slate-900">Confirm college deletion</h4>
+            <p className="text-sm text-slate-600">Delete <strong>{selectedDelete.name}</strong>? This cannot be undone.</p>
+            {error && <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</p>}
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setSelectedDelete(null)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
+              <button type="button" disabled={busy} onClick={() => void deleteCollege()} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{busy ? "Deleting..." : "Delete College"}</button>
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminDirectory({ token, admins, onRefresh }: { token: string; admins: SuperAdminContext["admins"]; onRefresh: () => Promise<void> }) {
+  const [editingAdmin, setEditingAdmin] = useState<SuperAdminContext["admins"][number] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function saveAdmin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingAdmin) return;
+    const values = new FormData(event.currentTarget);
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`${apiBase}/api/v1/super-admin/admins/${encodeURIComponent(editingAdmin.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ adminId: values.get("adminId"), email: values.get("email"), accountStatus: values.get("accountStatus") })
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) throw new Error(result?.error?.message ?? `Request failed (HTTP ${response.status}).`);
+      setEditingAdmin(null);
+      await onRefresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to update College Admin.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <table className="w-full text-left text-xs text-slate-600">
+          <thead className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase font-bold">
+            <tr><th className="px-4 py-3">Admin ID & Email</th><th className="px-4 py-3">College</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th></tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {admins.map(admin => (
+              <tr key={admin.id}>
+                <td className="px-4 py-3"><strong className="text-slate-900">{admin.adminId}</strong><div className="text-[10px] text-slate-400">{admin.email}</div></td>
+                <td className="px-4 py-3">{admin.scopes?.[0]?.college?.name || "All Colleges"}{admin.scopes?.[0]?.branch && <div className="text-[10px] text-slate-400">{admin.scopes[0].branch.name}</div>}</td>
+                <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${admin.accountStatus === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : admin.accountStatus === "HOLD" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>{admin.accountStatus === "HOLD" ? "Hold" : admin.accountStatus === "BLOCKED" ? "Blocked" : "Active"}</span></td>
+                <td className="px-4 py-3 text-right"><button type="button" aria-label={`Edit ${admin.adminId}`} title="Edit College Admin" onClick={() => { setError(""); setEditingAdmin(admin); }} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"><Pencil size={15} /></button></td>
+              </tr>
+            ))}
+            {!admins.length && <tr><td className="px-4 py-6 text-center text-slate-400" colSpan={4}>No College Admin accounts found.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {editingAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <section role="dialog" aria-modal="true" aria-labelledby="edit-admin-title" className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h4 id="edit-admin-title" className="text-lg font-bold text-slate-900">Edit College Admin</h4>
+              <button type="button" aria-label="Close" onClick={() => setEditingAdmin(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button>
+            </div>
+            <form onSubmit={saveAdmin} className="space-y-4">
+              {error && <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</p>}
+              <label className="block text-xs font-semibold text-slate-600">Admin ID<input name="adminId" defaultValue={editingAdmin.adminId} required minLength={8} maxLength={40} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm" /></label>
+              <label className="block text-xs font-semibold text-slate-600">Email<input name="email" type="email" defaultValue={editingAdmin.email} required maxLength={254} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm" /></label>
+              <label className="block text-xs font-semibold text-slate-600">Account status
+                <select name="accountStatus" defaultValue={editingAdmin.accountStatus} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm">
+                  <option value="ACTIVE">Active</option><option value="HOLD">Hold</option><option value="BLOCKED">Blocked</option>
+                </select>
+              </label>
+              <p className="text-xs text-slate-500">College: {editingAdmin.scopes[0]?.college.name ?? "No college assigned"}</p>
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setEditingAdmin(null)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
+                <button disabled={busy} className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{busy ? "Saving..." : "Save Changes"}</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+    </>
+  );
+}
+
 function ManageAdmins({ token, context, onRefresh }: { token: string; context: SuperAdminContext; onRefresh: () => Promise<void> }) {
   const [adminId, setAdminId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [selectedCollegeId, setSelectedCollegeId] = useState(context.colleges[0]?.id || "");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!context.colleges.some((college) => college.id === selectedCollegeId)) {
+      setSelectedCollegeId(context.colleges[0]?.id ?? "");
+    }
+  }, [context.colleges, selectedCollegeId]);
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
+    const passwordProblems = [
+      password.length < 12 && "at least 12 characters",
+      password.length > 128 && "no more than 128 characters",
+      !/[A-Z]/.test(password) && "an uppercase letter",
+      !/[a-z]/.test(password) && "a lowercase letter",
+      !/\d/.test(password) && "a number",
+      !/[^A-Za-z0-9]/.test(password) && "a special character"
+    ].filter((problem): problem is string => Boolean(problem));
+    if (passwordProblems.length) {
+      setError(`Password must include ${passwordProblems.join(", ")}.`);
+      return;
+    }
     setBusy(true);
+    setError("");
     try {
       const res = await fetch(`${apiBase}/api/v1/super-admin/admins`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ adminId, email, password, collegeId: selectedCollegeId, scopeType: "COLLEGE" }),
+        body: JSON.stringify({ adminId, email, password, collegeId: selectedCollegeId }),
       });
+      const result = await res.json().catch(() => null);
+      if (!res.ok || !result?.success) {
+        const detailMessages = Array.isArray(result?.error?.details)
+          ? result.error.details.map((detail: { message?: string }) => detail.message).filter(Boolean)
+          : [];
+        throw new Error(detailMessages.length ? detailMessages.join(". ") : result?.error?.message ?? `Request failed (HTTP ${res.status}).`);
+      }
       if (res.ok) {
         setAdminId(""); setEmail(""); setPassword("");
         await onRefresh();
       }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to create College Admin account.");
     } finally {
       setBusy(false);
     }
@@ -336,37 +587,35 @@ function ManageAdmins({ token, context, onRefresh }: { token: string; context: S
   return (
     <div className="space-y-6">
       <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4">
-        <h3 className="text-lg font-bold text-slate-900">Provision College Admin</h3>
+        <div className="flex items-center justify-between gap-4">
+          <h3 className="text-lg font-bold text-slate-900">Provision College Admin</h3>
+          <CollegeActions token={token} context={context} onRefresh={onRefresh} />
+        </div>
+        {error && <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl p-3">{error}</p>}
         <form onSubmit={handleCreate} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:bg-white" placeholder="Admin ID" value={adminId} onChange={e => setAdminId(e.target.value)} required />
             <input className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:bg-white" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
-          <input className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:bg-white" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
-          <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:bg-white" value={selectedCollegeId} onChange={e => setSelectedCollegeId(e.target.value)}>
-            {context.colleges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          <button disabled={busy} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl text-xs transition shadow-md shadow-amber-500/20">
+          <label className="block text-xs font-semibold text-slate-600">
+            Password
+            <input className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:bg-white" type="password" placeholder="Create a secure password" value={password} onChange={e => setPassword(e.target.value)} minLength={12} maxLength={128} autoComplete="new-password" required />
+            <span className="mt-1 block text-[11px] font-normal text-slate-500">At least 12 characters, with uppercase and lowercase letters, a number, and a special character.</span>
+          </label>
+          <label className="block text-xs font-semibold text-slate-600">
+            College
+            <select className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:bg-white" value={selectedCollegeId} onChange={e => setSelectedCollegeId(e.target.value)} required disabled={!context.colleges.length}>
+              {context.colleges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <p className="text-xs text-slate-500">This College Admin can manage the current college branch details only.</p>
+          <button disabled={busy || !context.colleges.length} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl text-xs transition shadow-md shadow-amber-500/20">
             Create Account
           </button>
         </form>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <table className="w-full text-left text-xs text-slate-600">
-          <thead className="bg-slate-50 border-b border-slate-200 text-slate-400 uppercase font-bold">
-            <tr><th className="px-4 py-3">Admin ID & Email</th><th className="px-4 py-3">College</th></tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {context.admins?.map(a => (
-              <tr key={a.id}>
-                <td className="px-4 py-3"><strong className="text-slate-900">{a.adminId}</strong><div className="text-[10px] text-slate-400">{a.email}</div></td>
-                <td className="px-4 py-3">{a.scopes?.[0]?.college?.name || "All Colleges"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <AdminDirectory token={token} admins={context.admins} onRefresh={onRefresh} />
     </div>
   );
 }

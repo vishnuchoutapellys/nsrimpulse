@@ -47,6 +47,21 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '1mb' }));
 
+app.use('/api/v1/super-admin', createSuperAdminRouter(prisma));
+app.use('/api/v1/super-admin', (_req, res) => res.status(404).json({
+  success: false,
+  error: { code: 'ROUTE_NOT_FOUND', message: 'This Super Admin route is not available.' }
+}));
+app.use('/api/v1/admin', createAdminRouter(prisma, notifications));
+app.use('/api/v1/admin', (_req, res) => res.status(404).json({
+  success: false,
+  error: { code: 'ROUTE_NOT_FOUND', message: 'This College Admin route is not available.' }
+}));
+app.use('/api/v1/college-admin', (_req, res) => res.status(404).json({
+  success: false,
+  error: { code: 'ROUTE_NOT_FOUND', message: 'This legacy College Admin route is no longer available. Use the authenticated College Admin portal.' }
+}));
+
 const studentSchema = z.object({
   name: z.string().trim().min(2),
   mobile: z.string().regex(/^[6-9]\d{9}$/),
@@ -86,13 +101,14 @@ app.post('/api/v1/students/validate', (req, res) => {
   if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid student details', details: parsed.error.issues } });
   return res.status(202).json({ success: true, data: { validated: true }, message: 'Student details are valid' });
 });
-app.get('/api/v1/students/:studentUid/portal', async (req: Request<{ studentUid: string }>, res: Response) => {
+app.get('/api/v1/students/:studentUid/portal', authenticateStudent(jwtAccessSecret), async (req: StudentRequest, res: Response) => {
   const { studentUid } = req.params;
 
   try {
     const normalizedUid = studentUid.toLowerCase().startsWith('demo-')
       ? studentUid.toLowerCase()
       : studentUid.toUpperCase();
+    if (!studentCanAccessRecord(req.student, normalizedUid)) return forbiddenStudent(res);
 
     console.log('--- PORTAL ACCESS REQUEST ---');
     console.log('Fetching student record for:', normalizedUid);
@@ -241,8 +257,6 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
     return next(error);
   }
 });
-app.use('/api/v1/super-admin', createSuperAdminRouter(prisma));
-app.use('/api/v1/admin', createAdminRouter(prisma, notifications));
 // ==========================================
 // PUBLIC METADATA ENDPOINT (For Registration Dropdowns)
 // ==========================================
@@ -522,48 +536,6 @@ app.post('/api/v1/auth/login', async (req, res) => {
     return res.status(500).json({
       success: false,
       error: { message: 'Internal server error during login' }
-    });
-  }
-});
-app.post('/api/v1/dev-approve/:studentUid', async (req, res) => {
-  const { studentUid } = req.params;
-  const normalizedUid = studentUid.toUpperCase();
-
-  try {
-    console.log(`--- APPROVING STUDENT: ${normalizedUid} ---`);
-
-    const existingStudent = await prisma.student.findUnique({
-      where: { studentUid: normalizedUid }
-    });
-
-    if (!existingStudent) {
-      return res.status(404).json({ success: false, message: 'Student record not found.' });
-    }
-
-    // 1. Simply update status to ACTIVE first to unblock the student portal
-    const updatedStudent = await prisma.student.update({
-      where: { studentUid: normalizedUid },
-      data: { status: 'ACTIVE' },
-      include: {
-        college: true,
-        branch: true,
-        course: true
-      }
-    });
-
-    console.log(`Student ${normalizedUid} successfully set to ACTIVE`);
-
-    return res.json({
-      success: true,
-      message: `Student ${normalizedUid} approved successfully.`,
-      data: updatedStudent
-    });
-
-  } catch (error: any) {
-    console.error('DETAILED APPROVAL ERROR:', error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || 'Internal server error during approval'
     });
   }
 });
@@ -868,27 +840,6 @@ app.get('/api/v1/super-admin/reports/fee-analytics', async (req, res) => {
   } catch (error) {
     console.error('Error fetching analytics:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch analytics' });
-  }
-});
-app.get('/api/v1/dev-reset-admin', async (req, res) => {
-  try {
-    const newPasswordHash = '$2b$10$e8G7/K4w8G40X30tQ6j9a.s3Z6U8z3O3YwWbS/vM5E2XG3X8.O9q2'; // Hash for 'Admin@123'
-
-    const admin = await prisma.user.upsert({
-      where: { email: 'admin@nsrimpulse.com' },
-      update: {
-        passwordHash: newPasswordHash
-      },
-      create: {
-        adminId: 'NSRADMIN-001',
-        email: 'admin@nsrimpulse.com',
-        passwordHash: newPasswordHash
-      }
-    });
-
-    return res.json({ success: true, message: 'College Admin password reset to Admin@123', admin });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message });
   }
 });
 // 1. Super Admin Context Route
