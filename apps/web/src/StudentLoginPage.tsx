@@ -236,10 +236,10 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
         setRecoveryChannels(availableChannels);
         setStep('verify');
         setMessage(availableChannels.email && availableChannels.mobile
-          ? 'Verification codes were sent to your registered email and mobile. Enter either code to continue.'
+          ? 'The same verification code was sent to your registered email and mobile. Enter it below to continue.'
           : availableChannels.email
-            ? 'A verification code was sent to your registered email. Enter it to continue.'
-            : 'A verification code was sent to your registered mobile. Enter it to continue.');
+            ? 'A verification code was sent to your registered email. Enter it below to continue.'
+            : 'A verification code was sent to your registered mobile. Enter it below to continue.');
       } else {
         setError('We could not send a verification code to your registered email or mobile. Please contact your College Admin to check your contact details and try again later.');
       }
@@ -249,14 +249,10 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
   async function submitOtp(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError('');
     const data = new FormData(event.currentTarget);
-    const emailOtp = String(data.get('emailOtp') ?? '').trim();
-    const mobileOtp = String(data.get('mobileOtp') ?? '').trim();
-    const codes: Record<string, string> = { challengeId };
-    if (emailOtp) codes.emailOtp = emailOtp;
-    if (mobileOtp) codes.mobileOtp = mobileOtp;
+    const otp = String(data.get('otp') ?? '').trim();
     setBusy(true);
     try {
-      const result = await request('forgot-password/verify', codes);
+      const result = await request('forgot-password/verify', { challengeId, otp });
       const nextResetToken = result.data?.resetToken;
       if (typeof nextResetToken === 'string') { setResetToken(nextResetToken); moveTo('reset'); }
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to verify codes.'); }
@@ -411,13 +407,13 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
               ) : (
                 step === 'login' ? 'Use the Student ID and password issued by your college.' :
                   step === 'change-password' ? 'Your temporary password must be changed before accessing the student portal.' :
-                    step === 'forgot' ? 'We will send separate verification codes to your registered email and mobile.' :
+                    step === 'forgot' ? 'We will send a verification code to your registered email and mobile.' :
                       step === 'verify'
                         ? recoveryChannels.email && recoveryChannels.mobile
-                          ? 'Enter either the code sent to your email or the code sent to your mobile.'
+                        ? 'Enter the same 6-digit code sent to your registered email and mobile.'
                           : recoveryChannels.email
-                            ? 'Enter the code sent to your registered email.'
-                            : 'Enter the code sent to your registered mobile.'
+                          ? 'Enter the 6-digit code sent to your registered email.'
+                          : 'Enter the 6-digit code sent to your registered mobile.'
                         :
                         'Choose a secure password for future sign-ins.'
               )}
@@ -540,8 +536,7 @@ export function StudentLoginPage({ onBack, onAdminLogin, onAuthenticated }: { on
 
           {mode === 'signin' && step === 'verify' && (
             <form onSubmit={submitOtp} className="space-y-5">
-              {recoveryChannels.email && <AuthField name="emailOtp" label="Email verification code" placeholder="6-digit code" inputMode="numeric" maxLength={6} icon={<Mail size={17} />} />}
-              {recoveryChannels.mobile && <AuthField name="mobileOtp" label="Mobile verification code" placeholder="6-digit code" inputMode="numeric" maxLength={6} icon={<Phone size={17} />} />}
+              <AuthField name="otp" label="Enter OTP" placeholder="Enter your 6-digit code" inputMode="numeric" maxLength={6} icon={<LockKeyhole size={17} />} />
               <SubmitButton busy={busy}>Verify code and continue <ArrowRight size={17} /></SubmitButton>
             </form>
           )}

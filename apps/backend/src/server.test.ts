@@ -123,23 +123,24 @@ describe('College Admin student admission payload', () => {
 
     describe('password-reset verification channels', () => {
       const hashOtp = (otp: string) => createHmac('sha256', jwtSecret).update(otp).digest('hex');
-      const challenge = { emailOtpHash: hashOtp('123456'), mobileOtpHash: hashOtp('654321') };
+      const challenge = { emailOtpHash: hashOtp('123456'), mobileOtpHash: hashOtp('123456') };
 
-      it('accepts a valid email code without requiring the mobile code', () => {
-        expect(getVerifiedOtpChannels(challenge, { emailOtp: '123456' }, jwtSecret)).toEqual({ email: true, mobile: false });
+      it('accepts the common code when both delivery channels succeeded', () => {
+        expect(getVerifiedOtpChannels(challenge, '123456', jwtSecret)).toEqual({ email: true, mobile: true });
       });
 
-      it('accepts a valid mobile code without requiring the email code', () => {
-        expect(getVerifiedOtpChannels(challenge, { mobileOtp: '654321' }, jwtSecret)).toEqual({ email: false, mobile: true });
+      it('accepts the common code when only email delivery succeeded', () => {
+        expect(getVerifiedOtpChannels({ emailOtpHash: hashOtp('123456'), mobileOtpHash: null }, '123456', jwtSecret))
+          .toEqual({ email: true, mobile: false });
       });
 
-      it('does not accept a code for a channel that was not delivered', () => {
-        expect(getVerifiedOtpChannels({ emailOtpHash: hashOtp('123456'), mobileOtpHash: null }, { mobileOtp: '654321' }, jwtSecret))
-          .toEqual({ email: false, mobile: false });
+      it('accepts the common code when only mobile delivery succeeded', () => {
+        expect(getVerifiedOtpChannels({ emailOtpHash: null, mobileOtpHash: hashOtp('123456') }, '123456', jwtSecret))
+          .toEqual({ email: false, mobile: true });
       });
 
-      it('accepts a request containing one code and rejects a request containing none', () => {
-        expect(verifyOtpSchema.safeParse({ challengeId: 'challenge-123', emailOtp: '123456' }).success).toBe(true);
+      it('accepts the common OTP request and rejects a request without an OTP', () => {
+        expect(verifyOtpSchema.safeParse({ challengeId: 'challenge-123', otp: '123456' }).success).toBe(true);
         expect(verifyOtpSchema.safeParse({ challengeId: 'challenge-123' }).success).toBe(false);
       });
     });

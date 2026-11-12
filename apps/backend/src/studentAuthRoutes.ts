@@ -13,10 +13,7 @@ const changePasswordSchema = z.object({ changeToken: z.string().min(1), currentP
 const forgotPasswordSchema = z.object({ studentId: z.string().trim().regex(studentIdPattern) });
 export const verifyOtpSchema = z.object({
   challengeId: z.string().min(1),
-  emailOtp: z.string().regex(/^\d{6}$/).optional(),
-  mobileOtp: z.string().regex(/^\d{6}$/).optional()
-}).refine((data) => Boolean(data.emailOtp || data.mobileOtp), {
-  message: 'Enter at least one 6-digit verification code'
+  otp: z.string().trim().regex(/^\d{6}$/)
 });
 const resetPasswordSchema = z.object({ resetToken: z.string().min(32).max(256), newPassword: passwordSchema });
 const LOGIN_ATTEMPT_LIMIT = 5;
@@ -102,8 +99,7 @@ export function createStudentAuthRouter(prisma: PrismaClient, notifications: Not
           mobile: Boolean(recentChallenge.mobileOtpHash)
         }));
       }
-      const emailOtp = generateOtp();
-      const mobileOtp = generateOtp();
+      const otp = generateOtp();
       const challenge = await prisma.passwordResetChallenge.create({
         data: {
           accountId: student.account.id,
@@ -114,8 +110,8 @@ export function createStudentAuthRouter(prisma: PrismaClient, notifications: Not
         }
       });
       const [emailResult, mobileResult] = await Promise.allSettled([
-        notifications.sendEmail(student.email, 'NSR Impulse password reset code', `Your email verification code is ${emailOtp}. It expires in ${OTP_EXPIRY_MINUTES} minutes. Do not share this code.`),
-        notifications.sendSms(student.mobile, `NSR Impulse mobile verification code: ${mobileOtp}. Expires in ${OTP_EXPIRY_MINUTES} minutes. Do not share it.`)
+        notifications.sendEmail(student.email, 'NSR Impulse password reset code', `Your password verification code is ${otp}. It expires in ${OTP_EXPIRY_MINUTES} minutes. Do not share this code.`),
+        notifications.sendSms(student.mobile, `NSR Impulse password verification code: ${otp}. Expires in ${OTP_EXPIRY_MINUTES} minutes. Do not share it.`)
       ]);
       const emailDelivered = emailResult.status === 'fulfilled';
       const mobileDelivered = mobileResult.status === 'fulfilled';
@@ -128,8 +124,8 @@ export function createStudentAuthRouter(prisma: PrismaClient, notifications: Not
       await prisma.passwordResetChallenge.update({
         where: { id: challenge.id },
         data: {
-          emailOtpHash: emailDelivered ? hashSecret(emailOtp, jwtSecret) : null,
-          mobileOtpHash: mobileDelivered ? hashSecret(mobileOtp, jwtSecret) : null
+          emailOtpHash: emailDelivered ? hashSecret(otp, jwtSecret) : null,
+          mobileOtpHash: mobileDelivered ? hashSecret(otp, jwtSecret) : null
         }
       });
       await prisma.auditLog.create({ data: { action: 'STUDENT_PASSWORD_RESET_REQUESTED', entity: 'StudentAccount', entityId: student.account.id, ipAddress: req.ip } });
@@ -143,7 +139,7 @@ export function createStudentAuthRouter(prisma: PrismaClient, notifications: Not
     try {
       const challenge = await prisma.passwordResetChallenge.findUnique({ where: { id: parsed.data.challengeId } });
       if (!challenge || challenge.consumedAt || challenge.expiresAt <= new Date() || challenge.attemptsRemaining <= 0) return res.status(400).json({ success: false, error: { code: 'INVALID_OR_EXPIRED_OTP', message: 'The verification request is invalid or expired. Request new codes.' } });
-      const verifiedChannels = getVerifiedOtpChannels(challenge, parsed.data, jwtSecret);
+      const verifiedChannels = getVerifiedOtpChannels(challenge, parsed.data.otp, jwtSecret);
       if (!verifiedChannels.email && !verifiedChannels.mobile) {
         await prisma.passwordResetChallenge.update({ where: { id: challenge.id }, data: { attemptsRemaining: { decrement: 1 } } });
         return res.status(400).json({ success: false, error: { code: 'INVALID_OTP', message: 'The verification code is incorrect. Check the code and try again.' } });
@@ -207,16 +203,16 @@ export function forgotPasswordResponse(challengeId?: string, channels?: { email:
   return {
     success: true,
     data: challengeId ? { requested: true, challengeId, channels } : { requested: true },
-    message: 'If the Student ID is active, a verification code will be sent to a registered contact method.'
+    message: 'If the Student ID is active, a verification code will be sent to its registered email and mobile.'
   };
 }
 export function getVerifiedOtpChannels(
   challenge: { emailOtpHash: string | null; mobileOtpHash: string | null },
-  codes: { emailOtp?: string; mobileOtp?: string },
+  otp: string,
   secret: string
 ) {
-  const emailVerified = Boolean(challenge.emailOtpHash && codes.emailOtp && secureHashMatches(codes.emailOtp, challenge.emailOtpHash, secret));
-  const mobileVerified = Boolean(challenge.mobileOtpHash && codes.mobileOtp && secureHashMatches(codes.mobileOtp, challenge.mobileOtpHash, secret));
+  const emailVerified = Boolean(challenge.emailOtpHash && secureHashMatches(otp, challenge.emailOtpHash, secret));
+  const mobileVerified = Boolean(challenge.mobileOtpHash && secureHashMatches(otp, challenge.mobileOtpHash, secret));
   return { email: emailVerified, mobile: mobileVerified };
 }
 function minutesFromNow(minutes: number) { return new Date(Date.now() + minutes * 60_000); }
