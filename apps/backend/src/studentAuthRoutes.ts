@@ -7,15 +7,15 @@ import { z } from 'zod';
 import type { NotificationService } from './notifications.js';
 import { issueStudentAccessToken, studentIdPattern } from './studentAuth.js';
 
-const passwordSchema = z.string().min(8).max(128).regex(/[A-Z]/, 'Password must include an uppercase letter').regex(/[a-z]/, 'Password must include a lowercase letter').regex(/\d/, 'Password must include a number').regex(/[^A-Za-z0-9]/, 'Password must include a special character');
+export const studentPasswordSchema = z.string().min(8).max(128).regex(/[A-Z]/, 'Password must include an uppercase letter').regex(/[a-z]/, 'Password must include a lowercase letter').regex(/\d/, 'Password must include a number').regex(/[^A-Za-z0-9]/, 'Password must include a special character');
 const loginSchema = z.object({ studentId: z.string().trim().regex(studentIdPattern), password: z.string().min(6).max(128) });
-const changePasswordSchema = z.object({ changeToken: z.string().min(1), currentPassword: z.string().min(6).max(128), newPassword: passwordSchema });
+const changePasswordSchema = z.object({ changeToken: z.string().min(1), currentPassword: z.string().min(6).max(128), newPassword: studentPasswordSchema });
 const forgotPasswordSchema = z.object({ studentId: z.string().trim().regex(studentIdPattern) });
 export const verifyOtpSchema = z.object({
   challengeId: z.string().min(1),
   otp: z.string().trim().regex(/^\d{6}$/)
 });
-const resetPasswordSchema = z.object({ resetToken: z.string().min(32).max(256), newPassword: passwordSchema });
+const resetPasswordSchema = z.object({ resetToken: z.string().min(32).max(256), newPassword: studentPasswordSchema });
 const LOGIN_ATTEMPT_LIMIT = 5;
 const LOGIN_LOCK_MINUTES = 15;
 const OTP_EXPIRY_MINUTES = 10;

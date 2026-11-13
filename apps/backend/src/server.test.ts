@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { createStudentSchema, formatValidationIssue, getCredentialDeliveryHint, isStudentInCollegeScope, offlinePaymentSchema } from './adminRoutes.js';
-import { forgotPasswordResponse, getVerifiedOtpChannels, verifyOtpSchema } from './studentAuthRoutes.js';
+import { collegeSchema, createStudentSchema, formatValidationIssue, getCredentialDeliveryHint, isStudentInCollegeScope, offlinePaymentSchema, provisionAdminSchema } from './adminRoutes.js';
+import { forgotPasswordResponse, getVerifiedOtpChannels, studentPasswordSchema, verifyOtpSchema } from './studentAuthRoutes.js';
 import { issueStudentAccessToken, studentCanAccessRecord, verifyStudentAccessToken } from './studentAuth.js';
 
 const jwtSecret = 'test-only-secret-for-student-auth';
@@ -74,6 +74,45 @@ describe('College Admin college scope', () => {
   });
 });
 
+describe('Super Admin college creation payload', () => {
+  it('accepts and trims a manually entered location', () => {
+    const parsed = collegeSchema.safeParse({ name: '  Example College  ', location: '  Hyderabad  ' });
+
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data).toEqual({ name: 'Example College', location: 'Hyderabad' });
+  });
+
+  it('rejects missing or too-short college locations', () => {
+    expect(collegeSchema.safeParse({ name: 'Example College', location: '' }).success).toBe(false);
+    expect(collegeSchema.safeParse({ name: 'Example College' }).success).toBe(false);
+  });
+});
+
+describe('password complexity requirements', () => {
+  const validPassword = 'Abcdef1!';
+
+  it('accepts eight-character student and College Admin passwords', () => {
+    expect(studentPasswordSchema.safeParse(validPassword).success).toBe(true);
+    expect(provisionAdminSchema.safeParse({
+      adminId: 'ADMIN-0001',
+      email: 'admin@example.com',
+      password: validPassword,
+      collegeId: 'college-a'
+    }).success).toBe(true);
+  });
+
+  it('rejects passwords shorter than eight characters and preserves complexity requirements', () => {
+    expect(studentPasswordSchema.safeParse('Abcde1!').success).toBe(false);
+    expect(studentPasswordSchema.safeParse('abcdefgh').success).toBe(false);
+    expect(provisionAdminSchema.safeParse({
+      adminId: 'ADMIN-0001',
+      email: 'admin@example.com',
+      password: 'Abcde1!',
+      collegeId: 'college-a'
+    }).success).toBe(false);
+  });
+});
+
 describe('College Admin student admission payload', () => {
   const validStudent = {
     name: 'Student Example',
@@ -89,13 +128,23 @@ describe('College Admin student admission payload', () => {
     academicYear: '2026-2027',
     collegeId: 'college-a',
     courseId: 'course-a',
-    feeStructureId: 'fee-a'
+    courseFee: 85000,
+    bookFee: 10000,
+    dhobiFee: 10000,
+    pocketMoney: 15000,
+    fixedDeposit: 5000
   };
 
   it('does not require a branch selector from the College Admin', () => {
     const parsed = createStudentSchema.safeParse(validStudent);
 
     expect(parsed.success).toBe(true);
+  });
+
+  it('requires an entered course fee and accepts optional fee components without a master fee', () => {
+    expect(createStudentSchema.safeParse(validStudent).success).toBe(true);
+    expect(createStudentSchema.safeParse({ ...validStudent, courseFee: undefined }).success).toBe(false);
+    expect(createStudentSchema.safeParse({ ...validStudent, bookFee: -1 }).success).toBe(false);
   });
 
   describe('student credential email errors', () => {

@@ -13,8 +13,20 @@ import nsrLogo from "../../assets/nsrLogo.png";
 import { apiBase } from "./api";
 import { PaymentHistory } from "./PaymentHistory";
 
-type PortalTab = "overview" | "profile" | "fees" | "history" | "reminders";
+type PortalTab = "overview" | "profile" | "fees" | "history" | "reminders" | "pocket-money";
 type PaymentMode = "UPI" | "ONLINE" | "CASH" | "BANK_TRANSFER" | "CHEQUE" | "OTHER";
+type PocketMoneyWithdrawal = {
+  id: string;
+  requestedAmount: number;
+  approvedAmount: number | null;
+  remark: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  transactionNumber: string | null;
+  receiptNumber: string | null;
+  reviewerNote: string | null;
+  requestedAt: string;
+  approvedAt: string | null;
+};
 
 type PaymentSubmissionResult = {
   paymentId: string;
@@ -54,6 +66,11 @@ type StudentPortalRecord = {
       dueDate: string;
       status: "PAID" | "PARTIAL" | "PENDING";
     }>;
+  };
+  pocketMoney: {
+    deposit: number;
+    balance: number;
+    withdrawals: PocketMoneyWithdrawal[];
   };
   receipt: {
     invoiceNumber: string;
@@ -127,6 +144,7 @@ async function fetchStudentRecord(
       village: raw.village || "",
       pin: raw.pin || "",
       fee: { total: 0, discount: 0, paid: 0, pending: 0, currency: "INR", installments: [] },
+      pocketMoney: { deposit: 0, balance: 0, withdrawals: [] },
       receipt: {
         invoiceNumber: "",
         transactionNumber: "",
@@ -193,6 +211,21 @@ async function fetchStudentRecord(
       currency: "INR",
       installments,
     },
+    pocketMoney: {
+      deposit: Number(currentAssignment?.pocketMoneyAmount ?? 0),
+      balance: Math.max(
+        Number(raw.pocketMoneyBalance ?? 0) -
+          (raw.pocketMoneyWithdrawals ?? [])
+            .filter((withdrawal: any) => withdrawal.status === "PENDING")
+            .reduce((total: number, withdrawal: any) => total + Number(withdrawal.requestedAmount), 0),
+        0
+      ),
+      withdrawals: (raw.pocketMoneyWithdrawals ?? []).map((withdrawal: any) => ({
+        ...withdrawal,
+        requestedAmount: Number(withdrawal.requestedAmount),
+        approvedAmount: withdrawal.approvedAmount === null ? null : Number(withdrawal.approvedAmount)
+      }))
+    },
     receipt: {
       invoiceNumber: raw.payments?.[0]?.receipt?.receiptNumber || raw.payments?.[0]?.receiptNumber || "",
       transactionNumber: raw.payments?.[0]?.reference || raw.payments?.[0]?.gatewayTransactionId || raw.payments?.[0]?.transactionNumber || "",
@@ -234,6 +267,11 @@ export function StudentPortal({
   const [paymentBusy, setPaymentBusy] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState("");
   const [paymentRequestId, setPaymentRequestId] = useState(createPaymentRequestId);
+  const [withdrawalAmount, setWithdrawalAmount] = useState("");
+  const [withdrawalRemark, setWithdrawalRemark] = useState("");
+  const [withdrawalError, setWithdrawalError] = useState("");
+  const [withdrawalBusy, setWithdrawalBusy] = useState(false);
+  const [withdrawalSuccess, setWithdrawalSuccess] = useState("");
 
   async function refreshRecord(showError = false): Promise<boolean> {
     try {
@@ -322,6 +360,7 @@ export function StudentPortal({
     ["profile", "Profile", <UserRound size={16} />],
     ["fees", "Fees", <IndianRupee size={16} />],
     ["history", "Payment History", <CalendarDays size={16} />],
+    ["pocket-money", "Withdraw Pocket Money", <IndianRupee size={16} />],
     [
       "reminders",
       `Alerts (${record.reminders.length})`,
@@ -373,6 +412,7 @@ export function StudentPortal({
         message?: string;
         error?: { message?: string };
       };
+
       if (!response.ok || !result.success || !result.data) {
         throw new Error(result.error?.message ?? result.message ?? "Payment could not be recorded.");
       }
@@ -390,6 +430,47 @@ export function StudentPortal({
       setPaymentError(reason instanceof Error ? reason.message : "Payment could not be recorded.");
     } finally {
       setPaymentBusy(false);
+    }
+  };
+
+  const submitPocketMoneyRequest = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!record || withdrawalBusy) return;
+    setWithdrawalError("");
+    setWithdrawalSuccess("");
+    const amount = Number(withdrawalAmount);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount * 100)) {
+      setWithdrawalError("Enter a valid amount with no more than two decimal places.");
+      return;
+    }
+    if (!withdrawalRemark.trim()) {
+      setWithdrawalError("Enter a remark explaining the withdrawal.");
+      return;
+    }
+    if (amount > record.pocketMoney.balance) {
+      setWithdrawalError(`Amount cannot exceed the available balance of ₹${record.pocketMoney.balance.toLocaleString("en-IN")}.`);
+      return;
+    }
+    setWithdrawalBusy(true);
+    try {
+      const response = await fetch(`${apiBase}/api/v1/students/${encodeURIComponent(record.studentId)}/pocket-money/withdrawals`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ amount, remark: withdrawalRemark.trim() }),
+      });
+      const result = await response.json() as { success?: boolean; message?: string; error?: { message?: string } };
+      if (!response.ok || !result.success) throw new Error(result.error?.message ?? "Unable to submit withdrawal request.");
+      setWithdrawalAmount("");
+      setWithdrawalRemark("");
+      setWithdrawalSuccess(result.message ?? "Withdrawal request sent to your College Admin.");
+      await refreshRecord(true);
+    } catch (reason) {
+      setWithdrawalError(reason instanceof Error ? reason.message : "Unable to submit withdrawal request.");
+    } finally {
+      setWithdrawalBusy(false);
     }
   };
 
@@ -687,6 +768,80 @@ export function StudentPortal({
           {/* TAB 4: PAYMENT HISTORY */}
           {tab === "history" && (
             <PaymentHistory studentId={record.studentId} accessToken={accessToken} />
+          )}
+
+          {tab === "pocket-money" && (
+            <section className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-3xl bg-slate-900 p-6 text-white">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Available Pocket Money</p>
+                  <strong className="mt-2 block text-3xl">₹{record.pocketMoney.balance.toLocaleString("en-IN")}</strong>
+                </div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-6">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Deposit Amount</p>
+                  <strong className="mt-2 block text-3xl text-slate-900">₹{record.pocketMoney.deposit.toLocaleString("en-IN")}</strong>
+                </div>
+              </div>
+
+              <form onSubmit={submitPocketMoneyRequest} className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6">
+                <h3 className="text-lg font-bold text-slate-900">Request a withdrawal</h3>
+                <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
+                  Money Required
+                  <input
+                    type="number"
+                    min="0.01"
+                    max={record.pocketMoney.balance}
+                    step="0.01"
+                    required
+                    value={withdrawalAmount}
+                    onChange={(event) => setWithdrawalAmount(event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                  />
+                </label>
+                <label className="block space-y-1.5 text-xs font-semibold text-slate-600">
+                  Remark for Withdrawal
+                  <textarea
+                    required
+                    minLength={2}
+                    maxLength={500}
+                    value={withdrawalRemark}
+                    onChange={(event) => setWithdrawalRemark(event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                    rows={3}
+                  />
+                </label>
+                {withdrawalError && <p role="alert" className="text-xs text-red-600">{withdrawalError}</p>}
+                {withdrawalSuccess && <p role="status" className="text-xs text-emerald-700">{withdrawalSuccess}</p>}
+                <button disabled={withdrawalBusy || record.pocketMoney.balance <= 0} className="rounded-xl bg-amber-500 px-5 py-3 text-xs font-bold text-white disabled:opacity-50">
+                  {withdrawalBusy ? "Submitting..." : "Submit Withdrawal Request"}
+                </button>
+              </form>
+
+              <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-6">
+                <h3 className="text-lg font-bold text-slate-900">Withdrawal requests & receipts</h3>
+                {record.pocketMoney.withdrawals.length === 0 ? (
+                  <p className="text-sm text-slate-500">No withdrawal requests yet.</p>
+                ) : record.pocketMoney.withdrawals.map((withdrawal) => (
+                  <article key={withdrawal.id} className="space-y-2 rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <strong className="text-slate-900">Requested ₹{withdrawal.requestedAmount.toLocaleString("en-IN")}</strong>
+                      <span className={`rounded-full px-2.5 py-1 font-bold ${withdrawal.status === "APPROVED" ? "bg-emerald-100 text-emerald-700" : withdrawal.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{withdrawal.status}</span>
+                    </div>
+                    <p className="text-slate-600">{withdrawal.remark}</p>
+                    <p className="text-slate-500">Requested: {new Date(withdrawal.requestedAt).toLocaleString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}</p>
+                    {withdrawal.status === "APPROVED" && (
+                      <div className="space-y-1 border-t border-slate-200 pt-2 text-slate-700">
+                        <p><strong>Receipt:</strong> {withdrawal.receiptNumber}</p>
+                        <p><strong>Approved amount:</strong> ₹{(withdrawal.approvedAmount ?? 0).toLocaleString("en-IN")}</p>
+                        <p><strong>Approved:</strong> {withdrawal.approvedAt ? new Date(withdrawal.approvedAt).toLocaleString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}</p>
+                        <p><strong>Transaction:</strong> {withdrawal.transactionNumber}</p>
+                      </div>
+                    )}
+                    {withdrawal.status === "REJECTED" && withdrawal.reviewerNote && <p className="text-red-700">Reason: {withdrawal.reviewerNote}</p>}
+                  </article>
+                ))}
+              </div>
+            </section>
           )}
 
           {/* TAB 5: ALERTS */}

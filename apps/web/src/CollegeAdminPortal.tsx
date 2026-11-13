@@ -160,6 +160,10 @@ function AdminLogin({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
+      if (!response.headers.get("content-type")?.includes("application/json"))
+        throw new Error(
+          `Unexpected response from the API (HTTP ${response.status}). Verify that VITE_API_URL points to the backend.`
+        );
       const result = (await response.json()) as {
         success?: boolean;
         data?: { accessToken: string };
@@ -325,7 +329,7 @@ function AdminLogin({
           </p>
           <p className="text-xs text-slate-500 text-center">
             Super Admin?{" "}
-            <a
+            <a style={{color:"green", textDecoration: "underline"}}
               className="font-semibold text-amber-700 hover:underline"
               href="/super-admin"
             >
@@ -565,9 +569,12 @@ function AdminOverview({
 function PendingApprovals({ token }: { token: string }) {
   const [pendingList, setPendingList] = useState<any[]>([]);
   const [feeSelections, setFeeSelections] = useState<Record<string, string>>({});
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [approvedAmounts, setApprovedAmounts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [processingUid, setProcessingUid] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [withdrawalError, setWithdrawalError] = useState("");
 
   async function loadPendingStudents() {
     setLoading(true);
@@ -583,7 +590,18 @@ function PendingApprovals({ token }: { token: string }) {
     }
   }
 
-  useEffect(() => { void loadPendingStudents(); }, [token]);
+  async function loadWithdrawals() {
+    setWithdrawalError("");
+    try {
+      const requests = await adminFetch<any[]>("/pocket-money/withdrawals", token);
+      setWithdrawals(requests);
+      setApprovedAmounts(Object.fromEntries(requests.filter((item) => item.status === "PENDING").map((item) => [item.id, String(item.requestedAmount)])));
+    } catch (reason) {
+      setWithdrawalError(reason instanceof Error ? reason.message : "Unable to load pocket money requests.");
+    }
+  }
+
+  useEffect(() => { void loadPendingStudents(); void loadWithdrawals(); }, [token]);
 
   async function handleApprove(studentUid: string) {
     setProcessingUid(studentUid);
@@ -598,6 +616,31 @@ function PendingApprovals({ token }: { token: string }) {
       setPendingList((current) => current.filter((student) => student.studentUid !== studentUid));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to approve student.");
+    } finally {
+      setProcessingUid(null);
+    }
+  }
+
+  async function reviewWithdrawal(id: string, action: "approve" | "reject") {
+    setWithdrawalError("");
+    setProcessingUid(id);
+    try {
+      if (action === "approve") {
+        await adminFetch(`/pocket-money/withdrawals/${encodeURIComponent(id)}/approve`, token, {
+          method: "POST",
+          body: JSON.stringify({ approvedAmount: Number(approvedAmounts[id]) })
+        });
+      } else {
+        const reviewerNote = window.prompt("Enter the reason for rejecting this request:")?.trim();
+        if (!reviewerNote) return;
+        await adminFetch(`/pocket-money/withdrawals/${encodeURIComponent(id)}/reject`, token, {
+          method: "POST",
+          body: JSON.stringify({ reviewerNote })
+        });
+      }
+      await loadWithdrawals();
+    } catch (reason) {
+      setWithdrawalError(reason instanceof Error ? reason.message : "Unable to review pocket money request.");
     } finally {
       setProcessingUid(null);
     }
@@ -667,6 +710,54 @@ function PendingApprovals({ token }: { token: string }) {
           </table>
         </div>
       )}
+      <section className="space-y-4">
+        <div>
+          <p className="eyebrow">POCKET MONEY</p>
+          <h2 className="text-xl font-bold text-white">Pocket Money Withdrawal Requests</h2>
+          <p className="text-sm text-slate-400">Review withdrawal requests for students in your college.</p>
+        </div>
+        {withdrawalError && <p role="alert" className="text-sm text-red-300 bg-red-950/40 border border-red-800 rounded-xl p-3">{withdrawalError}</p>}
+        {withdrawals.filter((item) => item.status === "PENDING").length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-sm text-slate-400">No pending pocket money requests.</div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900">
+            <table className="w-full text-left text-sm text-slate-300">
+              <thead className="bg-slate-950 text-xs uppercase text-slate-400">
+                <tr><th className="px-4 py-3">Student / Request</th><th className="px-4 py-3">Requested</th><th className="px-4 py-3">Remark</th><th className="px-4 py-3">Approved Amount</th><th className="px-4 py-3">Action</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {withdrawals.filter((item) => item.status === "PENDING").map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-4 py-3"><strong className="block text-white">{item.student.name}</strong><span className="text-xs text-slate-400">{item.student.studentUid}</span><span className="block text-xs text-slate-500">{new Date(item.requestedAt).toLocaleString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></td>
+                    <td className="px-4 py-3">₹{Number(item.requestedAmount).toLocaleString("en-IN")}</td>
+                    <td className="px-4 py-3">{item.remark}</td>
+                    <td className="px-4 py-3"><input type="number" min="0.01" max={item.requestedAmount} step="0.01" value={approvedAmounts[item.id] ?? item.requestedAmount} onChange={(event) => setApprovedAmounts((current) => ({ ...current, [item.id]: event.target.value }))} className="w-32 rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-white" aria-label={`Approved amount for ${item.student.name}`} /></td>
+                    <td className="space-x-2 px-4 py-3">
+                      <button disabled={processingUid === item.id} onClick={() => void reviewWithdrawal(item.id, "approve")} className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">Approve & Receipt</button>
+                      <button disabled={processingUid === item.id} onClick={() => void reviewWithdrawal(item.id, "reject")} className="rounded-lg bg-red-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Reject</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {withdrawals.filter((item) => item.status === "APPROVED").length > 0 && (
+          <div className="space-y-2">
+            <h3 className="font-bold text-white">Approved receipts</h3>
+            {withdrawals.filter((item) => item.status === "APPROVED").map((item) => (
+              <article key={item.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-xs text-slate-300">
+                <strong className="text-white">{item.student.name} · {item.student.studentUid}</strong>
+                <p>{item.remark}</p>
+                <p>Receipt: {item.receiptNumber}</p>
+                <p>Requested ₹{Number(item.requestedAmount).toLocaleString("en-IN")} · Approved ₹{Number(item.approvedAmount).toLocaleString("en-IN")}</p>
+                <p>Transaction: {item.transactionNumber}</p>
+                <p>Requested {new Date(item.requestedAt).toLocaleString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })} · Approved {item.approvedAt ? new Date(item.approvedAt).toLocaleString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -1773,38 +1864,11 @@ function CreateStudent({
   const [admissionYear, setAdmissionYear] = useState(currentYear);
   const [academicYear, setAcademicYear] = useState(`${currentYear}-${currentYear + 1}`);
   const [courseId, setCourseId] = useState(context.courses[0]?.id ?? "");
-  const [feeOptions, setFeeOptions] = useState<Array<{ id: string; totalAmount: number; academicYear: string }>>([]);
-  const [feeStructureId, setFeeStructureId] = useState("");
-  const [feeError, setFeeError] = useState("");
+  const [courseFee, setCourseFee] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (!courseId || !/^\d{4}-\d{4}$/.test(academicYear)) {
-      setFeeOptions([]);
-      setFeeStructureId("");
-      return;
-    }
-    let active = true;
-    setFeeError("");
-    adminFetch<Array<{ id: string; totalAmount: number; academicYear: string }>>(
-      `/fee-options?courseId=${encodeURIComponent(courseId)}&academicYear=${encodeURIComponent(academicYear)}`,
-      token,
-    ).then((options) => {
-      if (!active) return;
-      setFeeOptions(options);
-      setFeeStructureId(options[0]?.id ?? "");
-    }).catch((reason) => {
-      if (active) {
-        setFeeOptions([]);
-        setFeeStructureId("");
-        setFeeError(reason instanceof Error ? reason.message : "Unable to load configured fees.");
-      }
-    });
-    return () => { active = false; };
-  }, [courseId, academicYear, token]);
 
   function updateAdmissionYear(value: string) {
     const year = Number(value);
@@ -1831,7 +1895,11 @@ function CreateStudent({
       admissionYear,
       academicYear,
       courseId,
-      feeStructureId,
+      courseFee: Number(courseFee),
+      bookFee: Number(form.bookFee || 0),
+      dhobiFee: Number(form.dhobiFee || 0),
+      pocketMoney: Number(form.pocketMoney || 0),
+      fixedDeposit: Number(form.fixedDeposit || 0),
       collegeId: scope.college.id,
     };
     setBusy(true);
@@ -1854,8 +1922,6 @@ function CreateStudent({
     }
   }
 
-  const selectedFee = feeOptions.find((fee) => fee.id === feeStructureId);
-
   function clearFieldError(name: string) {
     setFieldErrors((current) => {
       if (!current[name]) return current;
@@ -1868,7 +1934,7 @@ function CreateStudent({
     <>
       <div className="admin-page-heading compact">
         <p className="eyebrow">NEW ADMISSION</p>
-        <h1>Create student and fee plan.</h1>
+        <h1>Create student and assign fees.</h1>
       </div>
       <form className="admin-create-form" onSubmit={submit} noValidate>
         <fieldset>
@@ -1930,20 +1996,20 @@ function CreateStudent({
         </fieldset>
         <fieldset className="fee-fieldset">
           <legend>Fee assignment</legend>
-          <label className={fieldErrors.feeStructureId ? "has-field-error" : undefined}>
-            <span>Super Admin master fee</span>
-            <select name="feeStructureId" value={feeStructureId} onChange={(event) => { setFeeStructureId(event.target.value); clearFieldError("feeStructureId"); }} required disabled={!feeOptions.length} aria-invalid={Boolean(fieldErrors.feeStructureId)}>
-              <option value="">{feeOptions.length ? "Select configured fee" : "No fee configured for this course/year"}</option>
-              {feeOptions.map((fee) => <option value={fee.id} key={fee.id}>{fee.academicYear} - INR {fee.totalAmount.toLocaleString("en-IN")}</option>)}
-            </select>
-            <FieldError message={fieldErrors.feeStructureId} />
+          <p>Enter the course fee and fee components. These amounts are locked after admission; only Super Admin can correct the course fee.</p>
+          <label className={fieldErrors.courseFee ? "has-field-error" : undefined}>
+            <span>Course Fee (₹)</span>
+            <input name="courseFee" type="number" min="0.02" step="0.01" value={courseFee} onChange={(event) => { setCourseFee(event.target.value); clearFieldError("courseFee"); }} required aria-invalid={Boolean(fieldErrors.courseFee)} />
+            <FieldError message={fieldErrors.courseFee} />
           </label>
-          {selectedFee && <p>Configured total: <strong>INR {selectedFee.totalAmount.toLocaleString("en-IN")}</strong>. Two installments are generated automatically.</p>}
-          {feeError && <p className="admin-form-error">{feeError}</p>}
+          <FormField name="bookFee" label="Book Fee (₹)" type="number" min="0" step="0.01" defaultValue="0" required error={fieldErrors.bookFee} onErrorClear={clearFieldError} />
+          <FormField name="dhobiFee" label="Dhobi Fee (₹)" type="number" min="0" step="0.01" defaultValue="0" required error={fieldErrors.dhobiFee} onErrorClear={clearFieldError} />
+          <FormField name="pocketMoney" label="Pocket Money (₹)" type="number" min="0" step="0.01" defaultValue="0" required error={fieldErrors.pocketMoney} onErrorClear={clearFieldError} />
+          <FormField name="fixedDeposit" label="Fixed Deposit (₹)" type="number" min="0" step="0.01" defaultValue="0" required error={fieldErrors.fixedDeposit} onErrorClear={clearFieldError} />
         </fieldset>
         {error && <p className="admin-form-error">{error}</p>}
         {message && <p role="status" className="admin-form-success">{message}</p>}
-        <button className="primary-button" disabled={busy || !feeStructureId}>{busy ? "Creating student..." : "Create student and assign master fee"}</button>
+        <button className="primary-button" disabled={busy}>{busy ? "Creating student..." : "Create student and lock fee details"}</button>
       </form>
     </>
   );

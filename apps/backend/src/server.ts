@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
-import { PaymentMode, PaymentStatus, Prisma, PrismaClient, RoleName } from '@prisma/client';
+import { PaymentMode, PaymentStatus, PocketMoneyWithdrawalStatus, Prisma, PrismaClient, RoleName } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import type { NextFunction, Request, Response } from 'express';
 import { createAdminRouter, createSuperAdminRouter } from './adminRoutes.js';
@@ -131,6 +131,7 @@ app.get('/api/v1/students/:studentUid/portal', authenticateStudent(jwtAccessSecr
             }
           }
         },
+        pocketMoneyWithdrawals: { orderBy: { requestedAt: 'desc' } },
         payments: { include: { receipt: true }, orderBy: { createdAt: 'desc' } }
       }
     });
@@ -148,6 +149,88 @@ app.get('/api/v1/students/:studentUid/portal', authenticateStudent(jwtAccessSecr
   } catch (error) {
     console.error('Error fetching student portal:', error);
     return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+app.get('/api/v1/students/:studentUid/pocket-money', authenticateStudent(jwtAccessSecret), async (req: StudentRequest, res, next) => {
+  const studentUid = req.params.studentUid.toUpperCase();
+  if (!studentCanAccessRecord(req.student, studentUid)) return forbiddenStudent(res);
+  try {
+    const student = await prisma.student.findUnique({
+      where: { studentUid },
+      include: {
+        feeAssignments: { where: { isCurrent: true }, select: { pocketMoneyAmount: true } },
+        pocketMoneyWithdrawals: { orderBy: { requestedAt: 'desc' } }
+      }
+    });
+    if (!student) return res.status(404).json({ success: false, error: { code: 'STUDENT_NOT_FOUND', message: 'Student ID was not found' } });
+    const deposit = Number(student.feeAssignments[0]?.pocketMoneyAmount ?? 0);
+    const pendingRequests = student.pocketMoneyWithdrawals
+      .filter((withdrawal) => withdrawal.status === PocketMoneyWithdrawalStatus.PENDING)
+      .reduce((total, withdrawal) => total + Number(withdrawal.requestedAmount), 0);
+    return res.json({
+      success: true,
+      data: {
+        deposit,
+        balance: Math.max(Number(student.pocketMoneyBalance) - pendingRequests, 0),
+        withdrawals: student.pocketMoneyWithdrawals.map((withdrawal) => ({
+          ...withdrawal,
+          requestedAmount: Number(withdrawal.requestedAmount),
+          approvedAmount: withdrawal.approvedAmount === null ? null : Number(withdrawal.approvedAmount)
+        }))
+      },
+      message: 'Pocket money balance and withdrawals loaded'
+    });
+  } catch (error) { return next(error); }
+});
+app.post('/api/v1/students/:studentUid/pocket-money/withdrawals', authenticateStudent(jwtAccessSecret), async (req: StudentRequest, res, next) => {
+  const studentUid = req.params.studentUid.toUpperCase();
+  if (!studentCanAccessRecord(req.student, studentUid)) return forbiddenStudent(res);
+  const parsed = z.object({
+    amount: z.number().finite().positive().multipleOf(0.01),
+    remark: z.string().trim().min(2).max(500)
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Enter a valid withdrawal amount and remark', details: parsed.error.issues } });
+  try {
+    const result = await prisma.$transaction(async (transaction) => {
+      const student = await transaction.student.findUnique({
+        where: { studentUid },
+        include: { feeAssignments: { where: { isCurrent: true }, select: { pocketMoneyAmount: true } } }
+      });
+      if (!student || student.status !== 'ACTIVE') {
+        return { ok: false as const, status: 404, code: 'STUDENT_NOT_FOUND', message: 'Active student account was not found' };
+      }
+      if (Number(student.feeAssignments[0]?.pocketMoneyAmount ?? 0) <= 0) {
+        return { ok: false as const, status: 409, code: 'POCKET_MONEY_NOT_ASSIGNED', message: 'Pocket money has not been assigned to your account.' };
+      }
+      const pending = await transaction.pocketMoneyWithdrawal.aggregate({
+        where: { studentId: student.id, status: PocketMoneyWithdrawalStatus.PENDING },
+        _sum: { requestedAmount: true }
+      });
+      const available = Number(student.pocketMoneyBalance) - Number(pending._sum.requestedAmount ?? 0);
+      if (parsed.data.amount > available) {
+        return { ok: false as const, status: 409, code: 'INSUFFICIENT_POCKET_MONEY', message: `Withdrawal cannot exceed the available balance of ₹${Math.max(available, 0).toLocaleString('en-IN')}.` };
+      }
+      const withdrawal = await transaction.pocketMoneyWithdrawal.create({
+        data: { studentId: student.id, requestedAmount: parsed.data.amount, remark: parsed.data.remark }
+      });
+      await transaction.auditLog.create({
+        data: {
+          action: 'POCKET_MONEY_WITHDRAWAL_REQUESTED',
+          entity: 'PocketMoneyWithdrawal',
+          entityId: withdrawal.id,
+          ipAddress: req.ip,
+          newData: { studentUid, requestedAmount: parsed.data.amount }
+        }
+      });
+      return { ok: true as const, data: { ...withdrawal, requestedAmount: Number(withdrawal.requestedAmount), availableBalance: available } };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    if (!result.ok) return res.status(result.status).json({ success: false, error: { code: result.code, message: result.message } });
+    return res.status(201).json({ success: true, data: result.data, message: 'Withdrawal request sent to your College Admin for approval' });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      return res.status(409).json({ success: false, error: { code: 'POCKET_MONEY_BALANCE_CHANGED', message: 'Your available balance changed. Refresh the page and submit the request again.' } });
+    }
+    return next(error);
   }
 });
 app.get('/api/v1/students/:studentUid/payments', authenticateStudent(jwtAccessSecret), async (req: StudentRequest, res, next) => {
@@ -1359,15 +1442,20 @@ app.get('/api/v1/super-admin/reports/fees', async (req, res) => {
     const feeAssignments = await prisma.feeAssignment.findMany({
       where: {
         isCurrent: true, // 👈 Ensures only the active fee assignment per student is listed
-        ...(academicYear && { feeStructure: { academicYear: String(academicYear) } }),
-        ...(collegeId && { student: { collegeId: String(collegeId) } }),
-        ...(branchId && { student: { branchId: String(branchId) } }),
+        ...(academicYear || collegeId || branchId ? {
+          student: {
+            ...(academicYear ? { academicYear: String(academicYear) } : {}),
+            ...(collegeId ? { collegeId: String(collegeId) } : {}),
+            ...(branchId ? { branchId: String(branchId) } : {})
+          }
+        } : {}),
       },
       include: {
         student: {
           include: {
             college: true,
             branch: true,
+            course: true,
           },
         },
         feeStructure: {
@@ -1390,7 +1478,7 @@ app.get('/api/v1/super-admin/reports/fees', async (req, res) => {
     let totalNetPayable = 0;
 
     const formattedReport = feeAssignments.map((fa: any) => {
-      const baseAmount = Number(fa.originalAmount || fa.feeStructure.totalAmount || 0);
+      const baseAmount = Number(fa.originalAmount || fa.feeStructure?.totalAmount || 0);
       const studentDiscountTotal = fa.discounts.reduce((acc: number, d: any) => acc + Number(d.amount || 0), 0);
       const netPayable = baseAmount - studentDiscountTotal;
 
@@ -1404,8 +1492,8 @@ app.get('/api/v1/super-admin/reports/fees', async (req, res) => {
         studentUid: fa.student.studentUid,
         collegeName: fa.student.college?.name || 'N/A',
         branchName: fa.student.branch?.name || 'N/A',
-        courseName: fa.feeStructure.course.name,
-        academicYear: fa.feeStructure.academicYear,
+        courseName: fa.student.course.name,
+        academicYear: fa.student.academicYear,
         baseAmount,
         studentDiscountTotal,
         netPayable,
@@ -1432,6 +1520,24 @@ app.get('/api/v1/super-admin/reports/fees', async (req, res) => {
     });
   }
 });
+
+app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
+  if (res.headersSent) return next(error);
+
+  console.error('Unhandled API error:', error);
+  const isDatabaseInitializationError = error instanceof Error && error.name === 'PrismaClientInitializationError';
+
+  return res.status(500).json({
+    success: false,
+    error: {
+      code: isDatabaseInitializationError ? 'DATABASE_CONNECTION_FAILED' : 'INTERNAL_SERVER_ERROR',
+      message: isDatabaseInitializationError
+        ? 'Database connection failed. Check the backend DATABASE_URL credentials and make sure PostgreSQL is reachable.'
+        : 'Internal server error'
+    }
+  });
+});
+
 export default app;
 
 // Keep the local development server working.

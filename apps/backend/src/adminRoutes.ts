@@ -1,4 +1,4 @@
-import { AdminAccountStatus, PaymentMode, PaymentStatus, Prisma, PrismaClient, StudentStatus } from '@prisma/client';
+import { AdminAccountStatus, PaymentMode, PaymentStatus, PocketMoneyWithdrawalStatus, Prisma, PrismaClient, StudentStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomInt, randomUUID } from 'node:crypto';
 import { NextFunction, Request, Response, Router } from 'express';
@@ -14,11 +14,11 @@ type SuperAdminRequest = Request & { superAdmin?: SuperAdminClaims };
 
 const loginSchema = z.object({ adminId: z.string().trim().min(8).max(40), password: z.string().min(8).max(128) });
 const superAdminLoginSchema = loginSchema;
-const provisionAdminSchema = z.object({
+export const provisionAdminSchema = z.object({
   adminId: z.string().trim().min(8).max(40).regex(/^[A-Za-z0-9-]+$/),
   email: z.string().trim().email().max(254),
   password: z.string()
-    .min(12, 'Password must be at least 12 characters')
+    .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must be no more than 128 characters')
     .regex(/[A-Z]/, 'Password must include an uppercase letter')
     .regex(/[a-z]/, 'Password must include a lowercase letter')
@@ -26,9 +26,9 @@ const provisionAdminSchema = z.object({
     .regex(/[^A-Za-z0-9]/, 'Password must include a special character'),
   collegeId: z.string().min(1)
 });
-const collegeSchema = z.object({
+export const collegeSchema = z.object({
   name: z.string().trim().min(2).max(120),
-  locationId: z.string().min(1)
+  location: z.string().trim().min(2).max(120)
 });
 const updateAdminSchema = z.object({
   adminId: z.string().trim().min(8).max(40).regex(/^[A-Za-z0-9-]+$/),
@@ -74,7 +74,11 @@ export const createStudentSchema = z.object({
   academicYear: z.string().regex(/^\d{4}-\d{4}$/),
   collegeId: z.string().min(1),
   courseId: z.string().min(1),
-  feeStructureId: z.string().min(1)
+  courseFee: z.number().finite().min(0.02).multipleOf(0.01),
+  bookFee: z.number().finite().min(0).multipleOf(0.01).default(0),
+  dhobiFee: z.number().finite().min(0).multipleOf(0.01).default(0),
+  pocketMoney: z.number().finite().min(0).multipleOf(0.01).default(0),
+  fixedDeposit: z.number().finite().min(0).multipleOf(0.01).default(0)
 }).superRefine((data, context) => {
   const [startYear, endYear] = data.academicYear.split('-').map(Number);
   if (startYear !== data.admissionYear || endYear! <= startYear!) context.addIssue({ code: z.ZodIssueCode.custom, path: ['academicYear'], message: 'Academic year must start with admission year' });
@@ -423,7 +427,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
             mobile: student.mobile, email: student.email, address: student.address, village: student.village, pin: student.pin,
             admissionYear: student.admissionYear, academicYear: student.academicYear, status: student.status, createdAt: student.createdAt.toISOString()
           },
-          organization: { state: student.college.location.state.name, location: student.college.location.name, college: student.college.name, branch: student.branch.name, course: student.course.name },
+          organization: { state: student.college.location.state?.name ?? 'Not specified', location: student.college.location.name, college: student.college.name, branch: student.branch.name, course: student.course.name },
           fees: {
             totalFee, paid, pending: Math.max(totalFee - discountTotal - paid, 0),
             installments: assignment?.installments.map((installment) => ({
@@ -519,6 +523,166 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
     } catch (error) { return next(error); }
   });
 
+  router.get('/pocket-money/withdrawals', async (req: AdminRequest, res, next) => {
+    const parsed = z.object({
+      status: z.nativeEnum(PocketMoneyWithdrawalStatus).optional()
+    }).safeParse(req.query);
+    if (!parsed.success) return validationError(res, parsed.error.issues);
+    try {
+      const admin = await loadAdmin(prisma, req.admin!.userId);
+      if (!admin) return forbidden(res);
+      const scopeFilters = getCollegeScopeFilters(admin.adminScopes);
+      if (!scopeFilters.length) return forbidden(res);
+      const withdrawals = await prisma.pocketMoneyWithdrawal.findMany({
+        where: {
+          ...(parsed.data.status ? { status: parsed.data.status } : {}),
+          student: { OR: scopeFilters }
+        },
+        include: {
+          student: { select: { studentUid: true, name: true, collegeId: true, college: { select: { name: true } } } }
+        },
+        orderBy: { requestedAt: 'desc' },
+        take: 100
+      });
+      return res.json({
+        success: true,
+        data: withdrawals.map((withdrawal) => ({
+          ...withdrawal,
+          requestedAmount: Number(withdrawal.requestedAmount),
+          approvedAmount: withdrawal.approvedAmount === null ? null : Number(withdrawal.approvedAmount)
+        })),
+        message: 'Pocket money withdrawal requests loaded'
+      });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/pocket-money/withdrawals/:id/approve', async (req: AdminRequest, res, next) => {
+    const params = z.object({ id: z.string().min(1) }).safeParse(req.params);
+    const parsed = z.object({
+      approvedAmount: z.number().finite().positive().multipleOf(0.01)
+    }).safeParse(req.body);
+    if (!params.success) return validationError(res, params.error.issues);
+    if (!parsed.success) return validationError(res, parsed.error.issues);
+    try {
+      const admin = await loadAdmin(prisma, req.admin!.userId);
+      if (!admin) return forbidden(res);
+      const result = await prisma.$transaction(async (transaction) => {
+        const withdrawal = await transaction.pocketMoneyWithdrawal.findUnique({
+          where: { id: params.data.id },
+          include: { student: true }
+        });
+        if (!withdrawal || !isStudentInCollegeScope(admin.adminScopes, withdrawal.student.collegeId)) {
+          return { ok: false as const, status: 404, code: 'WITHDRAWAL_NOT_FOUND', message: 'Pocket money request was not found in your college.' };
+        }
+        if (withdrawal.status !== PocketMoneyWithdrawalStatus.PENDING) {
+          return { ok: false as const, status: 409, code: 'WITHDRAWAL_ALREADY_REVIEWED', message: 'This pocket money request has already been reviewed.' };
+        }
+        if (parsed.data.approvedAmount > Number(withdrawal.requestedAmount)) {
+          return { ok: false as const, status: 400, code: 'APPROVED_AMOUNT_EXCEEDS_REQUEST', message: 'The approved amount cannot exceed the requested amount.' };
+        }
+        const otherPending = await transaction.pocketMoneyWithdrawal.aggregate({
+          where: { studentId: withdrawal.studentId, status: PocketMoneyWithdrawalStatus.PENDING, id: { not: withdrawal.id } },
+          _sum: { requestedAmount: true }
+        });
+        const availableForApproval = Number(withdrawal.student.pocketMoneyBalance) - Number(otherPending._sum.requestedAmount ?? 0);
+        if (parsed.data.approvedAmount > availableForApproval) {
+          return { ok: false as const, status: 409, code: 'INSUFFICIENT_POCKET_MONEY', message: 'The available balance has changed and cannot cover this approval.' };
+        }
+        const transactionToken = randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase();
+        const transactionNumber = `NSR-PMT-${transactionToken}`;
+        const receiptNumber = `NSR-PMR-${transactionToken}`;
+        const approvedAt = new Date();
+        const updated = await transaction.pocketMoneyWithdrawal.update({
+          where: { id: withdrawal.id },
+          data: {
+            approvedAmount: parsed.data.approvedAmount,
+            status: PocketMoneyWithdrawalStatus.APPROVED,
+            transactionNumber,
+            receiptNumber,
+            reviewedBy: admin.adminId ?? admin.id,
+            approvedAt
+          }
+        });
+        const student = await transaction.student.update({
+          where: { id: withdrawal.studentId },
+          data: { pocketMoneyBalance: { decrement: parsed.data.approvedAmount } },
+          select: { pocketMoneyBalance: true }
+        });
+        await transaction.auditLog.create({
+          data: {
+            userId: admin.id,
+            action: 'POCKET_MONEY_WITHDRAWAL_APPROVED',
+            entity: 'PocketMoneyWithdrawal',
+            entityId: withdrawal.id,
+            ipAddress: req.ip,
+            newData: { requestedAmount: Number(withdrawal.requestedAmount), approvedAmount: parsed.data.approvedAmount, transactionNumber, receiptNumber }
+          }
+        });
+        return {
+          ok: true as const,
+          data: {
+            ...updated,
+            requestedAmount: Number(updated.requestedAmount),
+            approvedAmount: Number(updated.approvedAmount),
+            balance: Number(student.pocketMoneyBalance)
+          }
+        };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      if (!result.ok) return res.status(result.status).json({ success: false, error: { code: result.code, message: result.message } });
+      return res.json({ success: true, data: result.data, message: 'Pocket money withdrawal approved and receipt generated' });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        return res.status(409).json({ success: false, error: { code: 'WITHDRAWAL_REVIEW_CONFLICT', message: 'The request or available balance changed. Reload the request and try again.' } });
+      }
+      return next(error);
+    }
+  });
+
+  router.post('/pocket-money/withdrawals/:id/reject', async (req: AdminRequest, res, next) => {
+    const params = z.object({ id: z.string().min(1) }).safeParse(req.params);
+    const parsed = z.object({ reviewerNote: z.string().trim().min(2).max(500) }).safeParse(req.body);
+    if (!params.success) return validationError(res, params.error.issues);
+    if (!parsed.success) return validationError(res, parsed.error.issues);
+    try {
+      const admin = await loadAdmin(prisma, req.admin!.userId);
+      if (!admin) return forbidden(res);
+      const result = await prisma.$transaction(async (transaction) => {
+        const withdrawal = await transaction.pocketMoneyWithdrawal.findUnique({
+          where: { id: params.data.id },
+          include: { student: true }
+        });
+        if (!withdrawal || !isStudentInCollegeScope(admin.adminScopes, withdrawal.student.collegeId)) {
+          return { ok: false as const, status: 404, code: 'WITHDRAWAL_NOT_FOUND', message: 'Pocket money request was not found in your college.' };
+        }
+        if (withdrawal.status !== PocketMoneyWithdrawalStatus.PENDING) {
+          return { ok: false as const, status: 409, code: 'WITHDRAWAL_ALREADY_REVIEWED', message: 'This pocket money request has already been reviewed.' };
+        }
+        const updated = await transaction.pocketMoneyWithdrawal.update({
+          where: { id: withdrawal.id },
+          data: { status: PocketMoneyWithdrawalStatus.REJECTED, reviewedBy: admin.adminId ?? admin.id, reviewerNote: parsed.data.reviewerNote }
+        });
+        await transaction.auditLog.create({
+          data: {
+            userId: admin.id,
+            action: 'POCKET_MONEY_WITHDRAWAL_REJECTED',
+            entity: 'PocketMoneyWithdrawal',
+            entityId: withdrawal.id,
+            ipAddress: req.ip,
+            newData: { reviewerNote: parsed.data.reviewerNote }
+          }
+        });
+        return { ok: true as const, data: updated };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      if (!result.ok) return res.status(result.status).json({ success: false, error: { code: result.code, message: result.message } });
+      return res.json({ success: true, data: result.data, message: 'Pocket money withdrawal request rejected' });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        return res.status(409).json({ success: false, error: { code: 'WITHDRAWAL_REVIEW_CONFLICT', message: 'The request changed. Reload it and try again.' } });
+      }
+      return next(error);
+    }
+  });
+
   router.post('/students', async (req: AdminRequest, res, next) => {
     const parsed = createStudentSchema.safeParse(req.body);
     if (!parsed.success) return validationError(res, parsed.error.issues);
@@ -543,15 +707,29 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
           create: { collegeId: college.id, name: 'Main Campus' }
         });
         const studentUid = await generateStudentUid(transaction, college.location.name);
-        const feeStructure = await transaction.feeStructure.findUnique({ where: { id: parsed.data.feeStructureId } });
-        if (!feeStructure || feeStructure.courseId !== parsed.data.courseId || feeStructure.academicYear !== parsed.data.academicYear) {
-          throw new InvalidFeeStructureError('Select the configured master fee for the student course and academic year.');
-        }
+        const feeStructure = await transaction.feeStructure.findUnique({
+          where: { courseId_academicYear: { courseId: parsed.data.courseId, academicYear: parsed.data.academicYear } }
+        });
         const student = await transaction.student.create({ data: { studentUid, name: parsed.data.name, fatherName: parsed.data.fatherName, motherName: parsed.data.motherName, dateOfBirth: parsed.data.dateOfBirth ? new Date(`${parsed.data.dateOfBirth}T00:00:00.000Z`) : undefined, nationality: parsed.data.nationality, religion: parsed.data.religion, casteCommunity: parsed.data.casteCommunity, mediumOfInstruction: parsed.data.mediumOfInstruction, firstLanguage: parsed.data.firstLanguage, secondLanguage: parsed.data.secondLanguage, thirdLanguage: parsed.data.thirdLanguage, gender: parsed.data.gender, age: parsed.data.age, mobile: parsed.data.mobile, email: normalizedEmail, address: parsed.data.address, village: parsed.data.village, pin: parsed.data.pin, admissionYear: parsed.data.admissionYear, academicYear: parsed.data.academicYear, status: StudentStatus.ACTIVE, collegeId: college.id, branchId: branch.id, courseId: parsed.data.courseId } });
         const account = await transaction.studentAccount.create({ data: { studentId: student.id, email: normalizedEmail, passwordHash, mustChangePassword: true } });
-        const totalFee = Number(feeStructure.totalAmount);
+        const totalFee = parsed.data.courseFee;
         const firstInstallment = Math.round((totalFee / 2) * 100) / 100;
-        const assignment = await transaction.feeAssignment.create({ data: { studentId: student.id, feeStructureId: feeStructure.id, originalAmount: feeStructure.totalAmount, isCurrent: true } });
+        const assignment = await transaction.feeAssignment.create({
+          data: {
+            studentId: student.id,
+            feeStructureId: feeStructure?.id,
+            originalAmount: totalFee,
+            bookFee: parsed.data.bookFee,
+            dhobiFee: parsed.data.dhobiFee,
+            pocketMoneyAmount: parsed.data.pocketMoney,
+            fixedDeposit: parsed.data.fixedDeposit,
+            isCurrent: true
+          }
+        });
+        await transaction.student.update({
+          where: { id: student.id },
+          data: { pocketMoneyBalance: parsed.data.pocketMoney }
+        });
         await transaction.feeInstallment.createMany({
           data: [
             { feeAssignmentId: assignment.id, amount: firstInstallment, dueDate: new Date(Date.UTC(student.admissionYear, 6, 1)) },
@@ -565,7 +743,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
           console.error('Student credential email delivery failed', deliveryError);
           throw new AdminCredentialDeliveryError(getCredentialDeliveryHint(deliveryError));
         }
-        await transaction.auditLog.create({ data: { userId: admin.id, action: 'STUDENT_CREATED', entity: 'Student', entityId: student.id, ipAddress: req.ip, newData: { studentUid: student.studentUid, accountId: account.id, credentialsDeliveredTo: normalizedEmail, collegeId: student.collegeId, branchId: student.branchId, courseId: student.courseId, feeStructureId: feeStructure.id, totalFee } } });
+        await transaction.auditLog.create({ data: { userId: admin.id, action: 'STUDENT_CREATED', entity: 'Student', entityId: student.id, ipAddress: req.ip, newData: { studentUid: student.studentUid, accountId: account.id, credentialsDeliveredTo: normalizedEmail, collegeId: student.collegeId, branchId: student.branchId, courseId: student.courseId, feeStructureId: feeStructure?.id ?? null, totalFee, bookFee: parsed.data.bookFee, dhobiFee: parsed.data.dhobiFee, pocketMoney: parsed.data.pocketMoney, fixedDeposit: parsed.data.fixedDeposit } } });
         return { studentUid: student.studentUid, name: student.name, status: student.status, totalFee, installmentCount: 2 };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15_000 });
       return res.status(201).json({ success: true, data: result, message: 'Student account created and credentials sent by email' });
@@ -722,7 +900,7 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
         data: {
           superAdmin: user ? { id: user.id, email: user.email, adminId: user.adminId ?? req.superAdmin!.adminId } : null,
           colleges: colleges.map((college) => ({ id: college.id, name: college.name, branches: college.branches.map((branch) => ({ id: branch.id, name: branch.name })) })),
-          locations: locations.map((location) => ({ id: location.id, name: location.name, stateName: location.state.name })),
+          locations: locations.map((location) => ({ id: location.id, name: location.name, stateName: location.state?.name ?? '' })),
           courses: courses.map((course) => ({ id: course.id, name: course.name, programType: course.programType })),
           admins: admins.map((admin) => ({
             id: admin.id,
@@ -782,14 +960,18 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
     const parsed = collegeSchema.safeParse(req.body);
     if (!parsed.success) return validationError(res, parsed.error.issues);
     try {
-      const location = await prisma.location.findUnique({ where: { id: parsed.data.locationId } });
-      if (!location) return res.status(400).json({ success: false, error: { code: 'INVALID_LOCATION', message: 'Select a valid location for this college' } });
-      const duplicate = await prisma.college.findFirst({
-        where: { name: { equals: parsed.data.name, mode: 'insensitive' }, locationId: location.id }
-      });
+      const result = await prisma.$transaction(async (transaction) => {
+        const duplicate = await transaction.college.findFirst({
+          where: {
+            name: { equals: parsed.data.name, mode: 'insensitive' },
+            location: { is: { name: { equals: parsed.data.location, mode: 'insensitive' } } }
+          }
+        });
+        if (duplicate) return { duplicate: true as const };
+        const location = await transaction.location.findFirst({
+          where: { name: { equals: parsed.data.location, mode: 'insensitive' }, stateId: null }
+        }) ?? await transaction.location.create({ data: { name: parsed.data.location } });
 
-      if (duplicate) return res.status(409).json({ success: false, error: { code: 'COLLEGE_ALREADY_EXISTS', message: 'A college with that name already exists at this location' } });
-      const college = await prisma.$transaction(async (transaction) => {
         const created = await transaction.college.create({
           data: {
             name: parsed.data.name,
@@ -805,12 +987,13 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
             entity: 'College',
             entityId: created.id,
             ipAddress: req.ip,
-            newData: { name: created.name, locationId: location.id }
+            newData: { name: created.name, locationId: location.id, location: location.name }
           }
         });
-        return created;
+        return { college: created };
       });
-      return res.status(201).json({ success: true, data: college, message: 'College created successfully' });
+      if ('duplicate' in result) return res.status(409).json({ success: false, error: { code: 'COLLEGE_ALREADY_EXISTS', message: 'A college with that name already exists at this location' } });
+      return res.status(201).json({ success: true, data: result.college, message: 'College created successfully' });
     } catch (error) { return next(error); }
   });
 
@@ -1080,7 +1263,8 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
       email: z.string().trim().email().max(254),
       mobile: z.string().regex(/^[6-9]\d{9}$/),
       academicYear: z.string().regex(/^\d{4}-\d{4}$/),
-      status: z.nativeEnum(StudentStatus)
+      status: z.nativeEnum(StudentStatus),
+      courseFee: z.number().finite().min(0.02).multipleOf(0.01).optional()
     }).safeParse(req.body);
     if (!params.success) return validationError(res, params.error.issues);
     if (!parsed.success) return validationError(res, parsed.error.issues);
@@ -1091,10 +1275,52 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
         return validationError(res, [{ code: z.ZodIssueCode.custom, path: ['academicYear'], message: 'Academic year must start with the student admission year and have a later end year' }]);
       }
       const updated = await prisma.$transaction(async (transaction) => {
+        const currentAssignment = await transaction.feeAssignment.findFirst({
+          where: { studentId: student.id, isCurrent: true },
+          include: {
+            installments: {
+              orderBy: { dueDate: 'asc' },
+              include: { allocations: { where: { payment: { status: PaymentStatus.SUCCESS } }, select: { amount: true } } }
+            },
+            discounts: { select: { amount: true } }
+          }
+        });
+        if (parsed.data.courseFee !== undefined && currentAssignment) {
+          if (currentAssignment.installments.length === 0) {
+            throw new InvalidCourseFeeUpdateError('Course fee cannot be corrected because this assignment has no installment schedule.');
+          }
+          const paidByInstallment = currentAssignment.installments.map((installment) =>
+            installment.allocations.reduce((total, allocation) => total + Number(allocation.amount), 0)
+          );
+          const paidTotal = paidByInstallment.reduce((total, amount) => total + amount, 0);
+          const discountTotal = currentAssignment.discounts.reduce((total, discount) => total + Number(discount.amount), 0);
+          if (parsed.data.courseFee < paidTotal + discountTotal) {
+            throw new InvalidCourseFeeUpdateError('Course fee cannot be less than payments already recorded plus granted discounts.');
+          }
+          const baseInstallment = Math.round((parsed.data.courseFee / currentAssignment.installments.length) * 100) / 100;
+          const installmentAmounts = currentAssignment.installments.map((_, index) => Math.max(baseInstallment, paidByInstallment[index] ?? 0));
+          const allocatedInstallments = installmentAmounts.reduce((total, amount) => total + amount, 0);
+          if (allocatedInstallments > parsed.data.courseFee) {
+            throw new InvalidCourseFeeUpdateError('Course fee cannot reduce an installment below payments already allocated to it.');
+          }
+          installmentAmounts[installmentAmounts.length - 1]! += parsed.data.courseFee - allocatedInstallments;
+          await transaction.feeAssignment.update({
+            where: { id: currentAssignment.id },
+            data: { originalAmount: parsed.data.courseFee }
+          });
+          for (const [index, installment] of currentAssignment.installments.entries()) {
+            await transaction.feeInstallment.update({
+              where: { id: installment.id },
+              data: { amount: installmentAmounts[index]! }
+            });
+          }
+        } else if (parsed.data.courseFee !== undefined) {
+          throw new InvalidCourseFeeUpdateError('A fee assignment is not available for this student.');
+        }
         const result = await transaction.student.update({
           where: { id: student.id },
-          data: { ...parsed.data, email: parsed.data.email.toLowerCase() },
-          include: { college: true, branch: true, course: true }
+          data: { name: parsed.data.name, email: parsed.data.email.toLowerCase(), mobile: parsed.data.mobile, academicYear: parsed.data.academicYear, status: parsed.data.status },
+          include: { college: true, branch: true, course: true, feeAssignments: { where: { isCurrent: true } } }
         });
         if (student.status !== result.status) {
           await transaction.studentStatusHistory.create({
@@ -1108,6 +1334,7 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
       });
       return res.json({ success: true, data: updated, message: 'Student record updated' });
     } catch (error) {
+      if (error instanceof InvalidCourseFeeUpdateError) return res.status(400).json({ success: false, error: { code: 'INVALID_COURSE_FEE', message: error.message } });
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ success: false, error: { code: 'DUPLICATE_STUDENT_CONTACT', message: 'Another student already uses that email or mobile number' } });
       return next(error);
     }
@@ -1146,16 +1373,16 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
       const feeAssignments = await prisma.feeAssignment.findMany({
         where: {
           isCurrent: true,
-          ...(parsed.data.academicYear ? { feeStructure: { academicYear: parsed.data.academicYear } } : {}),
-          ...(parsed.data.collegeId || parsed.data.branchId ? {
+          ...(parsed.data.academicYear || parsed.data.collegeId || parsed.data.branchId ? {
             student: {
+              ...(parsed.data.academicYear ? { academicYear: parsed.data.academicYear } : {}),
               ...(parsed.data.collegeId ? { collegeId: parsed.data.collegeId } : {}),
               ...(parsed.data.branchId ? { branchId: parsed.data.branchId } : {})
             }
           } : {})
         },
         include: {
-          student: { include: { college: true, branch: true } },
+          student: { include: { college: true, branch: true, course: true } },
           feeStructure: { include: { course: true } },
           discounts: { include: { discount: true } },
           installments: true
@@ -1166,7 +1393,7 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
       let totalDiscountsGiven = 0;
       let totalNetPayable = 0;
       const records = feeAssignments.map((assignment) => {
-        const baseAmount = Number(assignment.originalAmount || assignment.feeStructure.totalAmount);
+        const baseAmount = Number(assignment.originalAmount || assignment.feeStructure?.totalAmount || 0);
         const studentDiscountTotal = assignment.discounts.reduce((sum, discount) => sum + Number(discount.amount), 0);
         const netPayable = baseAmount - studentDiscountTotal;
         totalAssignedAmount += baseAmount;
@@ -1178,8 +1405,8 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
           studentUid: assignment.student.studentUid,
           collegeName: assignment.student.college.name,
           branchName: assignment.student.branch.name,
-          courseName: assignment.feeStructure.course.name,
-          academicYear: assignment.feeStructure.academicYear,
+          courseName: assignment.student.course.name,
+          academicYear: assignment.student.academicYear,
           baseAmount,
           studentDiscountTotal,
           netPayable
@@ -1375,7 +1602,11 @@ export function formatValidationIssue(issue: z.ZodIssue) {
     academicYear: 'Academic year',
     collegeId: 'College',
     courseId: 'Course',
-    feeStructureId: 'Fee plan',
+    courseFee: 'Course fee',
+    bookFee: 'Book fee',
+    dhobiFee: 'Dhobi fee',
+    pocketMoney: 'Pocket money',
+    fixedDeposit: 'Fixed deposit',
     password: 'Password',
     adminId: 'Admin ID',
     locationId: 'Location'
@@ -1446,6 +1677,7 @@ export function getCredentialDeliveryHint(error: unknown) {
 }
 
 class InvalidFeeStructureError extends Error { }
+class InvalidCourseFeeUpdateError extends Error { }
 
 async function generateStudentUid(transaction: Prisma.TransactionClient, locationName: string) {
   const locationCode = locationName.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3).padEnd(3, 'X');

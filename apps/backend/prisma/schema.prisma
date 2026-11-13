@@ -44,6 +44,12 @@ enum PaymentMode {
   OTHER
 }
 
+enum PocketMoneyWithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id           String      @id @default(cuid())
   adminId      String?     @unique
@@ -75,8 +81,8 @@ model State {
 model Location {
   id       String    @id @default(cuid())
   name     String
-  stateId  String
-  state    State     @relation(fields: [stateId], references: [id])
+  stateId  String?
+  state    State?    @relation(fields: [stateId], references: [id])
   colleges College[]
 
   @@unique([stateId, name])
@@ -161,6 +167,8 @@ model Student {
   account        StudentAccount?
   feeAssignments FeeAssignment[]
   payments       Payment[]
+  pocketMoneyBalance Decimal                @default(0) @db.Decimal(12, 2)
+  pocketMoneyWithdrawals PocketMoneyWithdrawal[]
   statusHistory  StudentStatusHistory[]
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
@@ -217,13 +225,35 @@ model FeeStructure {
 model FeeAssignment {
   id             String            @id @default(cuid())
   studentId      String
-  feeStructureId String
+  feeStructureId String?
   originalAmount Decimal           @db.Decimal(12, 2)
+  bookFee        Decimal           @default(0) @db.Decimal(12, 2)
+  dhobiFee       Decimal           @default(0) @db.Decimal(12, 2)
+  pocketMoneyAmount Decimal        @default(0) @db.Decimal(12, 2)
+  fixedDeposit   Decimal           @default(0) @db.Decimal(12, 2)
   isCurrent      Boolean           @default(true)
   student        Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  feeStructure   FeeStructure      @relation(fields: [feeStructureId], references: [id])
+  feeStructure   FeeStructure?     @relation(fields: [feeStructureId], references: [id])
   installments   FeeInstallment[]
   discounts      StudentDiscount[]
+}
+
+model PocketMoneyWithdrawal {
+  id              String                       @id @default(cuid())
+  studentId       String
+  requestedAmount Decimal                      @db.Decimal(12, 2)
+  approvedAmount  Decimal?                     @db.Decimal(12, 2)
+  remark           String
+  status           PocketMoneyWithdrawalStatus @default(PENDING)
+  transactionNumber String?                     @unique
+  receiptNumber    String?                      @unique
+  reviewedBy       String?
+  reviewerNote     String?
+  requestedAt      DateTime                     @default(now())
+  approvedAt       DateTime?
+  student          Student                      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@index([studentId, status, requestedAt])
 }
 
 model FeeInstallment {

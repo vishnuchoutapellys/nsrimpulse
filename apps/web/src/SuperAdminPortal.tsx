@@ -295,7 +295,7 @@ function SuperAdminWorkspace({
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold transition ${view === "fees" ? "bg-amber-500 text-white shadow-md shadow-amber-500/20" : "text-slate-600 hover:bg-slate-50"
                 }`}
             >
-              <BookOpen size={16} /> Master Fee & Discounts
+              <BookOpen size={16} /> Student Discounts
             </button>
           </nav>
         </aside>
@@ -304,7 +304,7 @@ function SuperAdminWorkspace({
           {view === "dashboard" && <SuperAdminAnalyticsOverview token={token} context={context} />}
           {view === "admins" && <ManageAdmins token={token} context={context} onRefresh={loadContext} />}
           {view === "search" && <GlobalStudentSearch token={token} context={context} />}
-          {view === "fees" && <MasterFeeControls token={token} context={context} onRefresh={loadContext} />}
+          {view === "fees" && <StudentFeeGovernance token={token} context={context} onRefresh={loadContext} />}
           {view === "reports" && <SystemFeeReports token={token} context={context} />}
         </main>
       </div>
@@ -316,7 +316,7 @@ function SuperAdminWorkspace({
 function CollegeActions({ token, context, onRefresh }: { token: string; context: SuperAdminContext; onRefresh: () => Promise<void> }) {
   const [mode, setMode] = useState<"add" | "delete" | null>(null);
   const [collegeName, setCollegeName] = useState("");
-  const [locationId, setLocationId] = useState(context.locations[0]?.id ?? "");
+  const [location, setLocation] = useState("");
   const [selectedDelete, setSelectedDelete] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -337,10 +337,11 @@ function CollegeActions({ token, context, onRefresh }: { token: string; context:
       const response = await fetch(`${apiBase}/api/v1/super-admin/colleges`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name, locationId })
+        body: JSON.stringify({ name, location: location.trim() })
       });
       await checkResponse(response);
       setCollegeName("");
+      setLocation("");
       setMode(null);
       setMessage("College added successfully.");
       await onRefresh();
@@ -396,15 +397,11 @@ function CollegeActions({ token, context, onRefresh }: { token: string; context:
                 <input value={collegeName} onChange={(event) => setCollegeName(event.target.value)} required minLength={2} maxLength={120} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm" />
               </label>
               <label className="block text-xs font-semibold text-slate-600">Location
-                <select value={locationId} onChange={(event) => setLocationId(event.target.value)} required disabled={!context.locations.length} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm">
-                  <option value="">Select a location</option>
-                  {context.locations.map(location => <option key={location.id} value={location.id}>{location.name} — {location.stateName}</option>)}
-                </select>
+                <input value={location} onChange={(event) => setLocation(event.target.value)} required minLength={2} maxLength={120} placeholder="Enter city or area" className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm" />
               </label>
-              {!context.locations.length && <p className="text-sm text-amber-700">No locations are configured yet. Add a location before creating a college.</p>}
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setMode(null)} className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">Cancel</button>
-                <button disabled={busy || !context.locations.length} className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{busy ? "Adding..." : "Add College"}</button>
+                <button disabled={busy} className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{busy ? "Adding..." : "Add College"}</button>
               </div>
             </form>
           </section>
@@ -547,7 +544,7 @@ function ManageAdmins({ token, context, onRefresh }: { token: string; context: S
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
     const passwordProblems = [
-      password.length < 12 && "at least 12 characters",
+      password.length < 8 && "at least 8 characters",
       password.length > 128 && "no more than 128 characters",
       !/[A-Z]/.test(password) && "an uppercase letter",
       !/[a-z]/.test(password) && "a lowercase letter",
@@ -599,8 +596,8 @@ function ManageAdmins({ token, context, onRefresh }: { token: string; context: S
           </div>
           <label className="block text-xs font-semibold text-slate-600">
             Password
-            <input className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:bg-white" type="password" placeholder="Create a secure password" value={password} onChange={e => setPassword(e.target.value)} minLength={12} maxLength={128} autoComplete="new-password" required />
-            <span className="mt-1 block text-[11px] font-normal text-slate-500">At least 12 characters, with uppercase and lowercase letters, a number, and a special character.</span>
+            <input className="mt-1 w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs focus:bg-white" type="password" placeholder="Create a secure password" value={password} onChange={e => setPassword(e.target.value)} minLength={8} maxLength={128} autoComplete="new-password" required />
+            <span className="mt-1 block text-[11px] font-normal text-slate-500">At least 8 characters, with uppercase and lowercase letters, a number, and a special character.</span>
           </label>
           <label className="block text-xs font-semibold text-slate-600">
             College
@@ -697,6 +694,7 @@ function GlobalStudentSearch({ token, context }: { token: string; context: Super
           mobile: editingStudent.mobile,
           academicYear: editingStudent.academicYear,
           status: editingStudent.status,
+          ...(editingStudent.courseFee !== "" ? { courseFee: Number(editingStudent.courseFee) } : {}),
         }),
       });
       const json = await res.json();
@@ -790,7 +788,10 @@ function GlobalStudentSearch({ token, context }: { token: string; context: Super
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
                     <button
-                      onClick={() => setEditingStudent(st)}
+                      onClick={() => setEditingStudent({
+                        ...st,
+                        courseFee: String(st.feeAssignments?.find((assignment: any) => assignment.isCurrent)?.originalAmount ?? "")
+                      })}
                       className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition"
                     >
                       Edit
@@ -864,6 +865,19 @@ function GlobalStudentSearch({ token, context }: { token: string; context: Super
                     <option value="GRADUATED">GRADUATED</option>
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Course Fee (₹)</label>
+                <input
+                  type="number"
+                  min="0.02"
+                  step="0.01"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white"
+                  value={editingStudent.courseFee ?? ""}
+                  onChange={event => setEditingStudent({ ...editingStudent, courseFee: event.target.value })}
+                  placeholder="No fee assignment"
+                />
+                <small className="text-[10px] text-slate-500">Correcting this amount also updates the unpaid installment schedule.</small>
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -1036,12 +1050,10 @@ function SystemFeeReports({ token, context }: { token: string; context: SuperAdm
     </div>
   );
 }
-function MasterFeeControls({ token, context, onRefresh }: { token: string; context: SuperAdminContext; onRefresh: () => Promise<void> }) {
-  const [feeForm, setFeeForm] = useState({ courseId: context.courses[0]?.id || "", academicYear: "2026-2027", totalAmount: "" });
+function StudentFeeGovernance({ token, context, onRefresh }: { token: string; context: SuperAdminContext; onRefresh: () => Promise<void> }) {
   const [courseForm, setCourseForm] = useState({ programType: "INTERMEDIATE", name: "" });
   const [courseError, setCourseError] = useState("");
   const [courseMessage, setCourseMessage] = useState("");
-  const [masterFees, setMasterFees] = useState<any[]>([]);
 
   // Student Discount State
   const [filterCollegeId, setFilterCollegeId] = useState("");
@@ -1055,7 +1067,6 @@ function MasterFeeControls({ token, context, onRefresh }: { token: string; conte
   const [busySearch, setBusySearch] = useState(false);
   const [discountSuccess, setDiscountSuccess] = useState("");
   const activeFilterCollege = context.colleges.find((c: any) => c.id === filterCollegeId);
-  const [busyFee, setBusyFee] = useState(false);
   const [busyDisc, setBusyDisc] = useState(false);
   const selectedFeeAssignment = selectedStudent?.feeAssignments?.find((assignment: any) => assignment.isCurrent);
   const assignedDiscountTotal = selectedFeeAssignment?.discounts?.reduce(
@@ -1065,25 +1076,6 @@ function MasterFeeControls({ token, context, onRefresh }: { token: string; conte
   const remainingFeeForDiscount = selectedFeeAssignment
     ? Math.max(0, Number(selectedFeeAssignment.originalAmount) - assignedDiscountTotal)
     : 0;
-
-  useEffect(() => {
-    let active = true;
-    fetch(`${apiBase}/api/v1/super-admin/fee-structures`, {
-      headers: { Authorization: "Bearer " + token }
-    }).then(async (response) => {
-      const result = await response.json();
-      if (!response.ok || !result.success) throw new Error(result.error?.message || "Unable to load master fee structures.");
-      if (active) setMasterFees(result.data);
-    }).catch((reason) => {
-      if (active) setCourseError(reason instanceof Error ? reason.message : "Unable to load master fee structures.");
-    });
-    return () => { active = false; };
-  }, [token]);
-
-  useEffect(() => {
-    const fee = masterFees.find((item) => item.courseId === feeForm.courseId && item.academicYear === feeForm.academicYear);
-    setFeeForm((current) => ({ ...current, totalAmount: fee ? String(fee.totalAmount) : "" }));
-  }, [feeForm.courseId, feeForm.academicYear, masterFees]);
 
   async function createCourse(event: FormEvent) {
     event.preventDefault();
@@ -1098,43 +1090,12 @@ function MasterFeeControls({ token, context, onRefresh }: { token: string; conte
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error?.message || "Unable to create course.");
       await onRefresh();
-      setFeeForm((current) => ({ ...current, courseId: result.data.id }));
       setCourseForm((current) => ({ ...current, name: "" }));
       setCourseMessage(`${result.data.programType.replaceAll("_", " ")} course ${result.data.name} added.`);
     } catch (reason) {
       setCourseError(reason instanceof Error ? reason.message : "Unable to create course.");
     }
   }
-
-  const handleUpdateFeeStructure = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusyFee(true);
-    try {
-      const res = await fetch(`${apiBase}/api/v1/super-admin/fee-structures`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          courseId: feeForm.courseId,
-          academicYear: feeForm.academicYear,
-          totalAmount: parseFloat(feeForm.totalAmount),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error?.message || "Unable to update master fee structure.");
-      if (data.success) {
-        setMasterFees((items) => [
-          ...items.filter((fee) => fee.id !== data.data.id),
-          data.data
-        ]);
-        alert("Master Fee Structure successfully updated!");
-      }
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : "Failed to update fee structure");
-    } finally {
-      setBusyFee(false);
-    }
-  };
 
   // 2. Search Students for Discount Assignment with Advanced Filters
   const handleSearchStudents = async (e: FormEvent) => {
@@ -1234,13 +1195,13 @@ function MasterFeeControls({ token, context, onRefresh }: { token: string; conte
   return (
     <div className="space-y-6">
       <div className="bg-white border border-slate-200 rounded-3xl p-6">
-        <h3 className="text-xl font-bold text-slate-900">Master Fee Structure & Student Discount Governance</h3>
-        <p className="text-xs text-slate-500 mt-0.5">Control base course tuition fees and grant custom institutional fee waivers to specific students.</p>
+        <h3 className="text-xl font-bold text-slate-900">Student Fee Governance</h3>
+        <p className="text-xs text-slate-500 mt-0.5">Review student fee components and grant custom institutional fee waivers.</p>
       </div>
 
       <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4">
-        <h4 className="text-lg font-bold text-slate-900">Master Course Catalog</h4>
-        <p className="text-xs text-slate-500">Add courses under Intermediate, IIT-JEE, or NEET. College Admins can only assign fees configured here.</p>
+        <h4 className="text-lg font-bold text-slate-900">Course Catalog</h4>
+        <p className="text-xs text-slate-500">Add courses under Intermediate, IIT-JEE, or NEET. Course fees are recorded per student during admission.</p>
         <form onSubmit={createCourse} className="grid grid-cols-1 md:grid-cols-[1fr_2fr_auto] gap-3">
           <label className="text-xs font-semibold text-slate-600">
             Program
@@ -1278,60 +1239,7 @@ function MasterFeeControls({ token, context, onRefresh }: { token: string; conte
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* CARD 1: MASTER COURSE FEE CONTROLS */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4">
-          <h4 className="text-lg font-bold text-slate-900">Master Course Fee Controls</h4>
-          <form onSubmit={handleUpdateFeeStructure} className="space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-slate-600 block mb-1">Select Course</label>
-              <select
-                value={feeForm.courseId}
-                onChange={(e) => setFeeForm({ ...feeForm, courseId: e.target.value })}
-                required
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none"
-              >
-                <option value="">-- Choose Course --</option>
-                {context.courses.map((course: any) => (
-                  <option key={course.id} value={course.id}>{course.programType.replaceAll("_", " ")} · {course.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-600 block mb-1">Academic Year</label>
-              <input
-                type="text"
-                value={feeForm.academicYear}
-                onChange={(e) => setFeeForm({ ...feeForm, academicYear: e.target.value })}
-                placeholder="e.g., 2026-2027"
-                required
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-slate-600 block mb-1">Total Course Fee (₹)</label>
-              <input
-                type="number"
-                value={feeForm.totalAmount}
-                onChange={(e) => setFeeForm({ ...feeForm, totalAmount: e.target.value })}
-                placeholder="e.g., 85000"
-                required
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 focus:bg-white focus:outline-none"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={busyFee}
-              className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs transition shadow-md shadow-amber-500/20 disabled:opacity-50"
-            >
-              Update Master Base Fee
-            </button>
-          </form>
-        </div>
-        {/* CARD 2: GRANT STUDENT-SPECIFIC DISCOUNT WITH ADVANCED FILTERS */}
+      <div className="grid grid-cols-1 gap-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-200 space-y-4">
           <h4 className="text-lg font-bold text-slate-900">Grant Student Custom Discount</h4>
 
@@ -1426,9 +1334,25 @@ function MasterFeeControls({ token, context, onRefresh }: { token: string; conte
                 </p>
               )}
               {selectedFeeAssignment ? (
-                <p className="text-[11px] text-slate-500">
-                  Remaining fee available for discount: ₹{remainingFeeForDiscount.toLocaleString("en-IN")}
-                </p>
+                <>
+                  <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px]">
+                    {[
+                      ["Course Fee", selectedFeeAssignment.originalAmount],
+                      ["Book Fee", selectedFeeAssignment.bookFee],
+                      ["Dhobi Fee", selectedFeeAssignment.dhobiFee],
+                      ["Pocket Money", selectedFeeAssignment.pocketMoneyAmount],
+                      ["Fixed Deposit", selectedFeeAssignment.fixedDeposit],
+                    ].map(([label, amount]) => (
+                      <label key={label} className="space-y-1 font-semibold text-slate-600">
+                        {label} (₹)
+                        <input readOnly value={Number(amount ?? 0).toLocaleString("en-IN")} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800" />
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Remaining fee available for discount: ₹{remainingFeeForDiscount.toLocaleString("en-IN")}
+                  </p>
+                </>
               ) : (
                 <p role="alert" className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl p-3">
                   This student has no active fee assignment, so a discount cannot be applied.
