@@ -623,8 +623,8 @@ export function StudentPortal({
               </div>
 
               {/* Installment Plan */}
-              <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4">
-                <div className="flex items-center justify-between gap-3">
+              <div className="student-payment-plan bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4">
+                <div className="student-payment-plan-heading flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
                       PAYMENT PLAN
@@ -633,10 +633,10 @@ export function StudentPortal({
                       Fee schedule
                     </h3>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="student-payment-plan-actions flex items-center gap-3">
                     {record.fee.discount > 0 && (
                       <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
-                        Discount Amount: ₹{formatINR(record.fee.discount)}
+                        Discount: ₹{formatINR(record.fee.discount)}
                       </span>
                     )}
                   <button
@@ -652,7 +652,7 @@ export function StudentPortal({
                   {record.fee.installments.map((inst, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100"
+                      className="student-installment-row flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100"
                     >
                       <div>
                         <strong className="text-slate-900 text-sm block font-bold">
@@ -660,8 +660,8 @@ export function StudentPortal({
                         </strong>
                         <span className="text-xs text-slate-400">Due {inst.dueDate}</span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
+                      <div className="student-installment-meta flex items-center gap-3">
+                        <div className="student-installment-values text-right">
                           <strong className="text-slate-900 text-sm font-serif block">
                             ₹{formatINR(inst.amount)}
                           </strong>
@@ -689,7 +689,7 @@ export function StudentPortal({
 
           {/* TAB 2: PROFILE */}
           {tab === "profile" && (
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-6">
+            <div className="student-fee-section bg-white border border-slate-200/80 rounded-3xl p-6 space-y-6">
               <h3 className="text-lg font-bold text-slate-900">Personal & Academic Profile</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="p-4 rounded-2xl bg-slate-50 space-y-1">
@@ -738,7 +738,7 @@ export function StudentPortal({
                 {record.fee.installments.map((inst, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs"
+                    className="student-installment-row flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs"
                   >
                     <div>
                       <strong className="text-slate-900 block text-sm font-bold">
@@ -746,8 +746,8 @@ export function StudentPortal({
                       </strong>
                       <span className="text-slate-400">Due date: {inst.dueDate}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
+                    <div className="student-installment-meta flex items-center gap-3">
+                      <div className="student-installment-values text-right">
                         <strong className="text-slate-900 font-serif text-sm block">
                           ₹{formatINR(inst.amount)}
                         </strong>
