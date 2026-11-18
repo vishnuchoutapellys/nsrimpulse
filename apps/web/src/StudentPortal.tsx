@@ -11,6 +11,7 @@ import {
 import React, { useEffect, useState } from "react";
 import nsrLogo from "../../assets/nsrLogo.png";
 import { apiBase } from "./api";
+import { formatINR } from "./money";
 import { PaymentHistory } from "./PaymentHistory";
 
 type PortalTab = "overview" | "profile" | "fees" | "history" | "reminders" | "pocket-money";
@@ -207,7 +208,7 @@ async function fetchStudentRecord(
       total: originalFee,
       discount: feeDiscount,
       paid: feePaid,
-      pending: Math.max(0, feeTotal - feePaid),
+      pending: Math.max(0, Math.ceil(feeTotal - feePaid - Number.EPSILON)),
       currency: "INR",
       installments,
     },
@@ -389,7 +390,7 @@ export function StudentPortal({
     if (!navigator.onLine) return setPaymentError("Payments cannot be submitted while offline.");
     if (!Number.isFinite(amount) || amount <= 0) return setPaymentError("Enter a payment amount greater than zero.");
     if (!Number.isInteger(amount * 100)) return setPaymentError("Use no more than two decimal places.");
-    if (amount > record.fee.pending) return setPaymentError(`Payment cannot exceed ₹${record.fee.pending.toLocaleString("en-IN")}.`);
+    if (amount > record.fee.pending) return setPaymentError(`Payment cannot exceed ₹${formatINR(record.fee.pending)}.`);
 
     setPaymentBusy(true);
     try {
@@ -417,7 +418,7 @@ export function StudentPortal({
         throw new Error(result.error?.message ?? result.message ?? "Payment could not be recorded.");
       }
 
-      setPaymentSuccess(result.message ?? `Payment of ₹${amount.toLocaleString("en-IN")} recorded successfully.`);
+      setPaymentSuccess(result.message ?? `Payment of ₹${formatINR(amount)} recorded successfully.`);
       setShowPayment(false);
       setPaymentAmount("");
       setTab("overview");
@@ -448,7 +449,7 @@ export function StudentPortal({
       return;
     }
     if (amount > record.pocketMoney.balance) {
-      setWithdrawalError(`Amount cannot exceed the available balance of ₹${record.pocketMoney.balance.toLocaleString("en-IN")}.`);
+      setWithdrawalError(`Amount cannot exceed the available balance of ₹${formatINR(record.pocketMoney.balance)}.`);
       return;
     }
     setWithdrawalBusy(true);
@@ -576,16 +577,11 @@ export function StudentPortal({
                   </span>
                   <div>
                     <strong className="text-3xl font-extrabold font-serif">
-                      ₹{record.fee.pending.toLocaleString("en-IN")}
+                      ₹{formatINR(record.fee.pending)}
                     </strong>
                     <span className="text-xs text-slate-400 block mt-0.5">
-                      Total Fee: ₹{record.fee.total.toLocaleString("en-IN")}
+                      Total Fee: ₹{formatINR(record.fee.total)}
                     </span>
-                    {record.fee.discount > 0 && (
-                      <span className="text-xs text-emerald-400 block mt-1">
-                        Discount Amount: ₹{record.fee.discount.toLocaleString("en-IN")}
-                      </span>
-                    )}
                   </div>
                   {!record.feePlanMissing && record.fee.pending > 0 && <button
                     onClick={openPayment}
@@ -616,7 +612,7 @@ export function StudentPortal({
                   </span>
                   <div>
                     <strong className="text-2xl font-bold text-slate-900 block font-serif">
-                      ₹{record.fee.paid.toLocaleString("en-IN")}
+                      ₹{formatINR(record.fee.paid)}
                     </strong>
                     <span className="text-xs text-slate-500 block mt-1">
                       Recorded payments
@@ -628,7 +624,7 @@ export function StudentPortal({
 
               {/* Installment Plan */}
               <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
                       PAYMENT PLAN
@@ -637,12 +633,19 @@ export function StudentPortal({
                       Fee schedule
                     </h3>
                   </div>
+                  <div className="flex items-center gap-3">
+                    {record.fee.discount > 0 && (
+                      <span className="text-xs font-bold text-emerald-600 whitespace-nowrap">
+                        Discount Amount: ₹{formatINR(record.fee.discount)}
+                      </span>
+                    )}
                   <button
                     onClick={() => setTab("fees")}
                     className="text-xs font-bold text-amber-600 hover:underline"
                   >
                     View details →
                   </button>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
@@ -660,9 +663,11 @@ export function StudentPortal({
                       <div className="flex items-center gap-3">
                         <div className="text-right">
                           <strong className="text-slate-900 text-sm font-serif block">
-                            ₹{inst.amount.toLocaleString("en-IN")}
+                            ₹{formatINR(inst.amount)}
                           </strong>
-                          {inst.paid > 0 && <small className="text-[10px] font-semibold text-emerald-600">Paid ₹{inst.paid.toLocaleString("en-IN")}</small>}
+                          <small className="text-[10px] font-semibold text-emerald-600">
+                            Paid ₹{formatINR(inst.paid)} · <span className="text-[9px] font-normal text-amber-700">[ Remaining ₹{formatINR(Math.max(inst.amount - inst.paid, 0))} ]</span>
+                          </small>
                         </div>
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${inst.status === "PAID"
@@ -744,9 +749,11 @@ export function StudentPortal({
                     <div className="flex items-center gap-3">
                       <div className="text-right">
                         <strong className="text-slate-900 font-serif text-sm block">
-                          ₹{inst.amount.toLocaleString("en-IN")}
+                          ₹{formatINR(inst.amount)}
                         </strong>
-                        {inst.paid > 0 && <small className="text-[10px] font-semibold text-emerald-600">Paid ₹{inst.paid.toLocaleString("en-IN")}</small>}
+                        <small className="text-[10px] font-semibold text-emerald-600">
+                          Paid ₹{formatINR(inst.paid)} · <span className="text-[9px] font-normal text-amber-700">[ Remaining ₹{formatINR(Math.max(inst.amount - inst.paid, 0))} ]</span>
+                        </small>
                       </div>
                       <span
                         className={`px-3 py-1 rounded-full font-bold ${inst.status === "PAID"
@@ -775,11 +782,11 @@ export function StudentPortal({
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-3xl bg-slate-900 p-6 text-white">
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Available Pocket Money</p>
-                  <strong className="mt-2 block text-3xl">₹{record.pocketMoney.balance.toLocaleString("en-IN")}</strong>
+                  <strong className="mt-2 block text-3xl">₹{formatINR(record.pocketMoney.balance)}</strong>
                 </div>
                 <div className="rounded-3xl border border-slate-200 bg-white p-6">
                   <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Total Deposit Amount</p>
-                  <strong className="mt-2 block text-3xl text-slate-900">₹{record.pocketMoney.deposit.toLocaleString("en-IN")}</strong>
+                  <strong className="mt-2 block text-3xl text-slate-900">₹{formatINR(record.pocketMoney.deposit)}</strong>
                 </div>
               </div>
 
@@ -789,9 +796,9 @@ export function StudentPortal({
                   Money Required
                   <input
                     type="number"
-                    min="0.01"
+                    min="1"
                     max={record.pocketMoney.balance}
-                    step="0.01"
+                    step="1"
                     required
                     value={withdrawalAmount}
                     onChange={(event) => setWithdrawalAmount(event.target.value)}
@@ -824,7 +831,7 @@ export function StudentPortal({
                 ) : record.pocketMoney.withdrawals.map((withdrawal) => (
                   <article key={withdrawal.id} className="space-y-2 rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <strong className="text-slate-900">Requested ₹{withdrawal.requestedAmount.toLocaleString("en-IN")}</strong>
+                      <strong className="text-slate-900">Requested ₹{formatINR(withdrawal.requestedAmount)}</strong>
                       <span className={`rounded-full px-2.5 py-1 font-bold ${withdrawal.status === "APPROVED" ? "bg-emerald-100 text-emerald-700" : withdrawal.status === "REJECTED" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>{withdrawal.status}</span>
                     </div>
                     <p className="text-slate-600">{withdrawal.remark}</p>
@@ -832,7 +839,7 @@ export function StudentPortal({
                     {withdrawal.status === "APPROVED" && (
                       <div className="space-y-1 border-t border-slate-200 pt-2 text-slate-700">
                         <p><strong>Receipt:</strong> {withdrawal.receiptNumber}</p>
-                        <p><strong>Approved amount:</strong> ₹{(withdrawal.approvedAmount ?? 0).toLocaleString("en-IN")}</p>
+                        <p><strong>Approved amount:</strong> ₹{formatINR(withdrawal.approvedAmount ?? 0)}</p>
                         <p><strong>Approved:</strong> {withdrawal.approvedAt ? new Date(withdrawal.approvedAt).toLocaleString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}</p>
                         <p><strong>Transaction:</strong> {withdrawal.transactionNumber}</p>
                       </div>
@@ -901,7 +908,7 @@ export function StudentPortal({
             <p className="text-xs text-slate-500">
               Outstanding Balance:{" "}
               <strong className="text-slate-900">
-                ₹{record.fee.pending.toLocaleString("en-IN")}
+                ₹{formatINR(record.fee.pending)}
               </strong>
             </p>
 
@@ -912,8 +919,8 @@ export function StudentPortal({
                 </label>
                 <input
                   type="number"
-                  min="0.01"
-                  step="0.01"
+                  min="1"
+                  step="1"
                   max={record.fee.pending}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:bg-white focus:outline-none"
                   placeholder="Enter amount"

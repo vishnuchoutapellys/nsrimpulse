@@ -74,7 +74,7 @@ const studentSchema = z.object({
 });
 const studentPaymentSchema = z.object({
   studentUid: z.string().regex(studentIdPattern),
-  amount: z.number().finite().positive().multipleOf(0.01),
+  amount: z.number().int().positive(),
   mode: z.enum(['ONLINE', 'UPI', 'CASH', 'BANK_TRANSFER', 'CHEQUE', 'OTHER']),
   idempotencyKey: z.string().uuid()
 });
@@ -123,6 +123,7 @@ app.get('/api/v1/students/:studentUid/portal', authenticateStudent(jwtAccessSecr
           include: {
             discounts: { include: { discount: true } },
             installments: {
+              orderBy: { dueDate: 'asc' },
               include: {
                 allocations: {
                   include: { payment: true }
@@ -186,7 +187,7 @@ app.post('/api/v1/students/:studentUid/pocket-money/withdrawals', authenticateSt
   const studentUid = req.params.studentUid.toUpperCase();
   if (!studentCanAccessRecord(req.student, studentUid)) return forbiddenStudent(res);
   const parsed = z.object({
-    amount: z.number().finite().positive().multipleOf(0.01),
+    amount: z.number().int().positive(),
     remark: z.string().trim().min(2).max(500)
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Enter a valid withdrawal amount and remark', details: parsed.error.issues } });
@@ -208,7 +209,7 @@ app.post('/api/v1/students/:studentUid/pocket-money/withdrawals', authenticateSt
       });
       const available = Number(student.pocketMoneyBalance) - Number(pending._sum.requestedAmount ?? 0);
       if (parsed.data.amount > available) {
-        return { ok: false as const, status: 409, code: 'INSUFFICIENT_POCKET_MONEY', message: `Withdrawal cannot exceed the available balance of ₹${Math.max(available, 0).toLocaleString('en-IN')}.` };
+        return { ok: false as const, status: 409, code: 'INSUFFICIENT_POCKET_MONEY', message: `Withdrawal cannot exceed the available balance of ₹${Math.ceil(Math.max(available, 0) - Number.EPSILON).toLocaleString('en-IN')}.` };
       }
       const withdrawal = await transaction.pocketMoneyWithdrawal.create({
         data: { studentId: student.id, requestedAmount: parsed.data.amount, remark: parsed.data.remark }
@@ -282,9 +283,9 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
         const assignment = existingPayment.student.feeAssignments[0];
         const originalAmount = Number(assignment?.originalAmount ?? 0);
         const discountTotal = assignment?.discounts.reduce((sum, discount) => sum + Number(discount.amount), 0) ?? 0;
-        const total = Math.max(0, originalAmount - discountTotal);
+        const total = Math.max(0, Math.ceil(originalAmount - discountTotal - Number.EPSILON));
         const paid = existingPayment.student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-        return { paymentId: existingPayment.id, transactionNumber: existingPayment.reference ?? '', receiptNumber: existingPayment.receipt?.receiptNumber ?? '', amount: Number(existingPayment.amount), mode: existingPayment.mode, paidAt: existingPayment.createdAt.toISOString(), outstandingAmount: Math.max(total - paid, 0) };
+        return { paymentId: existingPayment.id, transactionNumber: existingPayment.reference ?? '', receiptNumber: existingPayment.receipt?.receiptNumber ?? '', amount: Number(existingPayment.amount), mode: existingPayment.mode, paidAt: existingPayment.createdAt.toISOString(), outstandingAmount: Math.max(0, Math.ceil(total - paid - Number.EPSILON)) };
       }
       const student = await transaction.student.findUnique({
         where: { studentUid: parsed.data.studentUid },
@@ -298,9 +299,9 @@ app.post('/api/v1/payments/student', authenticateStudent(jwtAccessSecret), async
       if (!assignment) throw new PaymentRequestError('FEE_ASSIGNMENT_NOT_FOUND', 'No fee assignment exists for this student', 409);
       const originalAmount = Number(assignment.originalAmount);
       const discountTotal = assignment.discounts.reduce((sum, discount) => sum + Number(discount.amount), 0);
-      const total = Math.max(0, originalAmount - discountTotal);
+      const total = Math.max(0, Math.ceil(originalAmount - discountTotal - Number.EPSILON));
       const paid = student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-      const outstanding = Math.max(total - paid, 0);
+      const outstanding = Math.max(0, Math.ceil(total - paid - Number.EPSILON));
       if (parsed.data.amount > outstanding) throw new PaymentRequestError('AMOUNT_EXCEEDS_OUTSTANDING', `Payment cannot exceed the outstanding amount of ₹${outstanding.toLocaleString('en-IN')}`, 409);
 
       const token = randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase();
@@ -645,7 +646,7 @@ app.get('/api/v1/admin/students/pending', async (req, res) => {
 // 2. Approve student and assign fee structure
 app.post('/api/v1/admin/students/:studentUid/approve', async (req, res) => {
   const { studentUid } = req.params;
-  const parsed = z.object({ feeTotal: z.coerce.number().positive().max(100_000_000).default(100000) }).safeParse(req.body ?? {});
+  const parsed = z.object({ feeTotal: z.coerce.number().int().positive().max(100_000_000).default(100000) }).safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ success: false, message: 'Enter a valid positive fee total.' });
   const feeTotal = parsed.data.feeTotal;
   const normalizedUid = studentUid.toUpperCase();

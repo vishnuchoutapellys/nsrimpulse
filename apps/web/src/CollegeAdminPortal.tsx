@@ -17,6 +17,7 @@ import {
 import { FormEvent, InputHTMLAttributes, useEffect, useState } from "react";
 import nsrLogo from "../../assets/nsrLogo.png";
 import { apiBase } from "./api";
+import { formatINR } from "./money";
 import { getIstGreeting } from "./timeGreeting";
 
 type AdminView =
@@ -691,7 +692,7 @@ function PendingApprovals({ token }: { token: string }) {
                         onChange={(event) => setFeeSelections((current) => ({ ...current, [student.studentUid]: event.target.value }))}
                         className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2 py-2 text-xs text-white"
                       >
-                        {student.feeOptions.map((fee: any) => <option key={fee.id} value={fee.id}>{fee.academicYear} - INR {Number(fee.totalAmount).toLocaleString("en-IN")}</option>)}
+                        {student.feeOptions.map((fee: any) => <option key={fee.id} value={fee.id}>{fee.academicYear} - INR {formatINR(Number(fee.totalAmount))}</option>)}
                       </select>
                     ) : <span className="text-xs text-rose-300">Master fee not configured</span>}
                   </td>
@@ -729,9 +730,9 @@ function PendingApprovals({ token }: { token: string }) {
                 {withdrawals.filter((item) => item.status === "PENDING").map((item) => (
                   <tr key={item.id}>
                     <td className="px-4 py-3"><strong className="block text-white">{item.student.name}</strong><span className="text-xs text-slate-400">{item.student.studentUid}</span><span className="block text-xs text-slate-500">{new Date(item.requestedAt).toLocaleString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></td>
-                    <td className="px-4 py-3">₹{Number(item.requestedAmount).toLocaleString("en-IN")}</td>
+                    <td className="px-4 py-3">₹{formatINR(Number(item.requestedAmount))}</td>
                     <td className="px-4 py-3">{item.remark}</td>
-                    <td className="px-4 py-3"><input type="number" min="0.01" max={item.requestedAmount} step="0.01" value={approvedAmounts[item.id] ?? item.requestedAmount} onChange={(event) => setApprovedAmounts((current) => ({ ...current, [item.id]: event.target.value }))} className="w-32 rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-white" aria-label={`Approved amount for ${item.student.name}`} /></td>
+                    <td className="px-4 py-3"><input type="number" min="1" max={item.requestedAmount} step="1" value={approvedAmounts[item.id] ?? item.requestedAmount} onChange={(event) => setApprovedAmounts((current) => ({ ...current, [item.id]: event.target.value }))} className="w-32 rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-white" aria-label={`Approved amount for ${item.student.name}`} /></td>
                     <td className="space-x-2 px-4 py-3">
                       <button disabled={processingUid === item.id} onClick={() => void reviewWithdrawal(item.id, "approve")} className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-50">Approve & Receipt</button>
                       <button disabled={processingUid === item.id} onClick={() => void reviewWithdrawal(item.id, "reject")} className="rounded-lg bg-red-900 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Reject</button>
@@ -750,7 +751,7 @@ function PendingApprovals({ token }: { token: string }) {
                 <strong className="text-white">{item.student.name} · {item.student.studentUid}</strong>
                 <p>{item.remark}</p>
                 <p>Receipt: {item.receiptNumber}</p>
-                <p>Requested ₹{Number(item.requestedAmount).toLocaleString("en-IN")} · Approved ₹{Number(item.approvedAmount).toLocaleString("en-IN")}</p>
+                <p>Requested ₹{formatINR(Number(item.requestedAmount))} · Approved ₹{formatINR(Number(item.approvedAmount))}</p>
                 <p>Transaction: {item.transactionNumber}</p>
                 <p>Requested {new Date(item.requestedAt).toLocaleString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })} · Approved {item.approvedAt ? new Date(item.approvedAt).toLocaleString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"}</p>
               </article>
@@ -1082,7 +1083,7 @@ function FeeReports({
                       </div>
                     </td>
                     <td className="px-6 py-4 font-bold text-emerald-400">
-                      ₹{Number(row.amount).toLocaleString("en-IN")}
+                      ₹{formatINR(Number(row.amount))}
                     </td>
                     <td className="px-6 py-4 text-slate-400 text-xs">
                       {row.payment?.createdAt
@@ -1209,10 +1210,7 @@ function CertificateCenter({ token }: { token: string }) {
         },
       );
       if (result.outstandingAmount > 0) {
-        const dueAmount = result.outstandingAmount.toLocaleString("en-IN", {
-          style: "currency",
-          currency: "INR",
-        });
+        const dueAmount = `₹${formatINR(result.outstandingAmount)}`;
         setNotice(
           `Fee due alert: ${dueAmount} remains unpaid. Certificate generation is continuing.`,
         );
@@ -1273,7 +1271,7 @@ function CertificateCenter({ token }: { token: string }) {
               <div>
                 <strong>Outstanding fees</strong>
                 <span>
-                  ₹{detail.fees.pending.toLocaleString("en-IN")} remains unpaid.
+                ₹{formatINR(detail.fees.pending)} remains unpaid.
                   You may continue, but confirm dues before issuing the
                   certificate.
                 </span>
@@ -1296,7 +1294,7 @@ function CertificateCenter({ token }: { token: string }) {
                   detail.fees.pending > 0 ? "certificate-balance-due" : ""
                 }
               >
-                ₹{detail.fees.pending.toLocaleString("en-IN")}
+                ₹{formatINR(detail.fees.pending)}
               </strong>
               <small>{detail.fees.pending > 0 ? "Outstanding" : "Clear"}</small>
             </div>
@@ -1574,18 +1572,18 @@ function StudentDetails({
       <section className="portal-card fee-summary">
         <div>
           <span>Total fee</span>
-          <strong>₹{detail.fees.totalFee.toLocaleString("en-IN")}</strong>
+          <strong>₹{formatINR(detail.fees.totalFee)}</strong>
         </div>
         <div>
           <span>Paid</span>
           <strong className="green">
-            ₹{detail.fees.paid.toLocaleString("en-IN")}
+            ₹{formatINR(detail.fees.paid)}
           </strong>
         </div>
         <div>
           <span>Pending</span>
           <strong className="coral">
-            ₹{detail.fees.pending.toLocaleString("en-IN")}
+            ₹{formatINR(detail.fees.pending)}
           </strong>
         </div>
       </section>
@@ -1604,8 +1602,10 @@ function StudentDetails({
               Year {index + 1}
               <small>Due {formatDate(installment.dueDate)}</small>
             </span>
-            <strong>₹{installment.amount.toLocaleString("en-IN")}</strong>
-            <b>Paid ₹{installment.paid.toLocaleString("en-IN")}</b>
+            <strong>₹{formatINR(installment.amount)}</strong>
+            <span className="text-[10px] font-normal text-emerald-700">
+              Paid ₹{formatINR(installment.paid)} · <span className="text-[9px] font-normal text-amber-700">[ Remaining ₹{formatINR(Math.max(installment.amount - installment.paid, 0))} ]</span>
+            </span>
           </div>
         ))}
       </section>
@@ -1615,7 +1615,7 @@ function StudentDetails({
           detail.payments.map((payment) => (
             <div className="admin-record-row" key={payment.reference}>
               <span>
-                <strong>₹{payment.amount.toLocaleString("en-IN")}</strong>
+                <strong>₹{formatINR(payment.amount)}</strong>
                 <small>
                   {formatDate(payment.paidAt)} ·{" "}
                   {payment.mode.replaceAll("_", " ")}
@@ -1639,7 +1639,7 @@ function StudentDetails({
               Total concession
             </span>
             <strong className="mt-1 block text-base font-bold text-emerald-700">
-              ₹{totalDiscountAmount.toLocaleString("en-IN")}
+              ₹{formatINR(totalDiscountAmount)}
             </strong>
           </div>
         </div>
@@ -1653,7 +1653,7 @@ function StudentDetails({
                 <strong>{discount.name}</strong>
                 <small>Approved {formatDate(discount.approvedAt)}</small>
               </span>
-              <b>₹{discount.amount.toLocaleString("en-IN")}</b>
+              <b>₹{formatINR(discount.amount)}</b>
             </div>
           ))
         ) : (
@@ -1709,7 +1709,7 @@ function OfflinePaymentCard({
       return setError("Enter a positive payment amount.");
     if (numericAmount > detail.fees.pending)
       return setError(
-        `Amount cannot exceed ₹${detail.fees.pending.toLocaleString("en-IN")}.`,
+        `Amount cannot exceed ₹${formatINR(detail.fees.pending)}.`,
       );
     if (feeCollectedBy.trim().length < 2)
       return setError("Enter the fee collecting person's name.");
@@ -1760,7 +1760,7 @@ function OfflinePaymentCard({
         <div className="admin-payment-result">
           <CheckCircle2 size={28} />
           <div>
-            <strong>₹{result.amount.toLocaleString("en-IN")} recorded</strong>
+            <strong>₹{formatINR(result.amount)} recorded</strong>
             <p>
               {result.receiptNumber} · {result.transactionNumber}
             </p>
@@ -1788,9 +1788,9 @@ function OfflinePaymentCard({
             <span>Amount (₹)</span>
             <input
               type="number"
-              min="0.01"
+              min="1"
               max={detail.fees.pending}
-              step="0.01"
+              step="1"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
               required
@@ -1999,13 +1999,13 @@ function CreateStudent({
           <p>Enter the course fee and fee components. These amounts are locked after admission; only Super Admin can correct the course fee.</p>
           <label className={fieldErrors.courseFee ? "has-field-error" : undefined}>
             <span>Course Fee (₹)</span>
-            <input name="courseFee" type="number" min="0.02" step="0.01" value={courseFee} onChange={(event) => { setCourseFee(event.target.value); clearFieldError("courseFee"); }} required aria-invalid={Boolean(fieldErrors.courseFee)} />
+            <input name="courseFee" type="number" min="1" step="1" value={courseFee} onChange={(event) => { setCourseFee(event.target.value); clearFieldError("courseFee"); }} required aria-invalid={Boolean(fieldErrors.courseFee)} />
             <FieldError message={fieldErrors.courseFee} />
           </label>
-          <FormField name="bookFee" label="Book Fee (₹)" type="number" min="0" step="0.01" defaultValue="0" required error={fieldErrors.bookFee} onErrorClear={clearFieldError} />
-          <FormField name="dhobiFee" label="Dhobi Fee (₹)" type="number" min="0" step="0.01" defaultValue="0" required error={fieldErrors.dhobiFee} onErrorClear={clearFieldError} />
-          <FormField name="pocketMoney" label="Pocket Money (₹)" type="number" min="0" step="0.01" defaultValue="0" required error={fieldErrors.pocketMoney} onErrorClear={clearFieldError} />
-          <FormField name="fixedDeposit" label="Fixed Deposit (₹)" type="number" min="0" step="0.01" defaultValue="0" required error={fieldErrors.fixedDeposit} onErrorClear={clearFieldError} />
+          <FormField name="bookFee" label="Book Fee (₹)" type="number" min="0" step="1" defaultValue="0" required error={fieldErrors.bookFee} onErrorClear={clearFieldError} />
+          <FormField name="dhobiFee" label="Dhobi Fee (₹)" type="number" min="0" step="1" defaultValue="0" required error={fieldErrors.dhobiFee} onErrorClear={clearFieldError} />
+          <FormField name="pocketMoney" label="Pocket Money (₹)" type="number" min="0" step="1" defaultValue="0" required error={fieldErrors.pocketMoney} onErrorClear={clearFieldError} />
+          <FormField name="fixedDeposit" label="Fixed Deposit (₹)" type="number" min="0" step="1" defaultValue="0" required error={fieldErrors.fixedDeposit} onErrorClear={clearFieldError} />
         </fieldset>
         {error && <p className="admin-form-error">{error}</p>}
         {message && <p role="status" className="admin-form-success">{message}</p>}
@@ -2140,7 +2140,7 @@ async function downloadAdminReceipt(
   document.setFontSize(13);
   document.text("Amount paid", 27, y + 17);
   document.setFontSize(18);
-  document.text(`INR ${payment.amount.toLocaleString("en-IN")}`, 135, y + 17);
+  document.text(`INR ${formatINR(payment.amount)}`, 135, y + 17);
   document.setFont("helvetica", "normal");
   document.setFontSize(10);
   document.setTextColor(100, 115, 108);

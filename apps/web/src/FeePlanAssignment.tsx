@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { apiBase } from './api';
+import { formatINR } from './money';
 
 type Installment = { amount: string; dueDate: string };
 
@@ -73,14 +74,14 @@ export function FeePlanAssignment({ studentUid, status, academicYear, totalFee, 
       {expanded && isActive && (
         <form className="fee-plan-form" onSubmit={submit}>
           <div className="fee-plan-form-grid">
-            <label>Academic year<input value={year} onChange={(event) => setYear(event.target.value)} pattern="\d{4}-\d{4}" placeholder="2026-2028" required /></label>
-            <label>Total fee (₹)<input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label>
+          <label>Academic year<input value={year} onChange={(event) => setYear(event.target.value)} pattern="\d{4}-\d{4}" placeholder="2026-2028" required /></label>
+            <label>Total fee (₹)<input type="number" min="1" step="1" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label>
           </div>
           <div className="fee-plan-installments">
-            <div className="fee-plan-installment-heading"><strong>Installments</strong><span>₹{installmentTotal.toLocaleString('en-IN')} of ₹{(Number.isFinite(total) ? total : 0).toLocaleString('en-IN')}</span></div>
+            <div className="fee-plan-installment-heading"><strong>Installments</strong><span>₹{formatINR(installmentTotal)} of ₹{formatINR(Number.isFinite(total) ? total : 0)}</span></div>
             {installments.map((installment, index) => (
               <div className="fee-plan-installment-row" key={index}>
-                <label>Installment {index + 1} amount<input aria-label={`Installment ${index + 1} amount`} type="number" min="0.01" step="0.01" value={installment.amount} onChange={(event) => setInstallments((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, amount: event.target.value } : item))} required /></label>
+                <label>Installment {index + 1} amount<input aria-label={`Installment ${index + 1} amount`} type="number" min="1" step="1" value={installment.amount} onChange={(event) => setInstallments((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, amount: event.target.value } : item))} required /></label>
                 <label>Due date<input aria-label={`Installment ${index + 1} due date`} type="date" value={installment.dueDate} onChange={(event) => setInstallments((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, dueDate: event.target.value } : item))} required /></label>
                 {installments.length > 1 && <button type="button" className="fee-plan-remove" aria-label={`Remove installment ${index + 1}`} onClick={() => setInstallments((current) => current.filter((_, itemIndex) => itemIndex !== index))}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></svg></button>}
               </div>

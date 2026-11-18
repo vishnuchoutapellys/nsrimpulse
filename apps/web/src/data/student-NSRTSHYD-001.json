@@ -16,8 +16,9 @@
     "pending": 180000,
     "currency": "INR",
     "installments": [
-      { "label": "Year 1", "amount": 90000, "dueDate": "2026-10-15", "status": "PENDING" },
-      { "label": "Year 2", "amount": 90000, "dueDate": "2027-10-15", "status": "PENDING" }
+      { "label": "Installment 1", "amount": 60000, "dueDate": "2026-10-15", "status": "PENDING" },
+      { "label": "Installment 2", "amount": 60000, "dueDate": "2027-10-15", "status": "PENDING" },
+      { "label": "Installment 3", "amount": 60000, "dueDate": "2028-10-15", "status": "PENDING" }
     ]
   },
   "receipt": {
@@ -30,7 +31,8 @@
     "note": "Invoice generated. Receipt will be finalized after payment confirmation."
   },
   "reminders": [
-    { "id": "reminder-year-1", "title": "Year 1 fee payment due", "message": "The first annual installment of ₹90,000 is due on 15 Oct 2026.", "dueDate": "2026-10-15", "severity": "HIGH", "read": false },
-    { "id": "reminder-year-2", "title": "Year 2 fee scheduled", "message": "The second annual installment of ₹90,000 is due on 15 Oct 2027.", "dueDate": "2027-10-15", "severity": "INFO", "read": false }
+    { "id": "reminder-year-1", "title": "Installment 1 payment due", "message": "Installment 1 of ₹60,000 is due on 15 Oct 2026.", "dueDate": "2026-10-15", "severity": "HIGH", "read": false },
+    { "id": "reminder-year-2", "title": "Installment 2 scheduled", "message": "Installment 2 of ₹60,000 is due on 15 Oct 2027.", "dueDate": "2027-10-15", "severity": "INFO", "read": false },
+    { "id": "reminder-year-3", "title": "Installment 3 scheduled", "message": "Installment 3 of ₹60,000 is due on 15 Oct 2028.", "dueDate": "2028-10-15", "severity": "INFO", "read": false }
   ]
 }

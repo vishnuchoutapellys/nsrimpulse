@@ -5,6 +5,7 @@ import { NextFunction, Request, Response, Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import type { NotificationService } from './notifications.js';
+import { createThreeInstallmentSchedule, splitFeeIntoThreeInstallments } from './feeSchedule.js';
 import { studentIdPattern } from './studentAuth.js';
 
 type AdminClaims = { userId: string; adminId: string; role: 'COLLEGE_ADMIN' };
@@ -44,7 +45,7 @@ const courseSchema = z.object({
 const masterFeeSchema = z.object({
   courseId: z.string().min(1),
   academicYear: z.string().regex(/^\d{4}-\d{4}$/),
-  totalAmount: z.number().finite().min(0.02).multipleOf(0.01)
+  totalAmount: z.number().int().min(1)
 }).superRefine((data, context) => {
   const [startYear, endYear] = data.academicYear.split('-').map(Number);
   if (endYear! <= startYear!) context.addIssue({ code: z.ZodIssueCode.custom, path: ['academicYear'], message: 'Academic year range is invalid' });
@@ -74,17 +75,17 @@ export const createStudentSchema = z.object({
   academicYear: z.string().regex(/^\d{4}-\d{4}$/),
   collegeId: z.string().min(1),
   courseId: z.string().min(1),
-  courseFee: z.number().finite().min(0.02).multipleOf(0.01),
-  bookFee: z.number().finite().min(0).multipleOf(0.01).default(0),
-  dhobiFee: z.number().finite().min(0).multipleOf(0.01).default(0),
-  pocketMoney: z.number().finite().min(0).multipleOf(0.01).default(0),
-  fixedDeposit: z.number().finite().min(0).multipleOf(0.01).default(0)
+  courseFee: z.number().int().min(1),
+  bookFee: z.number().int().min(0).default(0),
+  dhobiFee: z.number().int().min(0).default(0),
+  pocketMoney: z.number().int().min(0).default(0),
+  fixedDeposit: z.number().int().min(0).default(0)
 }).superRefine((data, context) => {
   const [startYear, endYear] = data.academicYear.split('-').map(Number);
   if (startYear !== data.admissionYear || endYear! <= startYear!) context.addIssue({ code: z.ZodIssueCode.custom, path: ['academicYear'], message: 'Academic year must start with admission year' });
 });
 export const offlinePaymentSchema = z.object({
-  amount: z.number().finite().positive().multipleOf(0.01),
+  amount: z.number().int().positive(),
   mode: z.enum(['CASH', 'UPI']),
   feeCollectedBy: z.string().trim().min(2).max(120),
   referenceNumber: z.string().trim().max(100).optional(),
@@ -301,14 +302,12 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
           throw new InvalidFeeStructureError('The selected master fee does not match this student’s course and academic year.');
         }
         const amount = Number(feeStructure.totalAmount);
-        const firstInstallment = Math.round((amount / 2) * 100) / 100;
         const assignment = await transaction.feeAssignment.create({
           data: { studentId: student.id, feeStructureId: feeStructure.id, originalAmount: feeStructure.totalAmount, isCurrent: true }
         });
         await transaction.feeInstallment.createMany({
           data: [
-            { feeAssignmentId: assignment.id, amount: firstInstallment, dueDate: new Date(Date.UTC(student.admissionYear, 6, 1)) },
-            { feeAssignmentId: assignment.id, amount: amount - firstInstallment, dueDate: new Date(Date.UTC(student.admissionYear + 1, 6, 1)) }
+            ...createThreeInstallmentSchedule(amount, student.admissionYear).map((installment) => ({ feeAssignmentId: assignment.id, ...installment }))
           ]
         });
         await transaction.student.update({ where: { id: student.id }, data: { status: StudentStatus.ACTIVE } });
@@ -429,7 +428,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
           },
           organization: { state: student.college.location.state?.name ?? 'Not specified', location: student.college.location.name, college: student.college.name, branch: student.branch.name, course: student.course.name },
           fees: {
-            totalFee, paid, pending: Math.max(totalFee - discountTotal - paid, 0),
+            totalFee, paid, pending: Math.max(0, Math.ceil(totalFee - discountTotal - paid - Number.EPSILON)),
             installments: assignment?.installments.map((installment) => ({
               id: installment.id, amount: Number(installment.amount),
               paid: installment.allocations.filter((allocation) => allocation.payment.status === PaymentStatus.SUCCESS).reduce((sum, allocation) => sum + Number(allocation.amount), 0),
@@ -466,15 +465,13 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
         return res.status(400).json({ success: false, error: { code: 'INVALID_FEE_STRUCTURE', message: 'The selected master fee does not match this student’s course and academic year.' } });
       }
       const totalFee = Number(feeStructure.totalAmount);
-      const firstInstallment = Math.round((totalFee / 2) * 100) / 100;
       const assignment = await prisma.$transaction(async (transaction) => {
         const createdAssignment = await transaction.feeAssignment.create({
           data: { studentId: student.id, feeStructureId: feeStructure.id, originalAmount: feeStructure.totalAmount, isCurrent: true }
         });
         await transaction.feeInstallment.createMany({
           data: [
-            { feeAssignmentId: createdAssignment.id, amount: firstInstallment, dueDate: new Date(Date.UTC(student.admissionYear, 6, 1)) },
-            { feeAssignmentId: createdAssignment.id, amount: totalFee - firstInstallment, dueDate: new Date(Date.UTC(student.admissionYear + 1, 6, 1)) }
+            ...createThreeInstallmentSchedule(totalFee, student.admissionYear).map((installment) => ({ feeAssignmentId: createdAssignment.id, ...installment }))
           ]
         });
         await transaction.auditLog.create({
@@ -485,7 +482,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
         });
         return createdAssignment;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-      return res.status(201).json({ success: true, data: { studentUid: student.studentUid, feeAssignmentId: assignment.id, totalFee, installmentCount: 2 }, message: 'Master fee assigned to student' });
+      return res.status(201).json({ success: true, data: { studentUid: student.studentUid, feeAssignmentId: assignment.id, totalFee, installmentCount: 3 }, message: 'Master fee assigned to student' });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return res.status(409).json({ success: false, error: { code: 'CURRENT_FEE_PLAN_CONFLICT', message: 'A current fee plan already exists. Reload the student record and try again.' } });
       return next(error);
@@ -559,7 +556,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
   router.post('/pocket-money/withdrawals/:id/approve', async (req: AdminRequest, res, next) => {
     const params = z.object({ id: z.string().min(1) }).safeParse(req.params);
     const parsed = z.object({
-      approvedAmount: z.number().finite().positive().multipleOf(0.01)
+      approvedAmount: z.number().int().positive()
     }).safeParse(req.body);
     if (!params.success) return validationError(res, params.error.issues);
     if (!parsed.success) return validationError(res, parsed.error.issues);
@@ -713,7 +710,6 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
         const student = await transaction.student.create({ data: { studentUid, name: parsed.data.name, fatherName: parsed.data.fatherName, motherName: parsed.data.motherName, dateOfBirth: parsed.data.dateOfBirth ? new Date(`${parsed.data.dateOfBirth}T00:00:00.000Z`) : undefined, nationality: parsed.data.nationality, religion: parsed.data.religion, casteCommunity: parsed.data.casteCommunity, mediumOfInstruction: parsed.data.mediumOfInstruction, firstLanguage: parsed.data.firstLanguage, secondLanguage: parsed.data.secondLanguage, thirdLanguage: parsed.data.thirdLanguage, gender: parsed.data.gender, age: parsed.data.age, mobile: parsed.data.mobile, email: normalizedEmail, address: parsed.data.address, village: parsed.data.village, pin: parsed.data.pin, admissionYear: parsed.data.admissionYear, academicYear: parsed.data.academicYear, status: StudentStatus.ACTIVE, collegeId: college.id, branchId: branch.id, courseId: parsed.data.courseId } });
         const account = await transaction.studentAccount.create({ data: { studentId: student.id, email: normalizedEmail, passwordHash, mustChangePassword: true } });
         const totalFee = parsed.data.courseFee;
-        const firstInstallment = Math.round((totalFee / 2) * 100) / 100;
         const assignment = await transaction.feeAssignment.create({
           data: {
             studentId: student.id,
@@ -732,8 +728,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
         });
         await transaction.feeInstallment.createMany({
           data: [
-            { feeAssignmentId: assignment.id, amount: firstInstallment, dueDate: new Date(Date.UTC(student.admissionYear, 6, 1)) },
-            { feeAssignmentId: assignment.id, amount: totalFee - firstInstallment, dueDate: new Date(Date.UTC(student.admissionYear + 1, 6, 1)) }
+            ...createThreeInstallmentSchedule(totalFee, student.admissionYear).map((installment) => ({ feeAssignmentId: assignment.id, ...installment }))
           ]
         });
         await transaction.studentStatusHistory.create({ data: { studentId: student.id, toStatus: StudentStatus.ACTIVE, reason: 'New admission', changedBy: admin.adminId ?? admin.id } });
@@ -744,7 +739,7 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
           throw new AdminCredentialDeliveryError(getCredentialDeliveryHint(deliveryError));
         }
         await transaction.auditLog.create({ data: { userId: admin.id, action: 'STUDENT_CREATED', entity: 'Student', entityId: student.id, ipAddress: req.ip, newData: { studentUid: student.studentUid, accountId: account.id, credentialsDeliveredTo: normalizedEmail, collegeId: student.collegeId, branchId: student.branchId, courseId: student.courseId, feeStructureId: feeStructure?.id ?? null, totalFee, bookFee: parsed.data.bookFee, dhobiFee: parsed.data.dhobiFee, pocketMoney: parsed.data.pocketMoney, fixedDeposit: parsed.data.fixedDeposit } } });
-        return { studentUid: student.studentUid, name: student.name, status: student.status, totalFee, installmentCount: 2 };
+        return { studentUid: student.studentUid, name: student.name, status: student.status, totalFee, installmentCount: 3 };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15_000 });
       return res.status(201).json({ success: true, data: result, message: 'Student account created and credentials sent by email' });
     } catch (error) {
@@ -831,9 +826,9 @@ export function createAdminRouter(prisma: PrismaClient, notifications: Notificat
         if (!assignment) throw new AdminPaymentError('FEE_ASSIGNMENT_NOT_FOUND', 'No fee assignment exists for this student', 409);
         const originalFee = Number(assignment.originalAmount);
         const discountTotal = assignment.discounts.reduce((sum, discount) => sum + Number(discount.amount), 0);
-        const totalFee = Math.max(0, originalFee - discountTotal);
+        const totalFee = Math.max(0, Math.ceil(originalFee - discountTotal - Number.EPSILON));
         const paid = student.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-        const outstanding = Math.max(totalFee - paid, 0);
+        const outstanding = Math.max(0, Math.ceil(totalFee - paid - Number.EPSILON));
         if (parsed.data.amount > outstanding) throw new AdminPaymentError('AMOUNT_EXCEEDS_OUTSTANDING', `Payment cannot exceed ₹${outstanding.toLocaleString('en-IN')}`, 409);
         const token = randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase();
         const transactionNumber = parsed.data.mode === 'UPI' ? parsed.data.referenceNumber! : `NSR-CASH-${token}`;
@@ -1246,7 +1241,13 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
           course: true,
           feeAssignments: {
             where: { isCurrent: true },
-            include: { discounts: true }
+            include: {
+              discounts: true,
+              installments: {
+                orderBy: { dueDate: 'asc' },
+                include: { allocations: { where: { payment: { status: PaymentStatus.SUCCESS } }, select: { amount: true } } }
+              }
+            }
           }
         },
         orderBy: { createdAt: 'desc' },
@@ -1264,7 +1265,7 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
       mobile: z.string().regex(/^[6-9]\d{9}$/),
       academicYear: z.string().regex(/^\d{4}-\d{4}$/),
       status: z.nativeEnum(StudentStatus),
-      courseFee: z.number().finite().min(0.02).multipleOf(0.01).optional()
+      courseFee: z.number().int().min(1).optional()
     }).safeParse(req.body);
     if (!params.success) return validationError(res, params.error.issues);
     if (!parsed.success) return validationError(res, parsed.error.issues);
@@ -1297,22 +1298,34 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
           if (parsed.data.courseFee < paidTotal + discountTotal) {
             throw new InvalidCourseFeeUpdateError('Course fee cannot be less than payments already recorded plus granted discounts.');
           }
-          const baseInstallment = Math.round((parsed.data.courseFee / currentAssignment.installments.length) * 100) / 100;
-          const installmentAmounts = currentAssignment.installments.map((_, index) => Math.max(baseInstallment, paidByInstallment[index] ?? 0));
-          const allocatedInstallments = installmentAmounts.reduce((total, amount) => total + amount, 0);
-          if (allocatedInstallments > parsed.data.courseFee) {
+          const grossAmounts = splitFeeIntoThreeInstallments(parsed.data.courseFee);
+          const installmentAmounts = grossAmounts.map((amount, index) => Math.max(amount, paidByInstallment[index] ?? 0));
+          const payableTotal = Math.max(0, Math.ceil(parsed.data.courseFee - discountTotal - Number.EPSILON));
+          const firstTwoTotal = installmentAmounts[0]! + installmentAmounts[1]!;
+          if (firstTwoTotal > payableTotal) {
             throw new InvalidCourseFeeUpdateError('Course fee cannot reduce an installment below payments already allocated to it.');
           }
-          installmentAmounts[installmentAmounts.length - 1]! += parsed.data.courseFee - allocatedInstallments;
+          installmentAmounts[2] = payableTotal - firstTwoTotal;
+          if (installmentAmounts[2]! < (paidByInstallment[2] ?? 0)) {
+            throw new InvalidCourseFeeUpdateError('Course fee cannot make the final installment lower than its recorded payments and granted discounts.');
+          }
           await transaction.feeAssignment.update({
             where: { id: currentAssignment.id },
             data: { originalAmount: parsed.data.courseFee }
           });
-          for (const [index, installment] of currentAssignment.installments.entries()) {
-            await transaction.feeInstallment.update({
-              where: { id: installment.id },
-              data: { amount: installmentAmounts[index]! }
-            });
+          const schedule = currentAssignment.installments;
+          for (const [index, installment] of schedule.entries()) {
+            if (index < 3) {
+              await transaction.feeInstallment.update({ where: { id: installment.id }, data: { amount: installmentAmounts[index]! } });
+            }
+          }
+          for (let index = schedule.length; index < 3; index += 1) {
+            const studentYear = student.admissionYear;
+            await transaction.feeInstallment.create({ data: {
+              feeAssignmentId: currentAssignment.id,
+              amount: installmentAmounts[index]!,
+              dueDate: new Date(Date.UTC(studentYear + index, 6, 1))
+            } });
           }
         } else if (parsed.data.courseFee !== undefined) {
           throw new InvalidCourseFeeUpdateError('A fee assignment is not available for this student.');
@@ -1395,7 +1408,7 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
       const records = feeAssignments.map((assignment) => {
         const baseAmount = Number(assignment.originalAmount || assignment.feeStructure?.totalAmount || 0);
         const studentDiscountTotal = assignment.discounts.reduce((sum, discount) => sum + Number(discount.amount), 0);
-        const netPayable = baseAmount - studentDiscountTotal;
+        const netPayable = Math.max(0, Math.ceil(baseAmount - studentDiscountTotal - Number.EPSILON));
         totalAssignedAmount += baseAmount;
         totalDiscountsGiven += studentDiscountTotal;
         totalNetPayable += netPayable;
@@ -1436,23 +1449,36 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
     if (parsed.data.type === 'PERCENTAGE' && parsed.data.value > 100) {
       return res.status(400).json({ success: false, error: { code: 'INVALID_DISCOUNT', message: 'Percentage discounts cannot exceed 100%.' } });
     }
+    if (parsed.data.type === 'FIXED' && !Number.isInteger(parsed.data.value)) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_DISCOUNT', message: 'Fixed discounts must be whole rupees.' } });
+    }
     try {
       const result = await prisma.$transaction(async (transaction) => {
         const assignment = await transaction.feeAssignment.findUnique({
           where: { id: parsed.data.feeAssignmentId },
-          include: { discounts: { select: { amount: true } } }
+          include: {
+            discounts: { select: { amount: true } },
+            installments: {
+              orderBy: { dueDate: 'asc' },
+              include: { allocations: { where: { payment: { status: PaymentStatus.SUCCESS } }, select: { amount: true } } }
+            }
+          }
         });
         if (!assignment || !assignment.isCurrent) {
           return { ok: false as const, status: 404, message: 'The current fee assignment was not found.' };
         }
         const originalAmount = Number(assignment.originalAmount);
         const existingDiscountTotal = assignment.discounts.reduce((total, discount) => total + Number(discount.amount), 0);
-        const remainingFee = Math.max(0, originalAmount - existingDiscountTotal);
+        const remainingFee = Math.max(0, Math.floor(originalAmount - existingDiscountTotal + Number.EPSILON));
         const amount = parsed.data.type === 'PERCENTAGE'
-          ? Math.round(((originalAmount * parsed.data.value) / 100 + Number.EPSILON) * 100) / 100
-          : Math.round((parsed.data.value + Number.EPSILON) * 100) / 100;
-        if (amount <= 0 || amount > remainingFee) {
-          return { ok: false as const, status: 400, message: 'The discount must be greater than zero and cannot exceed the remaining fee.' };
+          ? Math.ceil((originalAmount * parsed.data.value) / 100 - Number.EPSILON)
+          : parsed.data.value;
+        const lastInstallment = assignment.installments.at(-1);
+        if (!lastInstallment) return { ok: false as const, status: 409, message: 'The fee assignment has no installment schedule.' };
+        const paidOnLastInstallment = lastInstallment.allocations.reduce((total, allocation) => total + Number(allocation.amount), 0);
+        const lastInstallmentDiscountCapacity = Math.max(0, Math.floor(Number(lastInstallment.amount) - paidOnLastInstallment + Number.EPSILON));
+        if (amount <= 0 || amount > remainingFee || amount > lastInstallmentDiscountCapacity) {
+          return { ok: false as const, status: 400, message: `The discount must be greater than zero, cannot exceed the remaining fee, and cannot exceed the unpaid final installment (₹${lastInstallmentDiscountCapacity.toLocaleString('en-IN')}).` };
         }
         const discount = await transaction.discount.create({
           data: { name: parsed.data.name, type: parsed.data.type, value: parsed.data.value, reason: parsed.data.reason || null }
@@ -1465,6 +1491,10 @@ export function createSuperAdminRouter(prisma: PrismaClient) {
             approvedBy: parsed.data.approvedBy
           },
           include: { discount: true }
+        });
+        await transaction.feeInstallment.update({
+          where: { id: lastInstallment.id },
+          data: { amount: Number(lastInstallment.amount) - amount }
         });
         await transaction.auditLog.create({
           data: {

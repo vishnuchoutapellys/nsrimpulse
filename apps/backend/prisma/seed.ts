@@ -39,13 +39,21 @@ async function main() {
   await prisma.passwordResetChallenge.deleteMany({ where: { accountId: account.id } });
   const assignment = await prisma.feeAssignment.upsert({ where: { id: `demo-fee-${student.id}` }, update: { originalAmount: '180000', feeStructureId: feeStructure.id }, create: { id: `demo-fee-${student.id}`, studentId: student.id, feeStructureId: feeStructure.id, originalAmount: '180000' } });
   const existingInstallments = await prisma.feeInstallment.findMany({ where: { feeAssignmentId: assignment.id }, orderBy: { dueDate: 'asc' } });
-  const installmentData = [{ dueDate: new Date('2026-10-15T00:00:00+05:30'), amount: '90000' }, { dueDate: new Date('2027-10-15T00:00:00+05:30'), amount: '90000' }];
+  const seedDiscounts = await prisma.studentDiscount.findMany({ where: { feeAssignmentId: assignment.id }, select: { amount: true } });
+  const seedDiscountTotal = seedDiscounts.reduce((total, discount) => total + Number(discount.amount), 0);
+  const seedNetPayable = Math.max(0, Math.ceil(180000 - seedDiscountTotal));
+  const seedFirstInstallment = seedDiscountTotal <= 60000 ? 60000 : Math.ceil(seedNetPayable / 3);
+  const installmentData = [
+    { dueDate: new Date('2026-10-15T00:00:00+05:30'), amount: String(seedFirstInstallment) },
+    { dueDate: new Date('2027-10-15T00:00:00+05:30'), amount: String(seedFirstInstallment) },
+    { dueDate: new Date('2028-10-15T00:00:00+05:30'), amount: String(seedNetPayable - 2 * seedFirstInstallment) }
+  ];
   for (const [index, data] of installmentData.entries()) {
     const existing = existingInstallments[index];
     if (existing) await prisma.feeInstallment.update({ where: { id: existing.id }, data });
     else await prisma.feeInstallment.create({ data: { feeAssignmentId: assignment.id, ...data } });
   }
-  console.log(`Seeded student ${student.studentUid} with a 180000 INR fee assignment and two installments.`);
+  console.log(`Seeded student ${student.studentUid} with a 180000 INR fee assignment and three installments.`);
   // --- 1. SEED SUPER ADMIN ---
   const superAdminId = 'SUPERADMIN-001';
   const superAdminEmail = 'superadmin@nsrimpulse.com';

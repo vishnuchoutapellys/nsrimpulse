@@ -21,6 +21,7 @@ import {
 import { FormEvent, useEffect, useState } from "react";
 import nsrLogo from "../../assets/nsrLogo.png";
 import { apiBase } from "./api";
+import { formatINR } from "./money";
 import { SuperAdminOverview as SuperAdminAnalyticsOverview } from "./SuperAdminOverview";
 
 type SuperAdminView = "dashboard" | "admins" | "search" | "reports" | "fees";
@@ -870,8 +871,8 @@ function GlobalStudentSearch({ token, context }: { token: string; context: Super
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Course Fee (₹)</label>
                 <input
                   type="number"
-                  min="0.02"
-                  step="0.01"
+                  min="1"
+                  step="1"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:bg-white"
                   value={editingStudent.courseFee ?? ""}
                   onChange={event => setEditingStudent({ ...editingStudent, courseFee: event.target.value })}
@@ -987,15 +988,15 @@ function SystemFeeReports({ token, context }: { token: string; context: SuperAdm
             </div>
             <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-1">
               <span className="text-[10px] font-bold text-slate-400 uppercase">Total Fee Value</span>
-              <strong className="text-2xl font-bold text-slate-900 block">₹{reportData.summary.totalAssignedAmount.toLocaleString()}</strong>
+              <strong className="text-2xl font-bold text-slate-900 block">₹{formatINR(reportData.summary.totalAssignedAmount)}</strong>
             </div>
             <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-1">
               <span className="text-[10px] font-bold text-slate-400 uppercase">Total Waivers / Discounts</span>
-              <strong className="text-2xl font-bold text-amber-600 block">₹{reportData.summary.totalDiscountsGiven.toLocaleString()}</strong>
+              <strong className="text-2xl font-bold text-amber-600 block">₹{formatINR(reportData.summary.totalDiscountsGiven)}</strong>
             </div>
             <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-1">
               <span className="text-[10px] font-bold text-slate-400 uppercase">Net Receivable</span>
-              <strong className="text-2xl font-bold text-emerald-600 block">₹{reportData.summary.totalNetPayable.toLocaleString()}</strong>
+              <strong className="text-2xl font-bold text-emerald-600 block">₹{formatINR(reportData.summary.totalNetPayable)}</strong>
             </div>
           </div>
 
@@ -1031,9 +1032,9 @@ function SystemFeeReports({ token, context }: { token: string; context: SuperAdm
                         <div>{rec.courseName}</div>
                         <div className="text-[10px] font-mono text-slate-400">{rec.academicYear}</div>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono">₹{rec.baseAmount.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right font-mono text-amber-600">-₹{rec.studentDiscountTotal.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">₹{rec.netPayable.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right font-mono">₹{formatINR(rec.baseAmount)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-amber-600">-₹{formatINR(rec.studentDiscountTotal)}</td>
+                      <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">₹{formatINR(rec.netPayable)}</td>
                     </tr>
                   ))}
                   {reportData.records.length === 0 && (
@@ -1075,6 +1076,13 @@ function StudentFeeGovernance({ token, context, onRefresh }: { token: string; co
   ) ?? 0;
   const remainingFeeForDiscount = selectedFeeAssignment
     ? Math.max(0, Number(selectedFeeAssignment.originalAmount) - assignedDiscountTotal)
+    : 0;
+  const finalInstallment = selectedFeeAssignment?.installments?.at(-1);
+  const paidOnFinalInstallment = finalInstallment?.allocations?.reduce(
+    (total: number, allocation: any) => total + Number(allocation.amount), 0
+  ) ?? 0;
+  const finalInstallmentDiscountCapacity = finalInstallment
+    ? Math.max(0, Math.floor(Math.min(remainingFeeForDiscount, Number(finalInstallment.amount) - paidOnFinalInstallment) + Number.EPSILON))
     : 0;
 
   async function createCourse(event: FormEvent) {
@@ -1142,10 +1150,10 @@ function StudentFeeGovernance({ token, context, onRefresh }: { token: string; co
       return;
     }
     const requestedAmount = discountData.type === "PERCENTAGE"
-      ? Math.round(Number(selectedFeeAssignment.originalAmount) * enteredValue) / 100
+      ? Math.ceil((Number(selectedFeeAssignment.originalAmount) * enteredValue) / 100)
       : enteredValue;
-    if (requestedAmount > remainingFeeForDiscount) {
-      alert("The discount cannot exceed the remaining fee amount.");
+    if (requestedAmount > finalInstallmentDiscountCapacity) {
+      alert(`The discount cannot exceed the unpaid final installment amount of ₹${formatINR(finalInstallmentDiscountCapacity)}.`);
       return;
     }
 
@@ -1175,13 +1183,16 @@ function StudentFeeGovernance({ token, context, onRefresh }: { token: string; co
           assignment.id === selectedFeeAssignment.id
             ? {
                 ...assignment,
-                discounts: [...(assignment.discounts || []), { amount: appliedAmount }]
+                discounts: [...(assignment.discounts || []), { amount: appliedAmount }],
+                installments: (assignment.installments || []).map((installment: any, index: number, all: any[]) =>
+                  index === all.length - 1 ? { ...installment, amount: Number(installment.amount) - appliedAmount } : installment
+                )
               }
             : assignment
         )
       });
       setDiscountSuccess(
-        `₹${appliedAmount.toLocaleString("en-IN")} waiver saved for ${selectedStudent.name || "student"}.`
+        `₹${formatINR(appliedAmount)} waiver saved for ${selectedStudent.name || "student"}.`
       );
       setDiscountData({ name: "Special Concession", type: "FIXED", value: "", reason: "" });
     } catch (err: any) {
@@ -1345,12 +1356,12 @@ function StudentFeeGovernance({ token, context, onRefresh }: { token: string; co
                     ].map(([label, amount]) => (
                       <label key={label} className="space-y-1 font-semibold text-slate-600">
                         {label} (₹)
-                        <input readOnly value={Number(amount ?? 0).toLocaleString("en-IN")} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800" />
+                        <input readOnly value={formatINR(Number(amount ?? 0))} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-800" />
                       </label>
                     ))}
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Remaining fee available for discount: ₹{remainingFeeForDiscount.toLocaleString("en-IN")}
+                    Maximum discount available from the final installment: ₹{formatINR(finalInstallmentDiscountCapacity)}
                   </p>
                 </>
               ) : (
@@ -1387,9 +1398,9 @@ function StudentFeeGovernance({ token, context, onRefresh }: { token: string; co
                   <label className="text-xs font-semibold text-slate-600 block mb-1">Discount Value</label>
                   <input
                     type="number"
-                    min="0.01"
-                    max={discountData.type === "PERCENTAGE" ? 100 : remainingFeeForDiscount}
-                    step="0.01"
+                    min={discountData.type === "PERCENTAGE" ? "0.01" : "1"}
+                    max={discountData.type === "PERCENTAGE" ? Math.min(100, Number(selectedFeeAssignment?.originalAmount ?? 0) > 0 ? finalInstallmentDiscountCapacity / Number(selectedFeeAssignment.originalAmount) * 100 : 0) : finalInstallmentDiscountCapacity}
+                    step={discountData.type === "PERCENTAGE" ? "0.01" : "1"}
                     value={discountData.value}
                     onChange={(e) => setDiscountData({ ...discountData, value: e.target.value })}
                     placeholder="e.g., 10000"
